@@ -18,6 +18,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // ---------- Auth (signed cookie sessions, zero deps) ----------
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
