@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e916b8">
+<link rel="manifest" href="/manifest.json">
+<title>KidStarClub ⭐</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Anton&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pink:#ff2ec4; --magenta:#c4108f; --deep:#3d0330; --cyan:#45d8ff;
+  --black:#0d0210; --white:#fff; --yellow:#ffe14d;
+  --marker:'Permanent Marker',cursive; --block:'Anton',sans-serif; --body:'Nunito',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:var(--body);color:var(--white);min-height:100vh;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255,255,255,.14) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 80% 30%, rgba(0,0,0,.35) 0 2px, transparent 2.5px),
+    linear-gradient(160deg,#ff2ec4 0%,#c4108f 45%,#5a0645 100%);
+  background-size:22px 22px,28px 28px,cover;background-attachment:fixed;
+}
+/* halftone overlay */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(circle,rgba(13,2,16,.5) 1.2px,transparent 1.6px);
+  background-size:14px 14px;mask-image:linear-gradient(120deg,transparent 40%,black 100%);
+  -webkit-mask-image:linear-gradient(120deg,transparent 40%,black 100%);}
+header{position:sticky;top:0;z-index:50;padding:12px 14px 10px;text-align:center;
+  background:linear-gradient(180deg,rgba(13,2,16,.92),rgba(13,2,16,.78));border-bottom:3px solid var(--pink)}
+.logo{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:3px;text-decoration:none}
+.logo span{font-family:var(--block);font-size:22px;line-height:1;padding:4px 6px;transform:rotate(-2deg)}
+.logo span:nth-child(odd){background:var(--black);color:var(--white);transform:rotate(2deg)}
+.logo span:nth-child(even){background:var(--white);color:var(--black)}
+.logo span.star{background:var(--pink);color:var(--black)}
+.logo span.cy{background:var(--cyan);color:var(--black)}
+.tag{font-family:var(--marker);color:var(--cyan);font-size:13px;margin-top:4px;letter-spacing:.04em}
+nav{display:flex;justify-content:center;gap:16px;margin-top:8px}
+nav button{background:none;border:none;color:var(--white);font-family:var(--block);
+  font-size:13px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:4px 2px;
+  border-bottom:3px solid transparent;text-shadow:2px 2px 0 var(--magenta)}
+nav button.on{border-bottom-color:var(--cyan)}
+main{max-width:640px;margin:0 auto;padding:16px 14px 90px}
+.sticker{background:var(--black);border:3px solid var(--white);border-radius:14px;
+  box-shadow:6px 6px 0 rgba(13,2,16,.55), 0 0 0 3px var(--pink) inset;padding:14px;margin-bottom:16px;
+  transform:rotate(-.4deg)}
+.sticker:nth-child(even){transform:rotate(.5deg)}
+h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bottom:10px;transform:rotate(-1deg)}
+.vcard .vtitle{font-family:var(--block);font-size:19px;letter-spacing:.03em;color:var(--white)}
+.vcard .vmeta{color:var(--cyan);font-size:13px;font-weight:800;margin:2px 0 8px}
+.vcard video{width:100%;border-radius:10px;border:3px solid var(--pink);background:#000}
+.statrow{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+.chip{background:var(--magenta);border:2px solid var(--white);border-radius:999px;
+  padding:4px 12px;font-weight:800;font-size:13px}
+.chip.cy{background:#0a4c63;border-color:var(--cyan);color:var(--cyan)}
+button.big{font-family:var(--block);font-size:16px;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--pink);color:var(--black);border:3px solid var(--white);border-radius:12px;
+  padding:12px 18px;cursor:pointer;box-shadow:4px 4px 0 rgba(13,2,16,.6);width:100%}
+button.big.cy{background:var(--cyan)}
+button.big:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(13,2,16,.6)}
+input,textarea,select{width:100%;background:#1c0a1e;border:2px solid var(--pink);border-radius:10px;
+  color:var(--white);padding:12px;font-family:var(--body);font-weight:600;font-size:15px;margin-bottom:10px}
+input::placeholder,textarea::placeholder{color:#b678a8}
+.comment{border-left:4px solid var(--cyan);padding:8px 10px;margin-bottom:10px;background:rgba(255,255,255,.05);border-radius:0 10px 10px 0}
+.comment.judge{border-left-color:var(--yellow)}
+.comment .who{font-weight:800;font-size:13px;color:var(--cyan)}
+.comment.judge .who{color:var(--yellow)}
+.comment .aitag{font-size:10px;background:var(--deep);border:1px solid var(--cyan);color:var(--cyan);
+  border-radius:6px;padding:1px 6px;margin-left:6px;letter-spacing:.08em;vertical-align:middle}
+.comment .pending{font-size:11px;color:var(--yellow);font-style:italic}
+.comment .body{font-size:14px;margin-top:2px}
+.comment .reply{background:none;border:none;color:var(--pink);font-weight:800;font-size:12px;cursor:pointer;padding:2px 0}
+.reacts{display:flex;gap:8px;margin:10px 0}
+.reacts button{background:var(--black);border:2px solid var(--magenta);border-radius:999px;
+  font-size:18px;padding:6px 12px;cursor:pointer;color:var(--white)}
+.reacts button span{font-size:12px;font-weight:800;color:var(--cyan);margin-left:4px}
+.starmeter{position:relative;height:26px;background:var(--black);border:2px solid var(--white);border-radius:999px;overflow:hidden;margin:8px 0}
+.starmeter .fill{position:absolute;inset:0;width:0;background:linear-gradient(90deg,var(--pink),var(--cyan));transition:width .8s}
+.starmeter .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--block);font-size:14px;letter-spacing:.1em;text-shadow:1px 1px 0 var(--black)}
+.badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{background:var(--deep);border:2px dashed var(--yellow);border-radius:10px;padding:8px 10px;
+  font-size:12px;font-weight:800;transform:rotate(-1deg)}
+.zap{position:absolute;font-size:26px;pointer-events:none;animation:zap .9s ease-out forwards}
+@keyframes zap{0%{transform:scale(.4) rotate(-20deg);opacity:1}100%{transform:scale(1.8) translateY(-60px) rotate(15deg);opacity:0}}
+.hide{display:none}
+.center{text-align:center}
+.errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="#" onclick="go('feed');return false" id="logo"></a>
+  <div class="tag">your stage · your fans · your club ⚡</div>
+  <nav id="nav" class="hide">
+    <button data-v="feed" class="on" onclick="go('feed')">Stage</button>
+    <button data-v="upload" onclick="go('upload')">Post</button>
+    <button data-v="me" onclick="go('me')">My Star</button>
+  </nav>
+</header>
+<main>
+  <!-- LOGIN / JOIN -->
+  <section id="v-auth" class="hide">
+    <div class="sticker">
+      <h2 class="scrawl">Sign in to the club</h2>
+      <input id="au" placeholder="username" autocomplete="username">
+      <input id="ap" type="password" placeholder="password" autocomplete="current-password">
+      <button class="big" onclick="login()">Let me in! ⭐</button>
+      <div class="errmsg" id="aerr"></div>
+    </div>
+    <div class="sticker">
+      <h2 class="scrawl">Got an invite code?</h2>
+      <input id="jc" placeholder="invite code">
+      <input id="jn" placeholder="your name (what fans will see)">
+      <input id="ju" placeholder="pick a username">
+      <input id="jp" type="password" placeholder="pick a password">
+      <button class="big cy" onclick="join()">Join the club 🎤</button>
+      <div class="errmsg" id="jerr"></div>
+    </div>
+  </section>
+
+  <!-- FEED -->
+  <section id="v-feed" class="hide"></section>
+
+  <!-- SINGLE VIDEO -->
+  <section id="v-video" class="hide"></section>
+
+  <!-- UPLOAD -->
+  <section id="v-upload" class="hide">
+    <div class="sticker">
+      <h2 class="scrawl">Drop a new video 🎬</h2>
+      <input id="ut" placeholder="video title — make it POP" maxlength="120">
+      <textarea id="ud" rows="2" placeholder="tell your fans about it (optional)" maxlength="500"></textarea>
+      <input id="uf" type="file" accept="video/*" capture="user">
+      <button class="big" id="ubtn" onclick="upload()">Post it! ⚡</button>
+      <div class="errmsg" id="uerr"></div>
+    </div>
+  </section>
+
+  <!-- MY STAR -->
+  <section id="v-me" class="hide"></section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ago=d=>{const m=(Date.now()-new Date(d))/60000;
+  return m<1?'just now':m<60?Math.floor(m)+' min ago':m<1440?Math.floor(m/60)+'h ago':Math.floor(m/1440)+'d ago'};
+async function api(url,opts={}){
+  const r=await fetch(url,{headers:{'content-type':'application/json'},...opts,
+    body:opts.body&&!(opts.body instanceof Blob)?JSON.stringify(opts.body):opts.body});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||'Something went wrong.');
+  return j;
+}
+// ransom-note logo
+$('#logo').innerHTML='KID★STAR★CLUB'.split('').map((c,i)=>
+  `<span class="${c==='★'?'star':i%5===3?'cy':''}">${c==='★'?'⭐':c}</span>`).join('');
+
+let ME=null;
+function go(view){
+  document.querySelectorAll('main section').forEach(s=>s.classList.toggle('hide',s.id!=='v-'+view));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+  if(view==='feed')feed(); if(view==='me')meView();
+}
+async function boot(){
+  ME=await api('/api/me').catch(()=>null);
+  if(!ME){go('auth');return}
+  $('#nav').classList.remove('hide');
+  if(ME.role==='member')document.querySelector('[data-v=upload]').classList.add('hide');
+  go('feed');
+}
+async function login(){
+  try{ME=await api('/api/login',{method:'POST',body:{username:$('#au').value,password:$('#ap').value}});boot()}
+  catch(e){$('#aerr').textContent=e.message}
+}
+async function join(){
+  try{ME=await api('/api/join',{method:'POST',body:{code:$('#jc').value,display_name:$('#jn').value,username:$('#ju').value,password:$('#jp').value}});boot()}
+  catch(e){$('#jerr').textContent=e.message}
+}
+
+// ---- FEED ----
+async function feed(){
+  const vids=await api('/api/feed');
+  $('#v-feed').innerHTML=vids.length?vids.map(v=>`
+    <div class="sticker vcard" onclick="openVideo(${v.id})" style="cursor:pointer">
+      <div class="vtitle">${esc(v.title)}</div>
+      <div class="vmeta">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${esc(v.channel_name)} · ${ago(v.created_at)}</div>
+      <div class="statrow">
+        <span class="chip">⚡ ${v.reaction_count} cheers</span>
+        <span class="chip cy">💬 ${v.comment_count} comments</span>
+      </div>
+    </div>`).join('')
+  :'<div class="sticker center"><h2 class="scrawl">The stage is empty…</h2><p>Post your first video and the club goes WILD. ⚡</p></div>';
+}
+
+// ---- VIDEO ----
+async function openVideo(id){
+  go('video');
+  const v=await api('/api/videos/'+id);
+  const cms=await api(`/api/videos/${id}/comments`);
+  const rx=Object.fromEntries((v.reactions||[]).map(r=>[r.kind,r.n]));
+  const rbtn=(k,e)=>`<button onclick="react(${id},'${k}',event)">${e}<span>${rx[k]||0}</span></button>`;
+  $('#v-video').innerHTML=`
+    <div class="sticker vcard">
+      <div class="vtitle">${esc(v.title)}</div>
+      <div class="vmeta">${esc(v.owner_name)} · ${esc(v.channel_name)} · ${ago(v.created_at)}</div>
+      <video controls playsinline src="/api/videos/${id}/stream"></video>
+      ${v.description?`<p style="margin-top:8px">${esc(v.description)}</p>`:''}
+      <div class="reacts">${rbtn('star','⭐')}${rbtn('fire','🔥')}${rbtn('clap','👏')}${rbtn('heart','💜')}${rbtn('wow','🤩')}</div>
+    </div>
+    <div class="sticker">
+      <h2 class="scrawl">The club says…</h2>
+      <div id="cms">${cms.map(c=>commentHtml(c)).join('')||'<p>The crowd is arriving… check back soon! 🎪</p>'}</div>
+      <textarea id="cb" rows="2" placeholder="say something nice…" maxlength="500"></textarea>
+      <input type="hidden" id="cparent">
+      <div id="replyhint" class="errmsg"></div>
+      <button class="big cy" onclick="postComment(${id})">Send 💬</button>
+      <div class="errmsg" id="cerr"></div>
+    </div>`;
+}
+function commentHtml(c){
+  const isCast=!!c.cast_name;
+  const judge=c.cast_tier==='judge';
+  const name=isCast?`${esc(c.cast_emoji)} ${esc(c.cast_name)}${judge?' · '+esc(c.specialty||'judge'):''}`:`${esc(c.user_emoji||'⭐')} ${esc(c.user_name)}`;
+  return `<div class="comment ${judge?'judge':''}" ${c.parent_id?'style="margin-left:18px"':''}>
+    <span class="who">${name}</span>${isCast?'<span class="aitag">AI CAST</span>':''}
+    ${c.status==='pending'?'<div class="pending">waiting for admin approval — only you can see this</div>':''}
+    <div class="body">${esc(c.body)}</div>
+    ${isCast?`<button class="reply" onclick="setReply(${c.id},'${esc(c.cast_name).replace(/'/g,"\\'")}')">reply</button>`:''}
+  </div>`;
+}
+function setReply(id,name){$('#cparent').value=id;$('#replyhint').textContent='replying to '+name+' ↩';$('#cb').focus()}
+async function postComment(videoId){
+  try{
+    const body=$('#cb').value.trim(); if(!body)return;
+    await api(`/api/videos/${videoId}/comments`,{method:'POST',body:{body,parent_id:$('#cparent').value||null}});
+    openVideo(videoId);
+  }catch(e){$('#cerr').textContent=e.message}
+}
+async function react(videoId,kind,ev){
+  ev.stopPropagation();
+  const z=document.createElement('div');z.className='zap';z.textContent='⚡';
+  z.style.left=ev.pageX+'px';z.style.top=ev.pageY+'px';document.body.appendChild(z);
+  setTimeout(()=>z.remove(),900);
+  await api(`/api/videos/${videoId}/react`,{method:'POST',body:{kind}}).catch(()=>{});
+  openVideo(videoId);
+}
+
+// ---- UPLOAD ----
+async function upload(){
+  const f=$('#uf').files[0], t=$('#ut').value.trim();
+  if(!f||!t){$('#uerr').textContent='Need a title and a video!';return}
+  $('#ubtn').disabled=true;$('#ubtn').textContent='Uploading… 🚀';
+  try{
+    const q=new URLSearchParams({title:t,description:$('#ud').value.trim()});
+    const r=await fetch('/api/videos?'+q,{method:'POST',headers:{'content-type':f.type||'video/mp4'},body:f});
+    const j=await r.json(); if(!r.ok)throw new Error(j.error||'Upload failed.');
+    $('#ut').value='';$('#ud').value='';$('#uf').value='';
+    alert('🎉 Posted! The club is on its way — cheers and comments will roll in all day. Check back!');
+    go('feed');
+  }catch(e){$('#uerr').textContent=e.message}
+  finally{$('#ubtn').disabled=false;$('#ubtn').textContent='Post it! ⚡'}
+}
+
+// ---- MY STAR ----
+async function meView(){
+  const chans=await api('/api/channels');
+  const mine=chans.filter(c=>c.owner_name===ME.display_name);
+  if(!mine.length){$('#v-me').innerHTML='<div class="sticker center"><h2 class="scrawl">You are a VIP fan 💜</h2><p>Cheer, comment, and vote for Fan Favorite of the Week!</p></div>';return}
+  let html='';
+  for(const c of mine){
+    const badges=await api(`/api/channels/${c.id}/badges`);
+    const pct=Math.min(100,(c.star_meter%500)/5);
+    html+=`<div class="sticker">
+      <h2 class="scrawl">${esc(c.name)} ⭐</h2>
+      <div class="starmeter"><div class="fill" style="width:${pct}%"></div>
+        <div class="num">STAR METER · ${c.star_meter} ⭐</div></div>
+      <div class="statrow"><span class="chip">🎬 ${c.video_count} videos</span>
+        <span class="chip cy">Level ${Math.floor(c.star_meter/500)+1}</span></div>
+      <h2 class="scrawl" style="margin-top:14px;font-size:16px">Trophy shelf</h2>
+      <div class="badges">${badges.map(b=>`<span class="badge">${esc(b.emoji)} ${esc(b.label)}</span>`).join('')||'<span class="badge">🎬 Post your first video to earn badges!</span>'}</div>
+    </div>`;
+  }
+  $('#v-me').innerHTML=html;
+}
+
+boot();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+</script>
+</body>
+</html>

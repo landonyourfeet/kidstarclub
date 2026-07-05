@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KidStarClub — Mission Control</title>
+<style>
+:root{
+  --bg:#0a0e1a; --panel:#101626; --panel2:#141c30; --line:#1e2a45;
+  --text:#c9d6ee; --dim:#6b7a99; --cyan:#3ee0e0; --green:#4ade80; --purple:#a78bfa;
+  --red:#f87171; --amber:#fbbf24; --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+header{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font:600 15px var(--mono);color:var(--cyan);letter-spacing:.08em}
+header .sub{font:11px var(--mono);color:var(--dim);letter-spacing:.12em;text-transform:uppercase}
+nav{display:flex;gap:2px;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+nav button{background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font:12px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:12px 16px;cursor:pointer}
+nav button.on{color:var(--cyan);border-bottom-color:var(--cyan)}
+nav button .pill{background:var(--red);color:#0a0e1a;border-radius:9px;padding:0 7px;font-weight:700;margin-left:6px}
+main{padding:20px;max-width:1200px;margin:0 auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+.stat .n{font:700 26px var(--mono);color:var(--green)}
+.stat .n.warn{color:var(--amber)} .stat .n.bad{color:var(--red)}
+.stat .l{font:10px var(--mono);color:var(--dim);letter-spacing:.14em;text-transform:uppercase;margin-top:4px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:10px}
+.card .meta{font:11px var(--mono);color:var(--dim);margin-bottom:6px;display:flex;gap:10px;flex-wrap:wrap}
+.card .body{margin-bottom:10px;word-break:break-word}
+.tag{font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;border-radius:4px;padding:2px 7px}
+.tag.pending{background:#3a2e10;color:var(--amber)} .tag.flagged{background:#3a1515;color:var(--red)}
+.tag.member{background:#152a3a;color:var(--cyan)} .tag.kid{background:#1a2e1a;color:var(--green)}
+.tag.cast{background:#241a3a;color:var(--purple)} .tag.banned{background:#3a1515;color:var(--red)}
+.tag.suspended{background:#3a2e10;color:var(--amber)} .tag.active{background:#1a2e1a;color:var(--green)}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+button.act{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:6px;padding:6px 12px;font:12px var(--mono);cursor:pointer}
+button.act:hover{border-color:var(--cyan)}
+button.act.ok{color:var(--green)} button.act.warn{color:var(--amber)} button.act.bad{color:var(--red)}
+table{width:100%;border-collapse:collapse}
+th{font:10px var(--mono);color:var(--dim);letter-spacing:.14em;text-transform:uppercase;text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+input,select{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px 10px;font:13px var(--mono)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.filterbar{display:flex;gap:6px;margin-bottom:14px}
+.filterbar button{font:11px var(--mono)}
+.empty{color:var(--dim);font:13px var(--mono);padding:30px;text-align:center}
+#login{max-width:340px;margin:100px auto;display:flex;flex-direction:column;gap:10px}
+#login h2{font:600 14px var(--mono);color:var(--cyan);letter-spacing:.1em;text-transform:uppercase}
+.hide{display:none}
+code{font:12px var(--mono);color:var(--cyan)}
+@media(max-width:640px){nav{overflow-x:auto} main{padding:12px}}
+</style>
+</head>
+<body>
+
+<div id="login" class="hide">
+  <h2>⭐ Mission Control</h2>
+  <input id="lu" placeholder="username" autocomplete="username">
+  <input id="lp" type="password" placeholder="password" autocomplete="current-password">
+  <button class="act ok" onclick="doLogin()">Sign in</button>
+  <div id="lerr" style="color:var(--red);font:12px var(--mono)"></div>
+</div>
+
+<div id="app" class="hide">
+<header>
+  <h1>⭐ KIDSTARCLUB</h1><span class="sub">Mission Control</span>
+  <span style="flex:1"></span>
+  <button class="act" onclick="logout()">Sign out</button>
+</header>
+<nav>
+  <button data-tab="dash" class="on" onclick="go('dash')">Dashboard</button>
+  <button data-tab="mod" onclick="go('mod')">Moderation <span id="modPill" class="pill hide"></span></button>
+  <button data-tab="users" onclick="go('users')">Members</button>
+  <button data-tab="invites" onclick="go('invites')">Invites</button>
+  <button data-tab="cast" onclick="go('cast')">Cast</button>
+  <button data-tab="log" onclick="go('log')">Log</button>
+</nav>
+<main>
+  <section id="tab-dash"></section>
+  <section id="tab-mod" class="hide"></section>
+  <section id="tab-users" class="hide"></section>
+  <section id="tab-invites" class="hide"></section>
+  <section id="tab-cast" class="hide"></section>
+  <section id="tab-log" class="hide"></section>
+</main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ago = d => { const m = (Date.now() - new Date(d)) / 60000;
+  return m < 1 ? 'now' : m < 60 ? Math.floor(m)+'m' : m < 1440 ? Math.floor(m/60)+'h' : Math.floor(m/1440)+'d'; };
+async function api(url, opts = {}) {
+  const r = await fetch(url, { headers: {'content-type':'application/json'}, ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+// ---- auth gate ----
+async function boot() {
+  const me = await api('/api/me').catch(() => null);
+  if (me && me.role === 'admin') { $('#app').classList.remove('hide'); go('dash'); }
+  else $('#login').classList.remove('hide');
+}
+async function doLogin() {
+  try {
+    const me = await api('/api/login', { method:'POST', body:{ username:$('#lu').value, password:$('#lp').value }});
+    if (me.role !== 'admin') throw new Error('Admins only.');
+    location.reload();
+  } catch (e) { $('#lerr').textContent = e.message; }
+}
+async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
+
+function go(tab) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('hide', s.id !== 'tab-'+tab));
+  ({dash, mod, users, invites, cast, log})[tab]();
+}
+
+// ---- Dashboard ----
+async function dash() {
+  const s = await api('/api/admin/stats');
+  $('#modPill').classList.toggle('hide', !(s.pending + s.flagged));
+  $('#modPill').textContent = s.pending + s.flagged;
+  $('#tab-dash').innerHTML = `<div class="stats">
+    <div class="stat"><div class="n ${s.pending?'warn':''}">${s.pending}</div><div class="l">Pending review</div></div>
+    <div class="stat"><div class="n ${s.flagged?'bad':''}">${s.flagged}</div><div class="l">Flagged</div></div>
+    <div class="stat"><div class="n">${s.users}</div><div class="l">Members</div></div>
+    <div class="stat"><div class="n ${s.suspended?'warn':''}">${s.suspended}</div><div class="l">Suspended / banned</div></div>
+    <div class="stat"><div class="n">${s.videos}</div><div class="l">Live videos</div></div>
+    <div class="stat"><div class="n">${s.queue}</div><div class="l">Cast queue</div></div>
+  </div>
+  <div class="card"><div class="meta">QUICK ACTIONS</div>
+    <div class="btnrow">
+      <button class="act warn" onclick="go('mod')">Open moderation queue</button>
+      <button class="act" onclick="go('invites')">Create invite code</button>
+    </div></div>`;
+}
+
+// ---- Moderation ----
+let modFilter = 'review';
+async function mod() {
+  const rows = await api('/api/admin/comments?filter=' + modFilter);
+  const cards = rows.map(c => `
+    <div class="card">
+      <div class="meta">
+        ${c.cast_name ? `<span class="tag cast">AI CAST · ${esc(c.cast_name)}</span>`
+          : `<span class="tag ${esc(c.user_role)}">${esc(c.user_role)}</span> <b>${esc(c.user_name)}</b>`}
+        ${c.status !== 'visible' ? `<span class="tag ${esc(c.status)}">${esc(c.status)}</span>` : ''}
+        <span>on “${esc(c.video_title)}”</span><span>${ago(c.created_at)} ago</span>
+      </div>
+      <div class="body">${esc(c.body)}</div>
+      <div class="btnrow">
+        ${c.status !== 'visible' ? `<button class="act ok" onclick="cmt(${c.id},'approve')">Approve</button>` : ''}
+        <button class="act bad" onclick="cmt(${c.id},'remove')">Remove</button>
+        ${c.status === 'visible' ? `<button class="act warn" onclick="cmt(${c.id},'flag')">Flag</button>` : ''}
+        ${c.user_id ? `<button class="act bad" onclick="setStatus(${c.user_id},'suspended','from comment ${c.id}')">Suspend author</button>` : ''}
+      </div>
+    </div>`).join('');
+  $('#tab-mod').innerHTML = `
+    <div class="filterbar">
+      ${['review','recent','removed'].map(f =>
+        `<button class="act ${f===modFilter?'ok':''}" onclick="modFilter='${f}';mod()">${f}</button>`).join('')}
+    </div>
+    ${cards || '<div class="empty">Queue clear. All quiet on the bridge.</div>'}`;
+}
+async function cmt(id, action) {
+  const note = action === 'remove' ? (prompt('Reason (logged, optional):') || '') : undefined;
+  await api(`/api/admin/comments/${id}/${action}`, { method:'POST', body:{ note } });
+  mod(); api('/api/admin/stats').then(s => { $('#modPill').classList.toggle('hide', !(s.pending+s.flagged)); $('#modPill').textContent = s.pending+s.flagged; });
+}
+
+// ---- Members ----
+async function users() {
+  const rows = await api('/api/admin/users');
+  $('#tab-users').innerHTML = `<table><tr><th>Member</th><th>Role</th><th>Status</th><th>Comments</th><th>Joined</th><th>Actions</th></tr>
+  ${rows.map(u => `<tr>
+    <td><b>${esc(u.display_name)}</b><br><code>@${esc(u.username)}</code>
+      ${u.status_reason ? `<br><span style="color:var(--dim);font:11px var(--mono)">${esc(u.status_reason)}</span>` : ''}</td>
+    <td><span class="tag ${esc(u.role)}">${esc(u.role)}</span></td>
+    <td><span class="tag ${esc(u.status)}">${esc(u.status)}</span></td>
+    <td>${u.comment_count}${u.removed_count ? ` <span style="color:var(--red)">(${u.removed_count} removed)</span>` : ''}</td>
+    <td>${ago(u.created_at)} ago</td>
+    <td><div class="btnrow">
+      ${u.status === 'active'
+        ? `<button class="act warn" onclick="setStatus(${u.id},'suspended')">Suspend</button>
+           <button class="act bad" onclick="setStatus(${u.id},'banned')">Ban</button>`
+        : `<button class="act ok" onclick="setStatus(${u.id},'active')">Restore</button>
+           ${u.status !== 'banned' ? `<button class="act bad" onclick="setStatus(${u.id},'banned')">Ban</button>` : ''}`}
+    </div></td></tr>`).join('')}</table>
+  ${rows.length ? '' : '<div class="empty">No members yet. Create invite codes to bring the club in.</div>'}`;
+}
+async function setStatus(id, status, presetReason) {
+  const reason = presetReason ?? (status !== 'active' ? (prompt(`Reason for ${status} (logged):`) || '') : '');
+  if (status === 'banned' && !confirm('Ban removes all of their comments and locks them out. Continue?')) return;
+  await api(`/api/admin/users/${id}/status`, { method:'POST', body:{ status, reason } });
+  users(); 
+}
+
+// ---- Invites ----
+async function invites() {
+  const rows = await api('/api/admin/invites');
+  $('#tab-invites').innerHTML = `
+    <div class="row">
+      <input id="ivNote" placeholder="note — e.g. Grandma, Kai, Ms. Rivera's class">
+      <select id="ivRole"><option value="member">member (family / classmate)</option><option value="kid">kid (star — gets a channel)</option></select>
+      <input id="ivUses" type="number" min="1" value="1" style="width:70px" title="max uses">
+      <button class="act ok" onclick="mkInvite()">Create code</button>
+    </div>
+    <table><tr><th>Code</th><th>Role</th><th>Note</th><th>Uses</th><th>Status</th><th></th></tr>
+    ${rows.map(i => `<tr>
+      <td><code>${esc(i.code)}</code></td>
+      <td><span class="tag ${esc(i.role)}">${esc(i.role)}</span></td>
+      <td>${esc(i.note || '—')}</td>
+      <td>${i.uses}/${i.max_uses}</td>
+      <td>${i.revoked ? '<span class="tag banned">revoked</span>' : i.uses >= i.max_uses ? '<span class="tag suspended">used up</span>' : '<span class="tag active">live</span>'}</td>
+      <td>${!i.revoked ? `<button class="act bad" onclick="api('/api/admin/invites/${esc(i.code)}/revoke',{method:'POST'}).then(invites)">Revoke</button>` : ''}</td>
+    </tr>`).join('')}</table>`;
+}
+async function mkInvite() {
+  await api('/api/admin/invites', { method:'POST', body:{ note:$('#ivNote').value, role:$('#ivRole').value, max_uses:$('#ivUses').value }});
+  invites();
+}
+
+// ---- Cast ----
+async function cast() {
+  const rows = await api('/api/admin/cast');
+  const tiers = { judge:[], regular:[], crowd:[] };
+  rows.forEach(c => tiers[c.tier]?.push(c));
+  const block = (title, list, collapsible) => `
+    <div class="card"><div class="meta">${title} · ${list.length}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(c =>
+      `<button class="act" style="opacity:${c.active?1:.35}" title="${esc(c.specialty || c.persona)}"
+        onclick="api('/api/admin/cast/${c.id}/active',{method:'POST',body:{active:${!c.active}}}).then(cast)">
+        ${esc(c.emoji)} ${esc(c.name)}</button>`).join('')}</div></div>`;
+  $('#tab-cast').innerHTML =
+    `<div class="meta" style="color:var(--dim);font:11px var(--mono);margin-bottom:12px">Click to pause/resume a cast member. Paused members stop appearing in waves.</div>`
+    + block('JUDGES', tiers.judge) + block('REGULARS', tiers.regular) + block('CROWD', tiers.crowd);
+}
+
+// ---- Log ----
+async function log() {
+  const rows = await api('/api/admin/log');
+  $('#tab-log').innerHTML = `<table><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Note</th></tr>
+  ${rows.map(m => `<tr><td>${ago(m.created_at)} ago</td><td>${esc(m.admin_name)}</td>
+    <td><code>${esc(m.action)}</code></td><td><code>${esc(m.target)}</code></td><td>${esc(m.note || '—')}</td></tr>`).join('')}
+  </table>${rows.length ? '' : '<div class="empty">No moderation actions yet.</div>'}`;
+}
+
+boot();
+setInterval(() => api('/api/admin/stats').then(s => {
+  $('#modPill').classList.toggle('hide', !(s.pending + s.flagged));
+  $('#modPill').textContent = s.pending + s.flagged;
+}).catch(()=>{}), 60000);
+</script>
+</body>
+</html>
