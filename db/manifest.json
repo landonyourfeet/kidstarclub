@@ -1,0 +1,11 @@
+{
+  "name": "KidStarClub",
+  "short_name": "KidStarClub",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#3d0330",
+  "theme_color": "#e916b8",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
