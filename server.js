@@ -448,6 +448,123 @@ app.post('/api/videos/:id/remove', requireUser, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Sharing: watch-only public links ----------
+app.post('/api/videos/:id/share', requireUser, async (req, res) => {
+  if (!(await ownsVideo(req.user.id, req.params.id)) && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Not your video.' });
+  const token = crypto.randomBytes(9).toString('base64url');
+  const { rows: [v] } = await pool.query(
+    `UPDATE videos SET share_token=COALESCE(share_token,$2) WHERE id=$1 AND status='live' RETURNING share_token`,
+    [req.params.id, token]);
+  if (!v) return res.status(404).json({ error: 'Video not found.' });
+  res.json({ url: `https://kidstarclub.com/watch/${v.share_token}` });
+});
+app.post('/api/videos/:id/unshare', requireUser, async (req, res) => {
+  if (!(await ownsVideo(req.user.id, req.params.id)) && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Not your video.' });
+  await pool.query(`UPDATE videos SET share_token=NULL WHERE id=$1`, [req.params.id]);
+  res.json({ ok: true });
+});
+
+async function shareVideo(token) {
+  const { rows: [v] } = await pool.query(
+    `SELECT v.*, c.name AS channel_name, u.display_name AS owner_name
+     FROM videos v JOIN channels c ON c.id=v.channel_id JOIN users u ON u.id=c.owner_id
+     WHERE v.share_token=$1 AND v.status='live'`, [token]);
+  return v;
+}
+app.get('/api/share/:token/stream', async (req, res) => {
+  const v = await shareVideo(req.params.token);
+  if (!v) return res.status(404).send('Not found');
+  res.redirect(bucket.presignGet(v.bucket_key, 3600));
+});
+app.get('/api/share/:token/thumb', async (req, res) => {
+  const v = await shareVideo(req.params.token);
+  if (!v?.thumb_key) return res.status(404).send('Not found');
+  res.redirect(bucket.presignGet(v.thumb_key, 3600));
+});
+app.get('/api/share/:token/data', async (req, res) => {
+  const v = await shareVideo(req.params.token);
+  if (!v) return res.status(404).json({ error: 'Not found' });
+  const { rows: comments } = await pool.query(
+    `SELECT cm.body, cm.parent_id, cm.created_at,
+       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.role AS user_role,
+       cs.name AS cast_name, cs.emoji AS cast_emoji, cs.tier AS cast_tier, cs.specialty
+     FROM comments cm LEFT JOIN users u ON u.id=cm.user_id LEFT JOIN cast_members cs ON cs.id=cm.cast_id
+     WHERE cm.video_id=$1 AND cm.status='visible' ORDER BY cm.created_at`, [v.id]);
+  const { rows: reactions } = await pool.query(
+    `SELECT kind, count(*)::int AS n FROM reactions WHERE video_id=$1 GROUP BY kind`, [v.id]);
+  const { rows: [jury] } = await pool.query(
+    `SELECT COALESCE(AVG(score),0)::float AS avg, count(*)::int AS n FROM judge_scores WHERE video_id=$1`, [v.id]);
+  res.json({ title: v.title, description: v.description, owner: v.owner_name, channel: v.channel_name,
+    created_at: v.created_at, reactions, comments, avg_score: jury.avg, judge_count: jury.n,
+    chart_score: Math.floor(v.views * Math.max(1, jury.avg * jury.avg)) });
+});
+
+const WATCH_CSS = `
+:root{--pink:#ff2ec4;--magenta:#c4108f;--deep:#3d0330;--cyan:#45d8ff;--black:#0d0210;--yellow:#ffe14d}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Nunito,sans-serif;color:#fff;min-height:100vh;
+  background:radial-gradient(circle at 20% 10%,rgba(255,255,255,.14) 0 1.5px,transparent 2px),
+  linear-gradient(160deg,#ff2ec4,#c4108f 45%,#5a0645);background-size:22px 22px,cover}
+main{max-width:560px;margin:0 auto;padding:16px 14px 60px}
+.logo{text-align:center;font-family:Anton;letter-spacing:.06em;font-size:26px;padding:12px;text-shadow:2px 2px 0 var(--black)}
+.card{background:var(--black);border:3px solid #fff;border-radius:14px;box-shadow:6px 6px 0 rgba(13,2,16,.55),0 0 0 3px var(--pink) inset;padding:14px;margin-bottom:14px}
+video{width:100%;max-height:70vh;object-fit:contain;border-radius:10px;border:3px solid var(--pink);background:#000}
+h1{font-family:Anton;font-size:20px;letter-spacing:.03em}
+.meta{color:var(--cyan);font-weight:800;font-size:13px;margin:2px 0 8px}
+.chart{font-family:Anton;color:var(--yellow);font-size:16px;margin:6px 0}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.chip{background:var(--magenta);border:2px solid #fff;border-radius:999px;padding:4px 12px;font-weight:800;font-size:13px}
+.jbar{position:relative;height:18px;background:#14061a;border:2px solid #fff;border-radius:999px;overflow:hidden;margin:8px 0}
+.jfill{position:absolute;inset:0;background:linear-gradient(90deg,#45d8ff,#ff2ec4 55%,#ffe14d)}
+.jlabel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Anton;font-size:11px;letter-spacing:.12em}
+.cta{display:block;text-align:center;font-family:Anton;font-size:17px;letter-spacing:.06em;background:var(--cyan);
+  color:var(--black);border:3px solid #fff;border-radius:12px;padding:14px;text-decoration:none;box-shadow:4px 4px 0 rgba(13,2,16,.6)}
+.cta small{display:block;font-family:Nunito;font-weight:800;font-size:12px;letter-spacing:0}
+h2{font-family:'Permanent Marker';color:var(--yellow);font-size:18px;margin-bottom:8px}
+.cm{display:flex;gap:9px;border-left:4px solid var(--cyan);padding:7px 9px;margin-bottom:9px;background:rgba(255,255,255,.05);border-radius:0 10px 10px 0}
+.cm.judge{border-left-color:var(--yellow)}
+.cm .av{flex:0 0 32px;width:32px;height:32px;border-radius:50%;background:var(--deep);border:2px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:15px}
+.cm.judge .av{border-color:var(--yellow);background:#2e2408}
+.who{font-weight:800;font-size:12px;color:var(--cyan)}
+.cm.judge .who{color:var(--yellow)}
+.pill{font-size:9px;border-radius:5px;padding:1px 6px;margin-left:5px;font-weight:800;letter-spacing:.08em;border:1px solid;vertical-align:middle}
+.pj{background:#2e2408;border-color:#ffe14d;color:#ffe14d}
+.pc{background:#241a3a;border-color:#a78bfa;color:#a78bfa}
+.pf{background:#3d0330;border-color:#45d8ff;color:#45d8ff}
+.body{font-size:13px;margin-top:2px;word-break:break-word}`;
+
+app.get('/watch/:token', async (req, res) => {
+  const v = await shareVideo(req.params.token);
+  if (!v) return res.status(404).send('<h1 style="font-family:sans-serif;padding:40px">This link has expired. Ask your friend for a new one! ⭐</h1>');
+  const t = req.params.token;
+  const safeTitle = v.title.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${safeTitle} — KidStarClub ⭐</title>
+<meta property="og:title" content="${safeTitle} ⭐ KidStarClub">
+<meta property="og:description" content="Watch this performance on KidStarClub — the private club for stars.">
+<meta property="og:image" content="https://kidstarclub.com/api/share/${t}/thumb">
+<meta property="og:type" content="video.other">
+<link rel="icon" href="/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Anton&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>${WATCH_CSS}</style></head><body><main>
+<div class="logo">KID⭐STAR⭐CLUB</div>
+<div class="card">
+  <h1 id="ti"></h1><div class="meta" id="me"></div>
+  <div class="chart">📈 CHART SCORE <span id="cs">0</span></div>
+  <div class="jbar"><div class="jfill" id="jf" style="width:0"></div><div class="jlabel" id="jl">JUDGES VOTING…</div></div>
+  <video controls playsinline autoplay muted src="/api/share/${t}/stream"></video>
+  <div class="chips" id="rx"></div>
+</div>
+<a class="cta" href="https://kidstarclub.com/">⭐ Join the club to cheer &amp; comment!<small>Ask your friend for their club invite code 🎟️</small></a>
+<div class="card" style="margin-top:14px"><h2>The club says…</h2><div id="cm"></div></div>
+</main>
+<script src="/watch-page.js" data-token="${t}"></script>
+</body></html>`);
+});
+
 // =====================================================================
 // ADMIN CONTROL PANEL API  (UI at /admin.html)
 // =====================================================================
