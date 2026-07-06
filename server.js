@@ -102,7 +102,42 @@ app.get('/api/feed', requireUser, async (req, res) => {
   res.json(rows);
 });
 
-// ---------- Video upload (raw body -> bucket) ----------
+// ---- Direct-to-bucket upload (long videos, YouTube-style) ----
+// 1) POST /api/videos/presign {title,description,kind} -> {video_id, put_url}
+// 2) Browser PUTs the file straight to put_url (up to 5GB)
+// 3) POST /api/videos/:id/complete -> goes live, cast wave fires
+app.post('/api/videos/presign', requireUser, async (req, res) => {
+  if (!['kid', 'admin'].includes(req.user.role)) return res.status(403).json({ error: 'Only club stars can post videos.' });
+  if (!process.env.BUCKET_NAME || !process.env.AWS_ACCESS_KEY_ID)
+    return res.status(500).json({ error: 'Video storage is not configured yet. (Admin: bucket env vars missing.)' });
+  let { rows: [channel] } = await pool.query('SELECT * FROM channels WHERE owner_id=$1', [req.user.id]);
+  if (!channel && req.user.role === 'admin')
+    ({ rows: [channel] } = await pool.query(`INSERT INTO channels (owner_id,name) VALUES ($1,'Club HQ 🎪') RETURNING *`, [req.user.id]));
+  if (!channel) return res.status(400).json({ error: 'No channel found for this account.' });
+  const title = (req.body?.title || 'Untitled').toString().slice(0, 120);
+  const description = (req.body?.description || '').toString().slice(0, 500);
+  const kind = req.body?.kind === 'short' ? 'short' : 'video';
+  const key = `videos/${channel.id}/${Date.now()}-${crypto.randomBytes(4).toString('hex')}.mp4`;
+  const { rows: [video] } = await pool.query(
+    `INSERT INTO videos (channel_id,title,description,bucket_key,kind,status) VALUES ($1,$2,$3,$4,$5,'uploading') RETURNING id`,
+    [channel.id, title, description, key, kind]);
+  res.json({ video_id: video.id, put_url: bucket.presignPut(key) });
+});
+
+app.post('/api/videos/:id/complete', requireUser, async (req, res) => {
+  const { rows: [v] } = await pool.query(
+    `SELECT v.*, c.owner_id, c.id AS cid FROM videos v JOIN channels c ON c.id=v.channel_id
+     WHERE v.id=$1 AND v.status='uploading'`, [req.params.id]);
+  if (!v || (v.owner_id !== req.user.id && req.user.role !== 'admin'))
+    return res.status(404).json({ error: 'Upload not found.' });
+  await pool.query(`UPDATE videos SET status='live' WHERE id=$1`, [v.id]);
+  await castEngine.scheduleWave(pool, v.id);
+  await bumpStars(v.cid, 10);
+  await awardBadges(v.cid);
+  res.json({ ok: true, id: v.id });
+});
+
+
 app.post('/api/videos', requireUser, express.raw({ type: ['video/*'], limit: '500mb' }), async (req, res) => {
   if (!['kid', 'admin'].includes(req.user.role)) return res.status(403).json({ error: 'Only club stars can post videos.' });
   const title = (req.query.title || 'Untitled').toString().slice(0, 120);
@@ -342,6 +377,9 @@ app.post('/api/admin/cast/:id/active', requireAdmin, async (req, res) => {
   }
   const castCount = await castEngine.seedCast(pool);
   console.log(`[boot] cast roster: ${castCount} members`);
+  if (process.env.BUCKET_NAME && process.env.AWS_ACCESS_KEY_ID)
+    bucket.setCors(['*']).then(() => console.log('[boot] bucket CORS set'))
+      .catch(e => console.error('[boot] bucket CORS failed (direct uploads may not work):', e.message));
   castEngine.startWorker(pool, { onStarMeter: bumpStars });
   const port = process.env.PORT || 3000;
   app.listen(port, () => console.log(`[boot] KidStarClub live on :${port}`));
