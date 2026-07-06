@@ -432,25 +432,58 @@ nav button{position:relative}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-/* ---- THEME: Street Court 🏀 (blue asphalt + graffiti orange) ---- */
+/* ---- THEME: Street Court 🏀 (blue asphalt + graffiti punk) ---- */
 body.theme-court{
   --pink:#ff8c1a; --magenta:#1a63c4; --deep:#0a1c33; --yellow:#ffe14d; --cyan:#45d8ff;
   background:
-    radial-gradient(circle at 50% 130%, transparent 34%, rgba(255,255,255,.10) 34.4% 34.9%, transparent 35.3%),
-    radial-gradient(circle at 50% 130%, transparent 22%, rgba(255,140,26,.16) 22.4% 22.9%, transparent 23.3%),
+    /* graffiti doodles: basketball, bolt, star, crown — sprayed on the asphalt */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='%23ff8c1a' stroke-width='4' opacity='.16' transform='rotate(-12 60 60)'%3E%3Ccircle cx='60' cy='60' r='26'/%3E%3Cpath d='M34 60h52M60 34c-12 16-12 36 0 52M60 34c12 16 12 36 0 52'/%3E%3C/g%3E%3Cpath d='M212 30l-16 34h18l-24 40 8-28h-16l14-46z' stroke='%23ffe14d' stroke-width='4' opacity='.18' transform='rotate(8 200 60)'/%3E%3Cpath d='M80 200l7 14 16 2-11 11 3 16-15-8-14 8 3-16-12-11 16-2z' stroke='%23fff' stroke-width='4' opacity='.14' transform='rotate(-9 80 220)'/%3E%3Cpath d='M200 232l10-18 12 12 12-16 12 16 12-12 10 18z M198 236h72' stroke='%2345d8ff' stroke-width='4' opacity='.16' transform='rotate(6 230 230)'/%3E%3Cpath d='M140 120q14-16 28 0q14 16 28 0' stroke='%23ff5fb0' stroke-width='4' opacity='.13' transform='rotate(-6 160 120)'/%3E%3C/g%3E%3C/svg%3E"),
+    /* spray-paint splats */
+    radial-gradient(ellipse 60px 46px at 12% 26%, rgba(255,140,26,.20), rgba(255,140,26,.06) 55%, transparent 70%),
+    radial-gradient(ellipse 44px 60px at 88% 14%, rgba(69,216,255,.16), transparent 65%),
+    radial-gradient(ellipse 70px 40px at 78% 66%, rgba(255,225,77,.12), transparent 70%),
+    radial-gradient(ellipse 40px 40px at 8% 78%, rgba(255,95,176,.12), transparent 70%),
+    /* court paint */
+    radial-gradient(circle at 50% 130%, transparent 34%, rgba(255,255,255,.12) 34.4% 34.9%, transparent 35.3%),
+    radial-gradient(circle at 50% 130%, transparent 22%, rgba(255,140,26,.18) 22.4% 22.9%, transparent 23.3%),
+    /* asphalt speckle */
     radial-gradient(circle at 20% 10%, rgba(255,255,255,.10) 0 1.5px, transparent 2px),
     radial-gradient(circle at 80% 30%, rgba(0,0,0,.4) 0 2px, transparent 2.5px),
     linear-gradient(160deg,#2e9dff 0%,#1257a8 45%,#071c38 100%);
-  background-size:100% 100%,100% 100%,22px 22px,28px 28px,cover;
+  background-size:300px 300px,100% 100%,100% 100%,100% 100%,100% 100%,100% 100%,100% 100%,22px 22px,28px 28px,cover;
 }
-body.theme-court::before{opacity:.35}
-body.theme-court header{border-bottom-color:#ff8c1a}
+/* chain-link fence over the whole court */
+body.theme-court::before{opacity:1;background:
+  repeating-linear-gradient(55deg,transparent 0 11px,rgba(255,255,255,.05) 11px 12.5px),
+  repeating-linear-gradient(-55deg,transparent 0 11px,rgba(255,255,255,.05) 11px 12.5px)}
+/* paint-drip under the header */
+body.theme-court header{border-bottom-color:#ff8c1a;position:relative}
+body.theme-court header::after{content:'';position:absolute;left:0;right:0;bottom:-14px;height:14px;
+  background:radial-gradient(circle at 12% 0, #ff8c1a 0 4px, transparent 5px),
+    radial-gradient(circle at 30% 0, #ff8c1a 0 7px, transparent 8px),
+    radial-gradient(circle at 47% 0, #ff8c1a 0 3px, transparent 4px),
+    radial-gradient(circle at 66% 0, #ff8c1a 0 6px, transparent 7px),
+    radial-gradient(circle at 85% 0, #ff8c1a 0 4px, transparent 5px);
+  background-repeat:no-repeat;pointer-events:none}
 body.theme-court .logo span.star{background:#ff8c1a}
-body.theme-court .tag{color:#ffe14d}
+body.theme-court .logo span{transform:rotate(-2deg)}
+body.theme-court .logo span:nth-child(odd){transform:rotate(2.5deg)}
+body.theme-court .tag{color:#ffe14d;text-shadow:2px 2px 0 #071c38}
 body.theme-court .sticker{box-shadow:6px 6px 0 rgba(4,12,26,.6),0 0 0 3px #ff8c1a inset}
+/* sprayed bolt tag on every card (kept off gametiles — they have the sheen) */
+body.theme-court .sticker:not(.gametile){position:relative}
+body.theme-court .sticker:not(.gametile)::after{content:'';position:absolute;top:-9px;right:10px;
+  width:34px;height:34px;pointer-events:none;transform:rotate(14deg);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M27 4L14 26h9l-6 18 17-26h-10l7-14z' fill='%23ffe14d' stroke='%23071c38' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+  filter:drop-shadow(0 0 6px rgba(255,225,77,.7))}
 body.theme-court nav{border-top-color:#ff8c1a}
 body.theme-court nav button.plus{background:#ff8c1a}
 body.theme-court .jbar .jfill{background:linear-gradient(90deg,#45d8ff,#ff8c1a 55%,#ffe14d)}
+body.theme-court .scrawl{color:#ffe14d;text-shadow:2px 2px 0 #071c38, 0 0 14px rgba(255,140,26,.35)}
+body.theme-court .chip{background:#123a6e;border-color:#45d8ff}
+body.theme-court .big{box-shadow:3px 3px 0 #071c38}
+body.theme-court .thumbwrap{border-color:#ff8c1a}
+body.theme-court .vcard video{border-color:#ff8c1a}
 .themerow{display:flex;gap:8px;margin:10px 0}
 .themebtn{flex:1;border:3px solid var(--white);border-radius:12px;padding:10px;cursor:pointer;
   font:800 13px var(--body);color:#fff;opacity:.7;transition:transform .12s cubic-bezier(.34,1.8,.64,1)}
