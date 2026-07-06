@@ -48,11 +48,22 @@ header{position:sticky;top:0;z-index:50;padding:12px 14px 10px;text-align:center
 .logo span.star{background:var(--pink);color:var(--black)}
 .logo span.cy{background:var(--cyan);color:var(--black)}
 .tag{font-family:var(--marker);color:var(--cyan);font-size:13px;margin-top:4px;letter-spacing:.04em}
-nav{display:flex;justify-content:center;gap:16px;margin-top:8px}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;justify-content:space-around;
+  align-items:center;padding:8px 6px calc(10px + env(safe-area-inset-bottom));
+  background:rgba(13,2,16,.96);border-top:3px solid var(--pink)}
 nav button{background:none;border:none;color:var(--white);font-family:var(--block);
-  font-size:13px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:4px 2px;
-  border-bottom:3px solid transparent;text-shadow:2px 2px 0 var(--magenta)}
-nav button.on{border-bottom-color:var(--cyan)}
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 8px;opacity:.75}
+nav button .ni{font-size:22px;line-height:1}
+nav button.on{opacity:1;color:var(--cyan)}
+nav button.plus{width:56px;height:56px;border-radius:50%;background:var(--pink);color:var(--black);
+  border:3px solid var(--white);font-size:32px;line-height:1;font-family:var(--body);font-weight:800;
+  opacity:1;box-shadow:0 4px 0 rgba(13,2,16,.6);margin-top:-22px;padding:0;justify-content:center}
+nav button.plus:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(13,2,16,.6)}
+.sheet{position:fixed;inset:0;z-index:70;background:rgba(13,2,16,.7);display:flex;
+  align-items:flex-end;justify-content:center}
+.sheetin{width:100%;max-width:480px;background:var(--black);border:3px solid var(--pink);
+  border-bottom:none;border-radius:18px 18px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom))}
 main{max-width:640px;margin:0 auto;padding:16px 14px 90px}
 .sticker{background:var(--black);border:3px solid var(--white);border-radius:14px;
   box-shadow:6px 6px 0 rgba(13,2,16,.55), 0 0 0 3px var(--pink) inset;padding:14px;margin-bottom:16px;
@@ -130,6 +141,17 @@ input::placeholder,textarea::placeholder{color:#b678a8}
   border-radius:999px;color:var(--white);font-family:var(--block);padding:8px 16px;cursor:pointer;font-size:13px}
 .short .muter{position:absolute;top:14px;right:14px;background:rgba(13,2,16,.65);border:2px solid var(--cyan);
   border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;color:var(--white)}
+/* studio */
+.camwrap{position:relative;border-radius:12px;overflow:hidden;border:3px solid var(--pink);
+  background:#000;margin-bottom:12px;aspect-ratio:9/12}
+.camwrap video{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+.recdot{position:absolute;top:10px;left:10px;background:rgba(13,2,16,.7);color:#ff4040;
+  font:800 14px var(--body);padding:4px 12px;border-radius:999px;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.35}}
+.trackbtn{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#1c0a1e;
+  border:2px solid var(--magenta);border-radius:10px;color:var(--white);padding:12px;
+  font:800 15px var(--body);cursor:pointer;margin-bottom:8px}
+.trackbtn:active{border-color:var(--cyan)}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -140,11 +162,20 @@ input::placeholder,textarea::placeholder{color:#b678a8}
   <a class="logo" href="#" onclick="go('feed');return false" id="logo"></a>
   <div class="tag">your stage · your fans · your club ⚡</div>
   <nav id="nav" class="hide">
-    <button data-v="feed" class="on" onclick="go('feed')">Stage</button>
-    <button data-v="shorts" onclick="go('shorts')">Shorts</button>
-    <button data-v="upload" onclick="go('upload')">Post</button>
-    <button data-v="me" onclick="go('me')">My Star</button>
+    <button data-v="feed" class="on" onclick="go('feed')"><span class="ni">🏠</span>Stage</button>
+    <button data-v="shorts" onclick="go('shorts')"><span class="ni">⚡</span>Shorts</button>
+    <button id="plusBtn" class="plus" onclick="showCreate()">＋</button>
+    <button data-v="studio" onclick="go('studio')"><span class="ni">🎤</span>Studio</button>
+    <button data-v="me" onclick="go('me')"><span class="ni">⭐</span>My Star</button>
   </nav>
+  <div id="createSheet" class="sheet hide" onclick="this.classList.add('hide')">
+    <div class="sheetin" onclick="event.stopPropagation()">
+      <h2 class="scrawl">Create ⚡</h2>
+      <button class="big" onclick="$('#createSheet').classList.add('hide');go('upload');setKind('video')">🎬 Post a video</button>
+      <button class="big cy" style="margin-top:8px" onclick="$('#createSheet').classList.add('hide');go('upload');setKind('short')">⚡ Post a Short</button>
+      <button class="big" style="margin-top:8px;background:var(--yellow)" onclick="$('#createSheet').classList.add('hide');go('studio')">🎤 Studio session</button>
+    </div>
+  </div>
 </header>
 <main>
   <!-- LOGIN / JOIN -->
@@ -192,6 +223,29 @@ input::placeholder,textarea::placeholder{color:#b678a8}
     </div>
   </section>
 
+  <!-- STUDIO -->
+  <section id="v-studio" class="hide">
+    <div id="studioPick"></div>
+    <div id="studioRec" class="hide">
+      <div class="sticker">
+        <h2 class="scrawl" id="recSong">🎤 Studio</h2>
+        <div class="camwrap"><video id="cam" autoplay muted playsinline></video>
+          <div id="recDot" class="recdot hide">● REC</div></div>
+        <audio id="backing"></audio>
+        <button class="big" id="recBtn" onclick="recToggle()">🔴 Record</button>
+        <button class="big cy" style="margin-top:8px" onclick="studioBack()">← Pick a different song</button>
+      </div>
+      <div id="recReview" class="sticker hide">
+        <h2 class="scrawl">How'd it go? 🌟</h2>
+        <video id="playback" controls playsinline style="width:100%;border-radius:10px;border:3px solid var(--pink)"></video>
+        <input id="recTitle" placeholder="name your performance ⭐" maxlength="120" style="margin-top:10px">
+        <button class="big" id="recPost" onclick="postRecording()">Post as Short ⚡</button>
+        <button class="big cy" style="margin-top:8px" onclick="retake()">🔁 Retake</button>
+        <div class="errmsg" id="recErr"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- MY STAR -->
   <section id="v-me" class="hide"></section>
 </main>
@@ -218,7 +272,8 @@ function go(view){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
   if(view!=='video')stopPoll();
   if(view!=='shorts')stopShorts();
-  if(view==='feed')feed(); if(view==='me')meView(); if(view==='shorts')shorts();
+  if(view!=='studio')stopStudio();
+  if(view==='feed')feed(); if(view==='me')meView(); if(view==='shorts')shorts(); if(view==='studio')studio();
 }
 // Stage auto-refresh: new videos/counts appear without reloading.
 setInterval(()=>{if(!document.hidden&&!$('#v-feed').classList.contains('hide')&&ME)feed()},30000);
@@ -274,11 +329,13 @@ async function shortReact(id,btn,ev){
   const n=btn.nextElementSibling;n.textContent=parseInt(n.textContent)+1;
   btn.textContent='⭐';setTimeout(()=>btn.textContent='⚡',800);
 }
+function showCreate(){$('#createSheet').classList.remove('hide')}
 async function boot(){
   ME=await api('/api/me').catch(()=>null);
   if(!ME){go('auth');return}
   $('#nav').classList.remove('hide');
-  if(ME.role==='member')document.querySelector('[data-v=upload]').classList.add('hide');
+  if(ME.role==='member'){$('#plusBtn').classList.add('hide');
+    document.querySelector('[data-v=studio]').classList.add('hide')}
   go('feed');
 }
 async function login(){
@@ -485,6 +542,103 @@ async function meView(){
     </div>`;
   }
   $('#v-me').innerHTML=html;
+}
+
+// ---- STUDIO (karaoke record-over-a-song) ----
+let camStream=null,recorder=null,recChunks=[],recBlob=null,currentTrack=null;
+function stopStudio(){
+  try{recorder?.state==='recording'&&recorder.stop()}catch(e){}
+  camStream?.getTracks().forEach(t=>t.stop());camStream=null;recorder=null;
+  const b=$('#backing');if(b){b.pause();b.removeAttribute('src')}
+}
+async function studio(){
+  stopStudio();
+  $('#studioRec').classList.add('hide');
+  const tracks=await api('/api/tracks').catch(()=>[]);
+  const isAdmin=ME.role==='admin';
+  $('#studioPick').innerHTML=`<div class="sticker">
+    <h2 class="scrawl">🎤 Pick your song</h2>
+    ${tracks.map(t=>`<button class="trackbtn" onclick="pickTrack(${t.id},'${esc(t.title).replace(/'/g,"\\'")}')">🎵 <span>${esc(t.title)}</span></button>`).join('')
+      ||'<p>No songs in the library yet — ask the club admin to add some! 🎶</p>'}
+    ${isAdmin?`<h2 class="scrawl" style="margin-top:14px;font-size:16px">Add a song (admin)</h2>
+      <input id="tkTitle" placeholder="song title">
+      <input id="tkFile" type="file" accept="audio/*">
+      <button class="big cy" id="tkBtn" onclick="addTrack()">Add to library 🎶</button>
+      <div class="errmsg" id="tkErr"></div>`:''}
+  </div>`;
+}
+async function addTrack(){
+  const f=$('#tkFile').files[0],t=$('#tkTitle').value.trim();
+  if(!f||!t){$('#tkErr').textContent='Need a title and an audio file.';return}
+  $('#tkBtn').disabled=true;
+  try{
+    const p=await api('/api/tracks/presign',{method:'POST',body:{title:t}});
+    const r=await fetch(p.put_url,{method:'PUT',headers:{'content-type':f.type||'audio/mpeg'},body:f});
+    if(!r.ok)throw new Error('Audio upload failed.');
+    await api(`/api/tracks/${p.track_id}/complete`,{method:'POST'});
+    studio();
+  }catch(e){$('#tkErr').textContent=e.message}
+  finally{$('#tkBtn').disabled=false}
+}
+async function pickTrack(id,title){
+  currentTrack={id,title};
+  $('#studioPick').innerHTML='';
+  $('#studioRec').classList.remove('hide');
+  $('#recReview').classList.add('hide');
+  $('#recSong').textContent='🎤 '+title;
+  try{
+    camStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'user'},
+      audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    $('#cam').srcObject=camStream;
+  }catch(e){alert('Camera/mic permission needed for the Studio! '+e.message);studioBack();return}
+  $('#backing').src=`/api/tracks/${id}/stream`;
+}
+function studioBack(){stopStudio();studio()}
+function recToggle(){
+  if(recorder&&recorder.state==='recording'){recorder.stop();return}
+  const mime=['video/mp4','video/webm;codecs=vp9,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m))||'';
+  recChunks=[];
+  recorder=new MediaRecorder(camStream,mime?{mimeType:mime}:{});
+  recorder.ondataavailable=e=>e.data.size&&recChunks.push(e.data);
+  recorder.onstop=()=>{
+    $('#backing').pause();$('#backing').currentTime=0;
+    $('#recDot').classList.add('hide');$('#recBtn').textContent='🔴 Record';
+    recBlob=new Blob(recChunks,{type:recorder.mimeType||'video/mp4'});
+    $('#playback').src=URL.createObjectURL(recBlob);
+    $('#recTitle').value=currentTrack?`Singing "${currentTrack.title}" 🎤`:'';
+    $('#recReview').classList.remove('hide');
+    $('#recReview').scrollIntoView({behavior:'smooth'});
+  };
+  $('#backing').currentTime=0;$('#backing').play();
+  recorder.start();
+  $('#recDot').classList.remove('hide');$('#recBtn').textContent='⏹ Stop';
+}
+function retake(){$('#recReview').classList.add('hide');recBlob=null}
+async function postRecording(){
+  const t=$('#recTitle').value.trim();
+  if(!recBlob||!t){$('#recErr').textContent='Give your performance a title!';return}
+  $('#recPost').disabled=true;
+  try{
+    const p=await api('/api/videos/presign',{method:'POST',body:{title:t,description:currentTrack?`🎤 Studio session — "${currentTrack.title}"`:'',kind:'short'}});
+    await new Promise((res,rej)=>{
+      const x=new XMLHttpRequest();x.open('PUT',p.put_url);
+      x.setRequestHeader('content-type',recBlob.type||'video/mp4');
+      x.upload.onprogress=e=>{if(e.lengthComputable)$('#recPost').textContent=`Uploading… ${Math.round(e.loaded/e.total*100)}% 🚀`};
+      x.onload=()=>x.status<300?res():rej(new Error('Upload failed ('+x.status+')'));
+      x.onerror=()=>rej(new Error('Network error — try again.'));
+      x.send(recBlob);
+    });
+    try{
+      const tb=await captureThumb(recBlob);
+      if(tb&&p.thumb_put_url)await fetch(p.thumb_put_url,{method:'PUT',headers:{'content-type':'image/jpeg'},body:tb});
+    }catch(e){}
+    await api(`/api/videos/${p.video_id}/complete`,{method:'POST'});
+    stopStudio();
+    alert('⚡ Performance posted! The club is on its way!');
+    go('shorts');
+  }catch(e){$('#recErr').textContent=e.message}
+  finally{$('#recPost').disabled=false;$('#recPost').textContent='Post as Short ⚡'}
 }
 
 boot();
