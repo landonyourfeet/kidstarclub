@@ -101,6 +101,9 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   padding:4px 12px;font-weight:800;font-size:13px}
 .chip.cy{background:#0a4c63;border-color:var(--cyan);color:var(--cyan)}
 .chip.rxchip{padding:4px 9px;font-size:12px}
+/* hero banner */
+.herowrap{padding:0;overflow:hidden;border-radius:14px}
+.hero{display:block;width:100%;height:auto;border-radius:11px}
 /* live emoji rain over the player */
 .vidwrap{position:relative;overflow:visible}
 .flyemoji{position:absolute;bottom:0;font-size:28px;pointer-events:none;z-index:5;
@@ -332,7 +335,9 @@ nav button{position:relative}
     <div class="sticker" style="transform:none">
       <h2 class="scrawl">Club Chat 💬</h2>
       <div id="chatBox" class="chatbox"></div>
-      <div class="emojirow">${['🎉','🔥','⭐','😂','💜','🎤','👏','⚡'].map(e=>`<button onclick="$('#chatIn').value+='${e}'">${e}</button>`).join('')}</div>
+      <div class="emojirow">
+        <button onclick="$('#chatIn').value+='🎉'">🎉</button><button onclick="$('#chatIn').value+='🔥'">🔥</button><button onclick="$('#chatIn').value+='⭐'">⭐</button><button onclick="$('#chatIn').value+='😂'">😂</button><button onclick="$('#chatIn').value+='💜'">💜</button><button onclick="$('#chatIn').value+='🎤'">🎤</button><button onclick="$('#chatIn').value+='👏'">👏</button><button onclick="$('#chatIn').value+='⚡'">⚡</button>
+      </div>
       <div id="mentionDrop" class="mdrop hide"></div>
       <div class="chatrow">
         <label class="camlbl">📷<input id="chatImg" type="file" accept="image/*" onchange="sendChatImage()"></label>
@@ -479,7 +484,8 @@ function burst(mode='pop'){
 // ---- FEED ----
 async function feed(){
   const vids=await api('/api/feed');
-  $('#v-feed').innerHTML=vids.length?vids.map(v=>`
+  const hero=`<div class="sticker herowrap"><img class="hero" src="/hero-banner.webp" alt="KidStarClub — your stage, your fans, your club"></div>`;
+  $('#v-feed').innerHTML=hero+(vids.length?vids.map(v=>`
     <div class="sticker vcard" onclick="openVideo(${v.id})" style="cursor:pointer">
       <div class="thumbwrap">
         ${v.has_thumb
@@ -500,7 +506,7 @@ async function feed(){
       </div>
       ${jbarHtml(v.avg_score)}
     </div>`).join('')
-  :'<div class="sticker center"><h2 class="scrawl">The stage is empty…</h2><p>Post your first video and the club goes WILD. ⚡</p></div>';
+  :'<div class="sticker center"><h2 class="scrawl">The stage is empty…</h2><p>Post your first video and the club goes WILD. ⚡</p></div>');
 }
 
 // ---- VIDEO ----
