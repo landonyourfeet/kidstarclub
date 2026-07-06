@@ -345,6 +345,218 @@ function go(view){
 // Stage auto-refresh: new videos/counts appear without reloading.
 setInterval(()=>{if(!document.hidden&&!$('#v-feed').classList.contains('hide')&&ME)feed()},30000);
 
+
+function showCreate(){$('#createSheet').classList.remove('hide')}
+async function boot(){
+  ME=await api('/api/me').catch(()=>null);
+  if(!ME){go('auth');return}
+  $('#nav').classList.remove('hide');
+  go('feed');
+}
+async function login(){
+  try{ME=await api('/api/login',{method:'POST',body:{username:$('#au').value,password:$('#ap').value}});boot()}
+  catch(e){$('#aerr').textContent=e.message}
+}
+async function join(){
+  try{ME=await api('/api/join',{method:'POST',body:{code:$('#jc').value,display_name:$('#jn').value,username:$('#ju').value,password:$('#jp').value}});boot()}
+  catch(e){$('#jerr').textContent=e.message}
+}
+
+// ---- shared renderers ----
+const avHtml=(c,cls='')=>{
+  if(c.cast_name)return `<div class="av ${cls}">${esc(c.cast_emoji)}</div>`;
+  if(c.user_has_avatar)return `<div class="av ${cls}"><img src="/api/users/${c.user_id}/avatar" loading="lazy" alt=""></div>`;
+  return `<div class="av ${cls}">${esc(c.user_emoji||'⭐')}</div>`;
+};
+const shim=u=>((u.joined_code||'').toUpperCase()==='ELIORA')?'<span class="shimstar">★</span>':'';
+function pillHtml(c){
+  if(c.cast_name){
+    if(c.cast_tier==='judge')return '<span class="aitag judgep">🤖 AI JUDGE</span>';
+    if(c.cast_tier==='regular')return '<span class="aitag crewp">🤖 AI CREW</span>';
+    return '<span class="aitag fanp">🤖 AI FAN</span>';
+  }
+  if(c.user_role==='admin')return '<span class="aitag hq">🛡️ HQ</span>';
+  if(c.user_role==='kid')return '<span class="aitag star">⭐ STAR</span>';
+  const n=c.activity_n||0;
+  if(n>=150)return '<span class="aitag plat">💎 PLATINUM</span>';
+  if(n>=50)return '<span class="aitag gold">🥇 GOLD</span>';
+  if(n>=10)return '<span class="aitag silver">🥈 SILVER</span>';
+  return '<span class="aitag bronze">🥉 BRONZE</span>';
+}
+function jbarHtml(avg){
+  const a=avg||0;
+  const cls=a>=9.5?'max':a>=8.5?'hot':a>=7?'warm':'';
+  const label=a>0?`JUDGES ${a.toFixed(1)} / 10`:'JUDGES VOTING…';
+  return `<div class="jbar ${cls}"><div class="jfill" style="width:${a*10}%"></div>
+    <div class="jlabel">${label}</div></div>`;
+}
+const MILESTONES=[10,25,50,100,250,500,1000,2500,5000];
+function countUp(sel,from,to){
+  const el=$(sel);if(!el)return;
+  const steps=Math.min(20,to-from)||1,dur=700;let i=0;
+  const t=setInterval(()=>{i++;el.textContent=Math.round(from+(to-from)*(i/steps));
+    if(i>=steps){el.textContent=to;clearInterval(t)}},dur/steps);
+}
+function burst(mode='pop'){
+  const n=mode==='storm'?44:14;
+  if(mode==='storm'){
+    const flash=document.createElement('div');
+    flash.style.cssText='position:fixed;inset:0;z-index:80;pointer-events:none;background:#fff';
+    document.body.appendChild(flash);
+    flash.animate([{opacity:.9},{opacity:0}],{duration:500,easing:'ease-out'});
+    setTimeout(()=>flash.remove(),520);
+    if(navigator.vibrate)navigator.vibrate([60,40,60,40,120]);
+  }
+  for(let i=0;i<n;i++){
+    const z=document.createElement('div');z.className='zap';
+    z.textContent=mode==='storm'?'⚡':['⚡','⭐','🎉','💫'][i%4];
+    z.style.left=(5+Math.random()*90)+'vw';z.style.top=(5+Math.random()*70)+'vh';
+    z.style.position='fixed';z.style.zIndex=81;
+    z.style.fontSize=mode==='storm'?(28+Math.random()*34)+'px':'26px';
+    z.style.animationDelay=(Math.random()*(mode==='storm'?.8:.2))+'s';
+    document.body.appendChild(z);
+    setTimeout(()=>z.remove(),mode==='storm'?1800:900);
+  }
+}
+
+// ---- FEED ----
+async function feed(){
+  const vids=await api('/api/feed');
+  $('#v-feed').innerHTML=vids.length?vids.map(v=>`
+    <div class="sticker vcard" onclick="openVideo(${v.id})" style="cursor:pointer">
+      <div class="thumbwrap">
+        ${v.has_thumb
+          ?`<img src="/api/videos/${v.id}/thumb" loading="lazy" alt=""
+              onerror="this.outerHTML='<video src=\\'/api/videos/${v.id}/stream#t=1\\' preload=\\'metadata\\' muted playsinline></video>'">`
+          :`<video src="/api/videos/${v.id}/stream#t=1" preload="metadata" muted playsinline></video>`}
+        <div class="playbtn">▶</div>
+      </div>
+      <div class="vtitle">${esc(v.title)}</div>
+      <div class="vmeta">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
+      <div class="vmeta" style="color:#b678a8">${ago(v.created_at)} · ${fdate(v.created_at)}</div>
+      <div class="statrow">
+        <span class="chip" style="background:#3a2e08;border-color:var(--yellow);color:var(--yellow)">📈 ${v.chart_score||0}</span>
+        <span class="chip">⚡ ${v.reaction_count} cheers</span>
+        <span class="chip cy">💬 ${v.comment_count} comments</span>
+      </div>
+      ${jbarHtml(v.avg_score)}
+    </div>`).join('')
+  :'<div class="sticker center"><h2 class="scrawl">The stage is empty…</h2><p>Post your first video and the club goes WILD. ⚡</p></div>';
+}
+
+// ---- VIDEO ----
+let livePoll=null,liveVideoId=null,liveCount=0;
+function stopPoll(){if(livePoll){clearInterval(livePoll);livePoll=null;liveVideoId=null}}
+async function openVideo(id){
+  stopPoll();
+  go('video');
+  const v=await api('/api/videos/'+id);
+  const cms=await api(`/api/videos/${id}/comments`);
+  const rx=Object.fromEntries((v.reactions||[]).map(r=>[r.kind,r.n]));
+  const rbtn=(k,e)=>`<button onclick="react(${id},'${k}',event)">${e}<span>${rx[k]||0}</span></button>`;
+  $('#v-video').innerHTML=`
+    <div class="sticker vcard">
+      <div class="vtitle">${esc(v.title)}</div>
+      <div class="vmeta">${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
+      <div class="vmeta" style="color:#b678a8">posted ${fdate(v.created_at)}
+        <span class="chip" id="hypeChip" style="margin-left:8px">⚡ HYPE <span id="hypeN">0</span></span></div>
+      <div class="chartline">📈 CHART SCORE <span id="chartN">${v.chart_score||0}</span>
+        ${v.judge_count?`<span class="panel">panel: ${v.avg_score.toFixed(1)}/10 · ×${Math.max(1,Math.round(v.avg_score*v.avg_score))} multiplier</span>`:'<span class="panel">judges are still voting…</span>'}</div>
+      ${jbarHtml(v.avg_score)}
+      ${!v.is_own?`<button class="big ${v.i_subscribe?'cy':''}" style="margin:6px 0"
+          onclick="event.stopPropagation();toggleSub(${v.channel_id},${v.i_subscribe},${id})">
+          ${v.i_subscribe?'✓ Subscribed':'⭐ Subscribe'}</button>`:''}
+      <button class="reply" style="font-size:13px" onclick="event.stopPropagation();showFans(${v.channel_id},'${esc(v.channel_name).replace(/'/g,"\\'")}')">
+        👥 ${v.subscriber_count} fan${v.subscriber_count===1?'':'s'} subscribed — see who</button>
+      <video id="mainvid" controls playsinline src="/api/videos/${id}/stream"></video>
+      ${v.description?`<p style="margin-top:8px">${esc(v.description)}</p>`:''}
+      <div class="reacts">${rbtn('star','⭐')}${rbtn('fire','🔥')}${rbtn('clap','👏')}${rbtn('heart','💜')}${rbtn('wow','🤩')}</div>
+    </div>
+    <div class="sticker">
+      <h2 class="scrawl">The club says…</h2>
+      <div id="cms">${cms.map(c=>commentHtml(c)).join('')||'<p>The crowd is arriving… check back soon! 🎪</p>'}</div>
+      <textarea id="cb" rows="2" placeholder="say something nice…" maxlength="500"></textarea>
+      <input type="hidden" id="cparent">
+      <div id="replyhint" class="errmsg"></div>
+      <button class="big cy" onclick="postComment(${id})">Send 💬</button>
+      <div class="errmsg" id="cerr"></div>
+    </div>`;
+  const hype0=(v.reactions||[]).reduce((s,r)=>s+r.n,0)+cms.length*2;
+  $('#hypeN').textContent=hype0;
+  let viewed=false,lastHype=hype0,lastChart=v.chart_score||0;
+  // Plays are counted quietly as Chart Score fuel — no counter shown.
+  $('#mainvid').addEventListener('play',()=>{
+    if(viewed)return;viewed=true;
+    api(`/api/videos/${id}/view`,{method:'POST'}).catch(()=>{});
+  });
+  $('#mainvid').addEventListener('ended',()=>{viewed=false});
+  liveVideoId=id;liveCount=cms.length;
+  livePoll=setInterval(async()=>{
+    if(document.hidden||liveVideoId!==id)return;
+    const [fresh,vf]=await Promise.all([
+      api(`/api/videos/${id}/comments`).catch(()=>null),
+      api(`/api/videos/${id}`).catch(()=>null)]);
+    if(vf){
+      const cEl=$('#chartN');
+      if(cEl&&vf.chart_score>lastChart){
+        countUp('#chartN',lastChart,vf.chart_score);
+        for(const m of MILESTONES)if(lastChart<m&&vf.chart_score>=m)burst(m>=1000?'storm':'pop');
+        lastChart=vf.chart_score;
+      }
+      const hy=(vf.reactions||[]).reduce((s,r)=>s+r.n,0)+(fresh?fresh.length*2:lastHype);
+      if(hy>lastHype){countUp('#hypeN',lastHype,hy);lastHype=hy;
+        $('#hypeChip')?.animate([{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:400})}
+    }
+    if(fresh&&fresh.length!==liveCount){
+      liveCount=fresh.length;
+      const box=$('#cms');if(!box)return;
+      box.innerHTML=fresh.map(c=>commentHtml(c)).join('');
+      box.lastElementChild?.animate([{background:'rgba(69,216,255,.35)'},{background:'transparent'}],{duration:1200});
+    }
+  },15000);
+}
+function commentHtml(c){
+  const isCast=!!c.cast_name;
+  const judge=c.cast_tier==='judge';
+  const name=isCast?`${esc(c.cast_name)}${judge?' · '+esc(c.specialty||'judge'):''}`:esc(c.user_name);
+  return `<div class="comment ${judge?'judge':''}" ${c.parent_id?'style="margin-left:18px"':''}>
+    ${avHtml(c)}
+    <div class="cbody">
+      <span class="who">${name}</span>${isCast?'':shim(c)}${pillHtml(c)}
+      ${c.status==='pending'?'<div class="pending">waiting for admin approval — only you can see this</div>':''}
+      <div class="body">${esc(c.body)}</div>
+      ${isCast?`<button class="reply" onclick="setReply(${c.id},'${esc(c.cast_name).replace(/'/g,"\\'")}')">reply</button>`:''}
+    </div>
+  </div>`;
+}
+function setReply(id,name){$('#cparent').value=id;$('#replyhint').textContent='replying to '+name+' ↩';$('#cb').focus()}
+async function postComment(videoId){
+  try{
+    const body=$('#cb').value.trim(); if(!body)return;
+    await api(`/api/videos/${videoId}/comments`,{method:'POST',body:{body,parent_id:$('#cparent').value||null}});
+    openVideo(videoId);
+  }catch(e){$('#cerr').textContent=e.message}
+}
+async function react(videoId,kind,ev){
+  ev.stopPropagation();
+  const z=document.createElement('div');z.className='zap';z.textContent='⚡';
+  z.style.left=ev.pageX+'px';z.style.top=ev.pageY+'px';document.body.appendChild(z);
+  setTimeout(()=>z.remove(),900);
+  await api(`/api/videos/${videoId}/react`,{method:'POST',body:{kind}}).catch(()=>{});
+  openVideo(videoId);
+}
+async function toggleSub(channelId,current,videoId){
+  await api(`/api/channels/${channelId}/${current?'unsubscribe':'subscribe'}`,{method:'POST'}).catch(e=>alert(e.message));
+  openVideo(videoId);
+}
+async function showFans(channelId,name){
+  const fans=await api(`/api/channels/${channelId}/subscribers`);
+  alert(fans.length
+    ?`⭐ ${name} Fan Club ⭐\n\n`+fans.map(f=>`${f.avatar_emoji||'⭐'} ${f.display_name}${(f.joined_code||'').toUpperCase()==='ELIORA'?' 🌟':''}`).join('\n')
+    :`No subscribers yet — invite the family to hit Subscribe!`);
+}
+
+
 // ---- UPLOAD ----
 const uploadKind='video';
 // Grab a frame ~1s in (or 10% of duration) as a JPEG thumbnail.
