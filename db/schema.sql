@@ -184,3 +184,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'punk';
 
 -- v12: shareable watch-only links
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE;
+
+-- v13: arcade
+CREATE TABLE IF NOT EXISTS game_scores (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT NOT NULL REFERENCES users(id),
+  game       TEXT NOT NULL,
+  score      INT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_scores ON game_scores(game, score DESC);
