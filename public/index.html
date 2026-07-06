@@ -54,6 +54,14 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .vcard .vtitle{font-family:var(--block);font-size:19px;letter-spacing:.03em;color:var(--white)}
 .vcard .vmeta{color:var(--cyan);font-size:13px;font-weight:800;margin:2px 0 8px}
 .vcard video{width:100%;border-radius:10px;border:3px solid var(--pink);background:#000}
+.thumbwrap{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;
+  border:3px solid var(--pink);background:#000;margin-bottom:10px}
+.thumbwrap img,.thumbwrap video{width:100%;height:100%;object-fit:cover;display:block}
+.thumbwrap .playbtn{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;
+  background:rgba(13,2,16,.65);border:3px solid var(--white);display:flex;align-items:center;
+  justify-content:center;font-size:26px;color:var(--white);pointer-events:none}
+.thumbwrap .dur{position:absolute;right:8px;bottom:8px;background:rgba(13,2,16,.8);color:var(--white);
+  font:800 12px var(--body);padding:2px 8px;border-radius:6px}
 .statrow{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
 .chip{background:var(--magenta);border:2px solid var(--white);border-radius:999px;
   padding:4px 12px;font-weight:800;font-size:13px}
@@ -272,6 +280,13 @@ async function feed(){
   const vids=await api('/api/feed');
   $('#v-feed').innerHTML=vids.length?vids.map(v=>`
     <div class="sticker vcard" onclick="openVideo(${v.id})" style="cursor:pointer">
+      <div class="thumbwrap">
+        ${v.has_thumb
+          ?`<img src="/api/videos/${v.id}/thumb" loading="lazy" alt=""
+              onerror="this.outerHTML='<video src=\\'/api/videos/${v.id}/stream#t=1\\' preload=\\'metadata\\' muted playsinline></video>'">`
+          :`<video src="/api/videos/${v.id}/stream#t=1" preload="metadata" muted playsinline></video>`}
+        <div class="playbtn">▶</div>
+      </div>
       <div class="vtitle">${esc(v.title)}</div>
       <div class="vmeta">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${esc(v.channel_name)} · ${ago(v.created_at)}</div>
       <div class="statrow">
@@ -345,6 +360,26 @@ function setKind(k){
   if(k==='short'){f.setAttribute('capture','user');$('#ut').placeholder='short title — quick and catchy ⚡'}
   else{f.removeAttribute('capture');$('#ut').placeholder='video title — make it POP'}
 }
+// Grab a frame ~1s in (or 10% of duration) as a JPEG thumbnail.
+function captureThumb(file){
+  return new Promise(resolve=>{
+    const v=document.createElement('video');
+    v.preload='metadata';v.muted=true;v.playsInline=true;
+    v.src=URL.createObjectURL(file);
+    const bail=setTimeout(()=>resolve(null),8000);
+    v.onloadedmetadata=()=>{v.currentTime=Math.min(1,(v.duration||10)*0.1)};
+    v.onseeked=()=>{
+      try{
+        const c=document.createElement('canvas');
+        const w=640,h=Math.round(640*(v.videoHeight/v.videoWidth))||360;
+        c.width=w;c.height=h;
+        c.getContext('2d').drawImage(v,0,0,w,h);
+        c.toBlob(b=>{clearTimeout(bail);URL.revokeObjectURL(v.src);resolve(b)},'image/jpeg',.82);
+      }catch(e){clearTimeout(bail);resolve(null)}
+    };
+    v.onerror=()=>{clearTimeout(bail);resolve(null)};
+  });
+}
 async function upload(){
   const f=$('#uf').files[0], t=$('#ut').value.trim();
   if(!f||!t){$('#uerr').textContent='Need a title and a video!';return}
@@ -365,7 +400,13 @@ async function upload(){
       x.onerror=()=>rej(new Error('Network error during upload — try again.'));
       x.send(f);
     });
-    // 3) go live
+    // 3) thumbnail (best-effort — feed falls back to a video frame if this fails)
+    try{
+      const tb=await captureThumb(f);
+      if(tb&&p.thumb_put_url)
+        await fetch(p.thumb_put_url,{method:'PUT',headers:{'content-type':'image/jpeg'},body:tb});
+    }catch(e){}
+    // 4) go live
     await api(`/api/videos/${p.video_id}/complete`,{method:'POST'});
     $('#ut').value='';$('#ud').value='';$('#uf').value='';
     alert(uploadKind==='short'?'⚡ Short posted! The club is on its way!':'🎉 Posted! The club is on its way — cheers and comments will roll in all day. Check back!');
