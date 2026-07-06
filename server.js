@@ -91,7 +91,6 @@ app.get('/api/channels', requireUser, async (req, res) => {
 });
 
 app.get('/api/feed', requireUser, async (req, res) => {
-  const kind = req.query.kind === 'short' ? 'short' : 'video';
   const { rows } = await pool.query(
     `SELECT v.id, v.title, v.description, v.created_at, v.channel_id, v.kind, v.views,
        (v.thumb_key IS NOT NULL) AS has_thumb,
@@ -101,7 +100,7 @@ app.get('/api/feed', requireUser, async (req, res) => {
        (SELECT count(*)::int FROM reactions r WHERE r.video_id=v.id) AS reaction_count,
        (SELECT count(*)::int FROM comments cm WHERE cm.video_id=v.id AND cm.status='visible') AS comment_count
      FROM videos v JOIN channels c ON c.id=v.channel_id JOIN users u ON u.id=c.owner_id
-     WHERE v.status='live' AND v.kind=$1 ORDER BY v.created_at DESC LIMIT 50`, [kind]);
+     WHERE v.status='live' ORDER BY v.created_at DESC LIMIT 50`);
   res.json(rows);
 });
 
@@ -182,11 +181,11 @@ app.get('/api/videos/:id/thumb', requireUser, async (req, res) => {
   res.redirect(bucket.presignGet(v.thumb_key, 3600));
 });
 
-// A view = a real person pressing play. Fired by the client on playback start.
+// A view = a play event. Counting logic lives in lib/views.js (Cap's zone —
+// never overwritten by updates).
+const { countView } = require('./lib/views');
 app.post('/api/videos/:id/view', requireUser, async (req, res) => {
-  const { rows: [v] } = await pool.query(
-    `UPDATE videos SET views=views+1 WHERE id=$1 AND status='live' RETURNING views`, [req.params.id]);
-  res.json({ views: v?.views ?? 0 });
+  res.json({ views: await countView(pool, req.params.id) });
 });
 
 app.get('/api/videos/:id', requireUser, async (req, res) => {
@@ -467,8 +466,17 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     `SELECT u.id,u.role,u.display_name,u.username,u.status,u.status_reason,u.created_at,
        (SELECT count(*)::int FROM comments c WHERE c.user_id=u.id) AS comment_count,
        (SELECT count(*)::int FROM comments c WHERE c.user_id=u.id AND c.status='removed') AS removed_count
-     FROM users u WHERE u.role<>'admin' ORDER BY u.created_at DESC`);
+     FROM users u WHERE u.id<>$1 ORDER BY u.created_at DESC`, [req.user.id]);
   res.json(rows);
+});
+// Promote/demote moderators. You can't change your own role.
+app.post('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
+  const role = ['admin', 'member', 'kid'].includes(req.body?.role) ? req.body.role : null;
+  if (!role) return res.status(400).json({ error: 'role must be admin | kid | member' });
+  if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: "You can't change your own role." });
+  await pool.query('UPDATE users SET role=$2 WHERE id=$1', [req.params.id, role]);
+  await modLog(req.user.id, 'set_role_' + role, `user:${req.params.id}`);
+  res.json({ ok: true });
 });
 app.post('/api/admin/users/:id/status', requireAdmin, async (req, res) => {
   const status = ['active', 'suspended', 'banned'].includes(req.body?.status) ? req.body.status : null;
@@ -498,6 +506,11 @@ app.post('/api/admin/invites', requireAdmin, async (req, res) => {
 app.post('/api/admin/invites/:code/revoke', requireAdmin, async (req, res) => {
   await pool.query('UPDATE invite_codes SET revoked=true WHERE code=$1', [req.params.code]);
   await modLog(req.user.id, 'revoke_invite', `invite:${req.params.code}`);
+  res.json({ ok: true });
+});
+app.post('/api/admin/invites/:code/unlimited', requireAdmin, async (req, res) => {
+  await pool.query('UPDATE invite_codes SET max_uses=0, revoked=false WHERE code=$1', [req.params.code]);
+  await modLog(req.user.id, 'unlimited_invite', `invite:${req.params.code}`);
   res.json({ ok: true });
 });
 
