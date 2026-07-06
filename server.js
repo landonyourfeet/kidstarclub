@@ -98,6 +98,7 @@ app.get('/api/feed', requireUser, async (req, res) => {
        FLOOR(v.views * GREATEST(1, POWER(COALESCE((SELECT AVG(score) FROM judge_scores js WHERE js.video_id=v.id),0),2)))::int AS chart_score,
        c.name AS channel_name, u.display_name AS owner_name, u.avatar_emoji,
        (SELECT count(*)::int FROM reactions r WHERE r.video_id=v.id) AS reaction_count,
+       (SELECT json_object_agg(kind,n) FROM (SELECT kind, count(*)::int AS n FROM reactions WHERE video_id=v.id GROUP BY kind) t) AS rx,
        (SELECT count(*)::int FROM comments cm WHERE cm.video_id=v.id AND cm.status='visible') AS comment_count
      FROM videos v JOIN channels c ON c.id=v.channel_id JOIN users u ON u.id=c.owner_id
      WHERE v.status='live' ORDER BY v.created_at DESC LIMIT 50`);
