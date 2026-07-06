@@ -392,8 +392,13 @@ input::placeholder,textarea::placeholder{color:#b678a8}
 .cmsg img{max-width:100%;border-radius:8px;border:2px solid var(--magenta);margin-top:4px;display:block}
 .cmsg .del{background:none;border:none;color:var(--pink);cursor:pointer;font-size:12px;padding:0 4px}
 .emojirow{display:flex;gap:6px;margin-bottom:8px;overflow-x:auto}
-.emojirow button{background:#1c0a1e;border:2px solid var(--magenta);border-radius:8px;
-  font-size:18px;padding:4px 9px;cursor:pointer}
+.emojirow button{background:#2a1030;border:2px solid var(--magenta);border-radius:8px;
+  font-size:20px;line-height:1;padding:6px 10px;cursor:pointer;
+  color:#fff;-webkit-text-fill-color:initial;
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",var(--body),sans-serif}
+/* emoji glyph safety on every emoji button */
+.reacts button,.sipad,.btpad,.act-mini{-webkit-text-fill-color:initial;
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",var(--body),sans-serif}
 .chatrow{display:flex;gap:8px;align-items:center}
 .chatrow input[type=text],#chatIn{flex:1;margin-bottom:0}
 .camlbl{font-size:22px;cursor:pointer}
