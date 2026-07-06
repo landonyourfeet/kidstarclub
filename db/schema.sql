@@ -153,3 +153,16 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS joined_code TEXT;
 
 -- v7: real view counts (actual plays only)
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS views INT NOT NULL DEFAULT 0;
+
+-- v8: Club Chat
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT REFERENCES users(id),
+  cast_id    INT REFERENCES cast_members(id),
+  body       TEXT NOT NULL DEFAULT '',
+  image_key  TEXT,
+  status     TEXT NOT NULL DEFAULT 'visible' CHECK (status IN ('visible','removed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK ((user_id IS NULL) <> (cast_id IS NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_recent ON chat_messages(id) WHERE status='visible';
