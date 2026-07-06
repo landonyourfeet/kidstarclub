@@ -194,3 +194,11 @@ CREATE TABLE IF NOT EXISTS game_scores (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_scores ON game_scores(game, score DESC);
+
+-- v14: club-wide events (record banners)
+CREATE TABLE IF NOT EXISTS club_events (
+  id         SERIAL PRIMARY KEY,
+  kind       TEXT NOT NULL,
+  payload    JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
