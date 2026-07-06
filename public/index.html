@@ -174,7 +174,7 @@ input::placeholder,textarea::placeholder{color:#b678a8}
       </div>
       <input id="ut" placeholder="video title — make it POP" maxlength="120">
       <textarea id="ud" rows="2" placeholder="tell your fans about it (optional)" maxlength="500"></textarea>
-      <input id="uf" type="file" accept="video/*" capture="user">
+      <input id="uf" type="file" accept="video/*">
       <button class="big" id="ubtn" onclick="upload()">Post it! ⚡</button>
       <div class="errmsg" id="uerr"></div>
     </div>
@@ -356,9 +356,7 @@ function setKind(k){
   uploadKind=k;
   $('#kv').classList.toggle('on',k==='video');
   $('#ks').classList.toggle('on',k==='short');
-  const f=$('#uf');
-  if(k==='short'){f.setAttribute('capture','user');$('#ut').placeholder='short title — quick and catchy ⚡'}
-  else{f.removeAttribute('capture');$('#ut').placeholder='video title — make it POP'}
+  $('#ut').placeholder=k==='short'?'short title — quick and catchy ⚡':'video title — make it POP';
 }
 // Grab a frame ~1s in (or 10% of duration) as a JPEG thumbnail.
 function captureThumb(file){
