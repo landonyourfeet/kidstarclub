@@ -583,6 +583,26 @@ app.get('/watch/:token', async (req, res) => {
 </body></html>`);
 });
 
+// ---------- Arcade ----------
+app.post('/api/games/:game/score', requireUser, async (req, res) => {
+  const score = Math.max(0, Math.min(1000000, parseInt(req.body?.score) || 0));
+  const game = String(req.params.game).slice(0, 30);
+  await pool.query(`INSERT INTO game_scores (user_id,game,score) VALUES ($1,$2,$3)`,
+    [req.user.id, game, score]);
+  const { rows: [best] } = await pool.query(
+    `SELECT MAX(score)::int AS best FROM game_scores WHERE user_id=$1 AND game=$2`, [req.user.id, game]);
+  res.json({ ok: true, best: best.best });
+});
+app.get('/api/games/:game/leaderboard', requireUser, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT u.id AS user_id, u.display_name, u.avatar_emoji, u.joined_code,
+       (u.avatar_key IS NOT NULL) AS user_has_avatar, MAX(g.score)::int AS score
+     FROM game_scores g JOIN users u ON u.id=g.user_id
+     WHERE g.game=$1 AND u.status='active'
+     GROUP BY u.id ORDER BY score DESC LIMIT 10`, [String(req.params.game).slice(0, 30)]);
+  res.json(rows);
+});
+
 // =====================================================================
 // ADMIN CONTROL PANEL API  (UI at /admin.html)
 // =====================================================================
