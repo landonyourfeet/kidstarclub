@@ -166,3 +166,6 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   CHECK ((user_id IS NULL) <> (cast_id IS NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_chat_recent ON chat_messages(id) WHERE status='visible';
+
+-- v9: profile avatars
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_key TEXT;
