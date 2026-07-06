@@ -215,6 +215,12 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   border-radius:8px;padding:1px 8px;margin-left:6px;vertical-align:middle}
 .hpspotlbl.deep{border-color:#ff8c1a;color:#ff8c1a}
 #hpfire{color:#ff8c1a;text-shadow:0 0 10px rgba(255,140,26,.9);animation:pillnudge .7s ease-in-out infinite}
+.pwbar{position:absolute;left:10px;bottom:12px;top:auto;width:18px;height:42%;z-index:5;
+  background:rgba(13,2,16,.65);border:2px solid var(--white);border-radius:10px;overflow:hidden;
+  display:flex;align-items:flex-end}
+.pwfill{width:100%;height:0;border-radius:0 0 8px 8px;transition:height .05s linear}
+.pwlbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-90deg);
+  font:900 9px var(--body);letter-spacing:.2em;color:#fff;opacity:.8;pointer-events:none}
 .sbrow{display:flex;gap:2px}
 .sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0;
   box-shadow:0 0 4px currentColor}
@@ -1964,7 +1970,8 @@ function hpNew(){
     <div class="sbtop">SCORE <span id="hpscore">0</span> · ⏱ <span id="hptime">60</span>s
       <span id="hpspotlbl" class="hpspotlbl">2PT</span>
       <span id="hpfire" class="hide">🔥 BLAZING ×2</span></div>
-    <div id="hpwrap" class="ppwrap"><div class="pphud">🏀 lacing up…</div></div>
+    <div id="hpwrap" class="ppwrap"><div class="pphud">🏀 lacing up…</div>
+      <div id="pwbar" class="pwbar hide"><div id="pwfill" class="pwfill"></div><span class="pwlbl">POWER</span></div></div>
     <p class="sbhint">Drag back on the court and release to shoot. Swish = bonus. 3 in a row = 🔥 BLAZING!</p>
     <button class="big cy" onclick="hpNew()">🔁 New game</button>`;
   loadThree(hpBoot,$('#hpwrap'));
@@ -2014,6 +2021,19 @@ function hpBoot(){
   arc.rotation.x=-Math.PI/2;arc.position.set(0,0.01,-12);scene.add(arc);
   const key=new THREE.Mesh(new THREE.RingGeometry(2.2,2.4,32,1,Math.PI,Math.PI),paint(0xff8c1a));
   key.rotation.x=-Math.PI/2;key.position.set(0,0.01,-12);scene.add(key);
+  // enclosed court: brick walls + chain-link grid
+  const WALLX=11.5, WALLZB=-15.5, WALLZF=8.5, WALLH=6;
+  function wall(w,h,px,py,pz,ry){
+    const brick=new THREE.Mesh(new THREE.BoxGeometry(w,h,.3),mat(0x3a2a30));
+    brick.position.set(px,py,pz);brick.rotation.y=ry;brick.receiveShadow=true;scene.add(brick);
+    const chain=new THREE.Mesh(new THREE.PlaneGeometry(w,h,Math.round(w*2),Math.round(h*2)),
+      new THREE.MeshBasicMaterial({color:0x9aa4b8,wireframe:true,transparent:true,opacity:0.28}));
+    chain.position.set(px,py,pz);chain.rotation.y=ry;
+    chain.translateZ(0.2);scene.add(chain);
+  }
+  wall(WALLX*2+1,WALLH,0,WALLH/2,WALLZB,0);            // behind the hoop
+  wall(WALLZF-WALLZB+1,WALLH,-WALLX,WALLH/2,(WALLZF+WALLZB)/2,Math.PI/2); // left
+  wall(WALLZF-WALLZB+1,WALLH, WALLX,WALLH/2,(WALLZF+WALLZB)/2,Math.PI/2); // right
 
   // hoop
   const RIMY=3.05, RIMZ=-12, RIMR=0.55;
@@ -2071,22 +2091,51 @@ function hpBoot(){
   }
   newSpot();
 
+  // aim preview: dotted trajectory arc
+  const dots=[];
+  for(let i=0;i<14;i++){
+    const d0=new THREE.Mesh(new THREE.SphereGeometry(0.07,6,6),
+      new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.85-i*0.05}));
+    d0.visible=false;scene.add(d0);dots.push(d0);
+  }
+  const GRAV=0.0058;
+  function calcShot(dx,dy){
+    // gentler power curve: full power at a ~230px drag, hard cap 1.0
+    const toHoop=new THREE.Vector3(0,0,RIMZ).sub(hp.pos);toHoop.y=0;
+    const d=toHoop.length();toHoop.normalize();
+    const power=Math.min(1,Math.hypot(dx,dy)/230);
+    const v=new THREE.Vector3();
+    v.copy(toHoop).multiplyScalar((0.052+d*0.0095)*(0.35+power*0.65));
+    v.y=(0.105+d*0.0042)*(0.5+power*0.5)+Math.max(0,-dy)*0.00035;
+    v.x+=dx*0.00028;
+    return {v,power};
+  }
+  function showAim(dx,dy){
+    const {v,power}=calcShot(dx,dy);
+    const p=hp.pos.clone(), vv=v.clone();
+    for(const dot of dots){
+      for(let k=0;k<4;k++){vv.y-=GRAV;p.add(vv)}
+      dot.position.copy(p);dot.visible=true;
+    }
+    $('#pwbar').classList.remove('hide');
+    const f=$('#pwfill');f.style.height=(power*100)+'%';
+    f.style.background=power<0.5?'#4ade80':power<0.8?'#ffe14d':'#ff5540';
+  }
+  function hideAim(){dots.forEach(d0=>d0.visible=false);$('#pwbar')?.classList.add('hide')}
   const el=renderer.domElement;
   el.style.touchAction='none';
   el.addEventListener('pointerdown',e=>{if(!hp.flying&&!hp.over){hp.drag={x:e.clientX,y:e.clientY};sndPick()}});
+  el.addEventListener('pointermove',e=>{
+    if(!hp.drag||hp.flying)return;
+    const dx=e.clientX-hp.drag.x, dy=e.clientY-hp.drag.y;
+    if(Math.hypot(dx,dy)>=12)showAim(dx,dy);else hideAim();
+  });
   el.addEventListener('pointerup',e=>{
     if(!hp.drag)return;
     const dx=e.clientX-hp.drag.x, dy=e.clientY-hp.drag.y;
-    hp.drag=null;
+    hp.drag=null;hideAim();
     if(Math.hypot(dx,dy)<12)return;
-    // aim at the hoop; drag length = power, vertical drag = arc, horizontal = curve
-    const toHoop=new THREE.Vector3(0,0,RIMZ).sub(hp.pos);toHoop.y=0;
-    const d=toHoop.length();toHoop.normalize();
-    const power=Math.min(1.35,Math.hypot(dx,dy)/170);
-    const fwd=(0.085+d*0.0125)*power/0.9;
-    hp.vel.copy(toHoop).multiplyScalar(fwd);
-    hp.vel.y=(0.14+d*0.006)*(power*0.55+0.55)+Math.max(0,-dy)*0.0006;
-    hp.vel.x+=dx*0.00035;
+    hp.vel.copy(calcShot(dx,dy).v);
     hp.flying=true;sndDrop();
   });
 
@@ -2123,8 +2172,12 @@ function hpBoot(){
         if(hp.streak===3&&!hp.fire){hp.fire=true;$('#hpfire')?.classList.remove('hide');
           sphere.material.emissive.set(0xff3300);fireLight.intensity=1.4;burst('storm');sndWin()}
       }
-      // landed / out
-      if(hp.pos.y<0.32||Math.abs(hp.pos.x)>30||hp.pos.z<-40||hp.pos.z>20){
+      // walls keep the ball in the room
+      if(Math.abs(hp.pos.x)>11.1){hp.pos.x=Math.sign(hp.pos.x)*11.1;hp.vel.x*=-0.55;sfxTone(120,0.05,'square',0.1)}
+      if(hp.pos.z<-15.1){hp.pos.z=-15.1;hp.vel.z*=-0.55;sfxTone(120,0.05,'square',0.1)}
+      if(hp.pos.z>8.1){hp.pos.z=8.1;hp.vel.z*=-0.55}
+      // landed
+      if(hp.pos.y<0.32){
         if(!hp.scored){hp.streak=0;
           if(hp.fire){hp.fire=false;$('#hpfire')?.classList.add('hide');
             sphere.material.emissive.set(0x000000);fireLight.intensity=0}
