@@ -9,6 +9,14 @@
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>KidStarClub ⭐</title>
+<meta property="og:title" content="KidStarClub ⭐">
+<meta property="og:description" content="Your stage. Your fans. Your club. A private video club for our stars — invite code required.">
+<meta property="og:image" content="https://kidstarclub.com/share-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://kidstarclub.com">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Anton&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
 <style>
@@ -74,7 +82,11 @@ button.big:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(13,2,16
 input,textarea,select{width:100%;background:#1c0a1e;border:2px solid var(--pink);border-radius:10px;
   color:var(--white);padding:12px;font-family:var(--body);font-weight:600;font-size:15px;margin-bottom:10px}
 input::placeholder,textarea::placeholder{color:#b678a8}
-.comment{border-left:4px solid var(--cyan);padding:8px 10px;margin-bottom:10px;background:rgba(255,255,255,.05);border-radius:0 10px 10px 0}
+.comment{display:flex;gap:10px;border-left:4px solid var(--cyan);padding:8px 10px;margin-bottom:10px;background:rgba(255,255,255,.05);border-radius:0 10px 10px 0}
+.comment .av{flex:0 0 36px;width:36px;height:36px;border-radius:50%;background:var(--deep);
+  border:2px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:18px}
+.comment.judge .av{border-color:var(--yellow);background:#2e2408}
+.comment .cbody{flex:1;min-width:0}
 .comment.judge{border-left-color:var(--yellow)}
 .comment .who{font-weight:800;font-size:13px;color:var(--cyan)}
 .comment.judge .who{color:var(--yellow)}
@@ -204,9 +216,12 @@ let ME=null;
 function go(view){
   document.querySelectorAll('main section').forEach(s=>s.classList.toggle('hide',s.id!=='v-'+view));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+  if(view!=='video')stopPoll();
   if(view!=='shorts')stopShorts();
   if(view==='feed')feed(); if(view==='me')meView(); if(view==='shorts')shorts();
 }
+// Stage auto-refresh: new videos/counts appear without reloading.
+setInterval(()=>{if(!document.hidden&&!$('#v-feed').classList.contains('hide')&&ME)feed()},30000);
 
 // ---- SHORTS ----
 let shortsObserver=null;
@@ -298,7 +313,10 @@ async function feed(){
 }
 
 // ---- VIDEO ----
+let livePoll=null,liveVideoId=null,liveCount=0;
+function stopPoll(){if(livePoll){clearInterval(livePoll);livePoll=null;liveVideoId=null}}
 async function openVideo(id){
+  stopPoll();
   go('video');
   const v=await api('/api/videos/'+id);
   const cms=await api(`/api/videos/${id}/comments`);
@@ -308,6 +326,11 @@ async function openVideo(id){
     <div class="sticker vcard">
       <div class="vtitle">${esc(v.title)}</div>
       <div class="vmeta">${esc(v.owner_name)} · ${esc(v.channel_name)} · ${ago(v.created_at)}</div>
+      ${!v.is_own?`<button class="big ${v.i_subscribe?'cy':''}" style="margin:6px 0"
+          onclick="event.stopPropagation();toggleSub(${v.channel_id},${v.i_subscribe},${id})">
+          ${v.i_subscribe?'✓ Subscribed':'⭐ Subscribe'}</button>`:''}
+      <button class="reply" style="font-size:13px" onclick="event.stopPropagation();showFans(${v.channel_id},'${esc(v.channel_name).replace(/'/g,"\\'")}')">
+        👥 ${v.subscriber_count} fan${v.subscriber_count===1?'':'s'} subscribed — see who</button>
       <video controls playsinline src="/api/videos/${id}/stream"></video>
       ${v.description?`<p style="margin-top:8px">${esc(v.description)}</p>`:''}
       <div class="reacts">${rbtn('star','⭐')}${rbtn('fire','🔥')}${rbtn('clap','👏')}${rbtn('heart','💜')}${rbtn('wow','🤩')}</div>
@@ -321,16 +344,30 @@ async function openVideo(id){
       <button class="big cy" onclick="postComment(${id})">Send 💬</button>
       <div class="errmsg" id="cerr"></div>
     </div>`;
+  liveVideoId=id;liveCount=cms.length;
+  livePoll=setInterval(async()=>{
+    if(document.hidden||liveVideoId!==id)return;
+    const fresh=await api(`/api/videos/${id}/comments`).catch(()=>null);
+    if(!fresh||fresh.length===liveCount)return;
+    liveCount=fresh.length;
+    const box=$('#cms');if(!box)return;
+    box.innerHTML=fresh.map(c=>commentHtml(c)).join('');
+    box.lastElementChild?.animate([{background:'rgba(69,216,255,.35)'},{background:'transparent'}],{duration:1200});
+  },15000);
 }
 function commentHtml(c){
   const isCast=!!c.cast_name;
   const judge=c.cast_tier==='judge';
-  const name=isCast?`${esc(c.cast_emoji)} ${esc(c.cast_name)}${judge?' · '+esc(c.specialty||'judge'):''}`:`${esc(c.user_emoji||'⭐')} ${esc(c.user_name)}`;
+  const av=isCast?c.cast_emoji:(c.user_emoji||'⭐');
+  const name=isCast?`${esc(c.cast_name)}${judge?' · '+esc(c.specialty||'judge'):''}`:esc(c.user_name);
   return `<div class="comment ${judge?'judge':''}" ${c.parent_id?'style="margin-left:18px"':''}>
-    <span class="who">${name}</span>${isCast?'<span class="aitag">AI CAST</span>':''}
-    ${c.status==='pending'?'<div class="pending">waiting for admin approval — only you can see this</div>':''}
-    <div class="body">${esc(c.body)}</div>
-    ${isCast?`<button class="reply" onclick="setReply(${c.id},'${esc(c.cast_name).replace(/'/g,"\\'")}')">reply</button>`:''}
+    <div class="av">${esc(av)}</div>
+    <div class="cbody">
+      <span class="who">${name}</span>${isCast?'<span class="aitag">AI CAST</span>':''}
+      ${c.status==='pending'?'<div class="pending">waiting for admin approval — only you can see this</div>':''}
+      <div class="body">${esc(c.body)}</div>
+      ${isCast?`<button class="reply" onclick="setReply(${c.id},'${esc(c.cast_name).replace(/'/g,"\\'")}')">reply</button>`:''}
+    </div>
   </div>`;
 }
 function setReply(id,name){$('#cparent').value=id;$('#replyhint').textContent='replying to '+name+' ↩';$('#cb').focus()}
@@ -340,6 +377,16 @@ async function postComment(videoId){
     await api(`/api/videos/${videoId}/comments`,{method:'POST',body:{body,parent_id:$('#cparent').value||null}});
     openVideo(videoId);
   }catch(e){$('#cerr').textContent=e.message}
+}
+async function toggleSub(channelId,current,videoId){
+  await api(`/api/channels/${channelId}/${current?'unsubscribe':'subscribe'}`,{method:'POST'}).catch(e=>alert(e.message));
+  openVideo(videoId);
+}
+async function showFans(channelId,name){
+  const fans=await api(`/api/channels/${channelId}/subscribers`);
+  alert(fans.length
+    ?`⭐ ${name} Fan Club ⭐\n\n`+fans.map(f=>`${f.avatar_emoji||'⭐'} ${f.display_name}`).join('\n')
+    :`No subscribers yet — invite the family to hit Subscribe!`);
 }
 async function react(videoId,kind,ev){
   ev.stopPropagation();
@@ -421,13 +468,18 @@ async function meView(){
   let html='';
   for(const c of mine){
     const badges=await api(`/api/channels/${c.id}/badges`);
+    const fans=await api(`/api/channels/${c.id}/subscribers`).catch(()=>[]);
     const pct=Math.min(100,(c.star_meter%500)/5);
     html+=`<div class="sticker">
       <h2 class="scrawl">${esc(c.name)} ⭐</h2>
       <div class="starmeter"><div class="fill" style="width:${pct}%"></div>
         <div class="num">STAR METER · ${c.star_meter} ⭐</div></div>
       <div class="statrow"><span class="chip">🎬 ${c.video_count} videos</span>
-        <span class="chip cy">Level ${Math.floor(c.star_meter/500)+1}</span></div>
+        <span class="chip cy">Level ${Math.floor(c.star_meter/500)+1}</span>
+        <span class="chip">👥 ${fans.length} fan${fans.length===1?'':'s'}</span></div>
+      <h2 class="scrawl" style="margin-top:14px;font-size:16px">Your Fan Club 👥</h2>
+      <div class="badges">${fans.map(f=>`<span class="badge">${esc(f.avatar_emoji||'⭐')} ${esc(f.display_name)}</span>`).join('')
+        ||'<span class="badge">Tell the family to smash that Subscribe button!</span>'}</div>
       <h2 class="scrawl" style="margin-top:14px;font-size:16px">Trophy shelf</h2>
       <div class="badges">${badges.map(b=>`<span class="badge">${esc(b.emoji)} ${esc(b.label)}</span>`).join('')||'<span class="badge">🎬 Post your first video to earn badges!</span>'}</div>
     </div>`;
