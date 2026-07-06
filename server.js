@@ -410,6 +410,37 @@ app.post('/api/admin/chat/:id/remove', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- My videos (owner management) ----------
+app.get('/api/my/videos', requireUser, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT v.id, v.title, v.description, v.created_at, v.kind, (v.thumb_key IS NOT NULL) AS has_thumb,
+       (SELECT count(*)::int FROM comments c WHERE c.video_id=v.id AND c.status='visible') AS comment_count
+     FROM videos v JOIN channels ch ON ch.id=v.channel_id
+     WHERE ch.owner_id=$1 AND v.status='live' ORDER BY v.created_at DESC`, [req.user.id]);
+  res.json(rows);
+});
+async function ownsVideo(userId, videoId) {
+  const { rows: [v] } = await pool.query(
+    `SELECT ch.owner_id FROM videos v JOIN channels ch ON ch.id=v.channel_id WHERE v.id=$1`, [videoId]);
+  return v && v.owner_id === userId;
+}
+app.post('/api/videos/:id/update', requireUser, async (req, res) => {
+  if (!(await ownsVideo(req.user.id, req.params.id)) && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Not your video.' });
+  const title = (req.body?.title || '').trim().slice(0, 120);
+  const description = (req.body?.description || '').trim().slice(0, 500);
+  if (!title) return res.status(400).json({ error: 'Title cannot be empty.' });
+  await pool.query('UPDATE videos SET title=$2, description=$3 WHERE id=$1', [req.params.id, title, description]);
+  res.json({ ok: true });
+});
+app.post('/api/videos/:id/remove', requireUser, async (req, res) => {
+  if (!(await ownsVideo(req.user.id, req.params.id)) && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Not your video.' });
+  await pool.query(`UPDATE videos SET status='removed' WHERE id=$1`, [req.params.id]);
+  await pool.query(`UPDATE cast_queue SET done=true WHERE video_id=$1`, [req.params.id]);
+  res.json({ ok: true });
+});
+
 // =====================================================================
 // ADMIN CONTROL PANEL API  (UI at /admin.html)
 // =====================================================================
