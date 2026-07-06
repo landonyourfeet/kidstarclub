@@ -10,22 +10,22 @@
 // Used by index.html (in-app comments + chat).
 function pillHtml(c){
   if(c.cast_name){
-    if(c.cast_tier==='judge')return '<span class="aitag judgep">🤖 JUDGE</span>';
-    if(c.cast_tier==='regular')return '<span class="aitag crewp">🤖 CREW</span>';
-    return '<span class="aitag fanp">🤖 FAN</span>';
+    if(c.cast_tier==='judge')return '<span class="tag judgep">🤖 JUDGE</span>';
+    if(c.cast_tier==='regular')return '<span class="tag crewp">🤖 CREW</span>';
+    return '<span class="tag fanp">🤖 FAN</span>';
   }
-  if(c.user_role==='admin')return '<span class="aitag hq">🛡️ HQ</span>';
-  if(c.user_role==='kid')return '<span class="aitag star">⭐ STAR</span>';
+  if(c.user_role==='admin')return '<span class="tag hq">🛡️ HQ</span>';
+  if(c.user_role==='kid')return '<span class="tag star">⭐ STAR</span>';
   const n=c.activity_n||0;
-  if(n>=150)return '<span class="aitag plat">💎 PLATINUM</span>';
-  if(n>=50)return '<span class="aitag gold">🥇 GOLD</span>';
-  if(n>=10)return '<span class="aitag silver">🥈 SILVER</span>';
-  return '<span class="aitag bronze">🥉 BRONZE</span>';
+  if(n>=150)return '<span class="tag plat">💎 PLATINUM</span>';
+  if(n>=50)return '<span class="tag gold">🥇 GOLD</span>';
+  if(n>=10)return '<span class="tag silver">🥈 SILVER</span>';
+  return '<span class="tag bronze">🥉 BRONZE</span>';
 }
 
 // Used by the @mention autocomplete dropdown in chat.
 function mentionCastTag(){
-  return '<span class="aitag fanp">🤖 </span>';
+  return '<span class="tag fanp">🤖 </span>';
 }
 
 // Used by watch-page.js (public share pages).
