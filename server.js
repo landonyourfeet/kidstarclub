@@ -94,6 +94,7 @@ app.get('/api/feed', requireUser, async (req, res) => {
   const kind = req.query.kind === 'short' ? 'short' : 'video';
   const { rows } = await pool.query(
     `SELECT v.id, v.title, v.description, v.created_at, v.channel_id, v.kind,
+       (v.thumb_key IS NOT NULL) AS has_thumb,
        c.name AS channel_name, u.display_name AS owner_name, u.avatar_emoji,
        (SELECT count(*)::int FROM reactions r WHERE r.video_id=v.id) AS reaction_count,
        (SELECT count(*)::int FROM comments cm WHERE cm.video_id=v.id AND cm.status='visible') AS comment_count
@@ -118,10 +119,11 @@ app.post('/api/videos/presign', requireUser, async (req, res) => {
   const description = (req.body?.description || '').toString().slice(0, 500);
   const kind = req.body?.kind === 'short' ? 'short' : 'video';
   const key = `videos/${channel.id}/${Date.now()}-${crypto.randomBytes(4).toString('hex')}.mp4`;
+  const thumbKey = key.replace(/\.mp4$/, '-thumb.jpg');
   const { rows: [video] } = await pool.query(
-    `INSERT INTO videos (channel_id,title,description,bucket_key,kind,status) VALUES ($1,$2,$3,$4,$5,'uploading') RETURNING id`,
-    [channel.id, title, description, key, kind]);
-  res.json({ video_id: video.id, put_url: bucket.presignPut(key) });
+    `INSERT INTO videos (channel_id,title,description,bucket_key,thumb_key,kind,status) VALUES ($1,$2,$3,$4,$5,$6,'uploading') RETURNING id`,
+    [channel.id, title, description, key, thumbKey, kind]);
+  res.json({ video_id: video.id, put_url: bucket.presignPut(key), thumb_put_url: bucket.presignPut(thumbKey) });
 });
 
 app.post('/api/videos/:id/complete', requireUser, async (req, res) => {
@@ -170,6 +172,12 @@ app.get('/api/videos/:id/stream', requireUser, async (req, res) => {
   const { rows: [v] } = await pool.query(`SELECT * FROM videos WHERE id=$1 AND status='live'`, [req.params.id]);
   if (!v) return res.status(404).json({ error: 'Video not found.' });
   res.redirect(bucket.presignGet(v.bucket_key, 3600));
+});
+
+app.get('/api/videos/:id/thumb', requireUser, async (req, res) => {
+  const { rows: [v] } = await pool.query(`SELECT thumb_key FROM videos WHERE id=$1 AND status='live'`, [req.params.id]);
+  if (!v?.thumb_key) return res.status(404).json({ error: 'No thumbnail.' });
+  res.redirect(bucket.presignGet(v.thumb_key, 3600));
 });
 
 app.get('/api/videos/:id', requireUser, async (req, res) => {
