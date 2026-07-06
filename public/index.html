@@ -272,6 +272,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ago=d=>{const m=(Date.now()-new Date(d))/60000;
   return m<1?'just now':m<60?Math.floor(m)+' min ago':m<1440?Math.floor(m/60)+'h ago':Math.floor(m/1440)+'d ago'};
+const fdate=d=>new Date(d).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
 async function api(url,opts={}){
   const r=await fetch(url,{headers:{'content-type':'application/json'},...opts,
     body:opts.body&&!(opts.body instanceof Blob)?JSON.stringify(opts.body):opts.body});
@@ -321,16 +322,22 @@ async function shorts(){
       <button class="muter" onclick="toggleMute(event)">🔇</button>
       <div class="overlay">
         <div class="st">${esc(v.title)}</div>
-        <div class="so">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${ago(v.created_at)}</div>
+        <div class="so">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · 👁 ${v.views} · ${ago(v.created_at)}</div>
       </div>
       <div class="rail">
         <button onclick="shortReact(${v.id},this,event)">⚡</button><div class="n">${v.reaction_count}</div>
         <button onclick="openVideo(${v.id})">💬</button><div class="n">${v.comment_count}</div>
       </div>
     </div>`).join('');
+  const seenShorts=new Set();
   shortsObserver=new IntersectionObserver(es=>es.forEach(e=>{
     const vid=e.target.querySelector('video');
-    if(e.isIntersecting){vid.muted=shortsMuted;vid.play().catch(()=>{})}else vid.pause();
+    if(e.isIntersecting){
+      vid.muted=shortsMuted;vid.play().catch(()=>{});
+      const sid=e.target.dataset.vid;
+      if(sid&&!seenShorts.has(sid)){seenShorts.add(sid);
+        api(`/api/videos/${sid}/view`,{method:'POST'}).catch(()=>{})}
+    }else vid.pause();
   }),{root:wrap,threshold:.6});
   wrap.querySelectorAll('.short').forEach(s=>shortsObserver.observe(s));
 }
@@ -377,7 +384,8 @@ async function feed(){
         <div class="playbtn">▶</div>
       </div>
       <div class="vtitle">${esc(v.title)}</div>
-      <div class="vmeta">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${esc(v.channel_name)} · ${ago(v.created_at)}</div>
+      <div class="vmeta">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
+      <div class="vmeta" style="color:#b678a8">👁 ${v.views} view${v.views===1?'':'s'} · ${ago(v.created_at)} · ${fdate(v.created_at)}</div>
       <div class="statrow">
         <span class="chip">⚡ ${v.reaction_count} cheers</span>
         <span class="chip cy">💬 ${v.comment_count} comments</span>
@@ -399,13 +407,15 @@ async function openVideo(id){
   $('#v-video').innerHTML=`
     <div class="sticker vcard">
       <div class="vtitle">${esc(v.title)}</div>
-      <div class="vmeta">${esc(v.owner_name)} · ${esc(v.channel_name)} · ${ago(v.created_at)}</div>
+      <div class="vmeta">${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
+      <div class="vmeta" style="color:#b678a8">👁 <span id="viewN">${v.views||0}</span> views · posted ${fdate(v.created_at)}
+        <span class="chip" id="hypeChip" style="margin-left:8px">⚡ HYPE <span id="hypeN">0</span></span></div>
       ${!v.is_own?`<button class="big ${v.i_subscribe?'cy':''}" style="margin:6px 0"
           onclick="event.stopPropagation();toggleSub(${v.channel_id},${v.i_subscribe},${id})">
           ${v.i_subscribe?'✓ Subscribed':'⭐ Subscribe'}</button>`:''}
       <button class="reply" style="font-size:13px" onclick="event.stopPropagation();showFans(${v.channel_id},'${esc(v.channel_name).replace(/'/g,"\\'")}')">
         👥 ${v.subscriber_count} fan${v.subscriber_count===1?'':'s'} subscribed — see who</button>
-      <video controls playsinline src="/api/videos/${id}/stream"></video>
+      <video id="mainvid" controls playsinline src="/api/videos/${id}/stream"></video>
       ${v.description?`<p style="margin-top:8px">${esc(v.description)}</p>`:''}
       <div class="reacts">${rbtn('star','⭐')}${rbtn('fire','🔥')}${rbtn('clap','👏')}${rbtn('heart','💜')}${rbtn('wow','🤩')}</div>
     </div>
@@ -418,16 +428,53 @@ async function openVideo(id){
       <button class="big cy" onclick="postComment(${id})">Send 💬</button>
       <div class="errmsg" id="cerr"></div>
     </div>`;
+  // HYPE = every cheer + comment (cast + humans), weighted. Views = real plays.
+  const hype0=(v.reactions||[]).reduce((s,r)=>s+r.n,0)+cms.length*2;
+  $('#hypeN').textContent=hype0;
+  let viewed=false,lastViews=v.views||0,lastHype=hype0;
+  $('#mainvid').addEventListener('play',async()=>{
+    if(viewed)return;viewed=true;
+    const r=await api(`/api/videos/${id}/view`,{method:'POST'}).catch(()=>null);
+    if(r){countUp('#viewN',lastViews,r.views);lastViews=r.views}
+  });
   liveVideoId=id;liveCount=cms.length;
   livePoll=setInterval(async()=>{
     if(document.hidden||liveVideoId!==id)return;
-    const fresh=await api(`/api/videos/${id}/comments`).catch(()=>null);
-    if(!fresh||fresh.length===liveCount)return;
-    liveCount=fresh.length;
-    const box=$('#cms');if(!box)return;
-    box.innerHTML=fresh.map(c=>commentHtml(c)).join('');
-    box.lastElementChild?.animate([{background:'rgba(69,216,255,.35)'},{background:'transparent'}],{duration:1200});
+    const [fresh,vf]=await Promise.all([
+      api(`/api/videos/${id}/comments`).catch(()=>null),
+      api(`/api/videos/${id}`).catch(()=>null)]);
+    if(vf){
+      if(vf.views>lastViews){
+        countUp('#viewN',lastViews,vf.views);
+        for(const m of [10,25,50,100,250,500])if(lastViews<m&&vf.views>=m)burst();
+        lastViews=vf.views;
+      }
+      const hy=(vf.reactions||[]).reduce((s,r)=>s+r.n,0)+(fresh?fresh.length*2:lastHype);
+      if(hy>lastHype){countUp('#hypeN',lastHype,hy);lastHype=hy;
+        $('#hypeChip')?.animate([{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:400})}
+    }
+    if(fresh&&fresh.length!==liveCount){
+      liveCount=fresh.length;
+      const box=$('#cms');if(!box)return;
+      box.innerHTML=fresh.map(c=>commentHtml(c)).join('');
+      box.lastElementChild?.animate([{background:'rgba(69,216,255,.35)'},{background:'transparent'}],{duration:1200});
+    }
   },15000);
+}
+function countUp(sel,from,to){
+  const el=$(sel);if(!el)return;
+  const steps=Math.min(20,to-from),dur=700;let i=0;
+  const t=setInterval(()=>{i++;el.textContent=Math.round(from+(to-from)*(i/steps));
+    if(i>=steps){el.textContent=to;clearInterval(t)}},dur/steps);
+}
+function burst(){
+  for(let i=0;i<14;i++){
+    const z=document.createElement('div');z.className='zap';
+    z.textContent=['⚡','⭐','🎉','💫'][i%4];
+    z.style.left=(10+Math.random()*80)+'vw';z.style.top=(20+Math.random()*50)+'vh';
+    z.style.position='fixed';document.body.appendChild(z);
+    setTimeout(()=>z.remove(),900);
+  }
 }
 const shim=u=>((u.joined_code||'').toUpperCase()==='ELIORA')?'<span class="shimstar">★</span>':'';
 function pillHtml(c){
