@@ -93,7 +93,7 @@ app.get('/api/channels', requireUser, async (req, res) => {
 app.get('/api/feed', requireUser, async (req, res) => {
   const kind = req.query.kind === 'short' ? 'short' : 'video';
   const { rows } = await pool.query(
-    `SELECT v.id, v.title, v.description, v.created_at, v.channel_id, v.kind,
+    `SELECT v.id, v.title, v.description, v.created_at, v.channel_id, v.kind, v.views,
        (v.thumb_key IS NOT NULL) AS has_thumb,
        c.name AS channel_name, u.display_name AS owner_name, u.avatar_emoji,
        (SELECT count(*)::int FROM reactions r WHERE r.video_id=v.id) AS reaction_count,
@@ -178,6 +178,13 @@ app.get('/api/videos/:id/thumb', requireUser, async (req, res) => {
   const { rows: [v] } = await pool.query(`SELECT thumb_key FROM videos WHERE id=$1 AND status='live'`, [req.params.id]);
   if (!v?.thumb_key) return res.status(404).json({ error: 'No thumbnail.' });
   res.redirect(bucket.presignGet(v.thumb_key, 3600));
+});
+
+// A view = a real person pressing play. Fired by the client on playback start.
+app.post('/api/videos/:id/view', requireUser, async (req, res) => {
+  const { rows: [v] } = await pool.query(
+    `UPDATE videos SET views=views+1 WHERE id=$1 AND status='live' RETURNING views`, [req.params.id]);
+  res.json({ views: v?.views ?? 0 });
 });
 
 app.get('/api/videos/:id', requireUser, async (req, res) => {
