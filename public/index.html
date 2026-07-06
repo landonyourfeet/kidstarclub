@@ -104,6 +104,20 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 /* hero banner */
 .herowrap{padding:0;overflow:hidden;border-radius:14px}
 .hero{display:block;width:100%;height:auto;border-radius:11px}
+/* my videos manager */
+.vrow{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--magenta)}
+.vrow:last-child{border-bottom:none}
+.vthumb{flex:0 0 74px;width:74px;height:46px;border-radius:8px;overflow:hidden;
+  border:2px solid var(--pink);background:#000;cursor:pointer}
+.vthumb img,.vthumb video{width:100%;height:100%;object-fit:cover;display:block}
+.vinfo{flex:1;min-width:0;cursor:pointer}
+.vinfo .vt{font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vinfo .vd{font-size:12px;color:#b678a8;font-weight:700}
+.vacts{display:flex;gap:6px}
+.act-mini{background:#1c0a1e;border:2px solid var(--magenta);border-radius:9px;font-size:15px;
+  padding:7px 9px;cursor:pointer;transition:transform .12s cubic-bezier(.34,2,.64,1)}
+.act-mini:active{transform:scale(.85) rotate(-6deg)}
+.act-mini.bad{border-color:#a33}
 /* live emoji rain over the player */
 .vidwrap{position:relative;overflow:visible}
 .flyemoji{position:absolute;bottom:0;font-size:28px;pointer-events:none;z-index:5;
@@ -722,8 +736,8 @@ async function meView(){
     <button class="big" style="margin-top:8px;background:#444;color:#fff" onclick="logout()">👋 Sign out</button>
     <div class="errmsg" id="pfErr"></div>
   </div>`;
-  if(!mine.length){$('#v-me').innerHTML=profileCard+'<div class="sticker center"><h2 class="scrawl">Your stage awaits 🎬</h2><p>Hit the ＋ button and post your first video!</p></div>';return}
-  let html=profileCard;
+  if(!mine.length){$('#v-me').innerHTML=profileCard+myVideosCard()+'<div class="sticker center"><h2 class="scrawl">Your stage awaits 🎬</h2><p>Hit the ＋ button and post your first video!</p></div>';loadMyVideos();return}
+  let html=profileCard+myVideosCard();
   for(const c of mine){
     const badges=await api(`/api/channels/${c.id}/badges`);
     const fans=await api(`/api/channels/${c.id}/subscribers`).catch(()=>[]);
@@ -743,6 +757,7 @@ async function meView(){
     </div>`;
   }
   $('#v-me').innerHTML=html;
+  loadMyVideos();
 }
 
 // ---- STUDIO (karaoke record-over-a-song) ----
@@ -860,6 +875,54 @@ async function saveAvatar(){
   }catch(e){$('#pfErr').textContent=e.message}
 }
 async function logout(){await api('/api/logout',{method:'POST'});location.reload()}
+
+function myVideosCard(){
+  return `<div class="sticker"><h2 class="scrawl">My videos 🎬</h2><div id="myVids"><p style="color:#b678a8">Loading…</p></div></div>`;
+}
+async function loadMyVideos(){
+  const box=$('#myVids');if(!box)return;
+  const vids=await api('/api/my/videos').catch(()=>[]);
+  box.innerHTML=vids.length?vids.map(v=>vrowHtml(v)).join('')
+    :'<p style="color:#b678a8">Nothing posted yet — hit ＋ to drop your first one!</p>';
+}
+function vrowHtml(v){
+  return `<div class="vrow" id="vrow${v.id}">
+    <div class="vthumb" onclick="openVideo(${v.id})">
+      ${v.has_thumb?`<img src="/api/videos/${v.id}/thumb" loading="lazy" alt="">`
+        :`<video src="/api/videos/${v.id}/stream#t=1" preload="metadata" muted playsinline></video>`}</div>
+    <div class="vinfo" onclick="openVideo(${v.id})">
+      <div class="vt">${esc(v.title)}</div>
+      <div class="vd">${fdate(v.created_at)} · 💬 ${v.comment_count}</div>
+    </div>
+    <div class="vacts">
+      <button class="act-mini" onclick="editVid(${v.id})">✏️</button>
+      <button class="act-mini bad" onclick="removeVid(${v.id})">🗑️</button>
+    </div>
+  </div>`;
+}
+async function editVid(id){
+  const v=await api('/api/videos/'+id).catch(()=>null);if(!v)return;
+  const row=$('#vrow'+id);
+  row.innerHTML=`<div style="flex:1">
+    <input id="ev_t${id}" value="${esc(v.title)}" maxlength="120" placeholder="title">
+    <textarea id="ev_d${id}" rows="2" maxlength="500" placeholder="description">${esc(v.description||'')}</textarea>
+    <div style="display:flex;gap:8px">
+      <button class="big cy" style="flex:1;padding:9px" onclick="saveVid(${id})">Save ⭐</button>
+      <button class="big" style="flex:1;padding:9px;background:#444;color:#fff" onclick="loadMyVideos()">Cancel</button>
+    </div><div class="errmsg" id="ev_e${id}"></div></div>`;
+}
+async function saveVid(id){
+  try{
+    await api(`/api/videos/${id}/update`,{method:'POST',
+      body:{title:$('#ev_t'+id).value,description:$('#ev_d'+id).value}});
+    loadMyVideos();
+  }catch(e){$('#ev_e'+id).textContent=e.message}
+}
+async function removeVid(id){
+  if(!confirm('Remove this video from the club? The video, its comments, and its chart score all come down. This cannot be undone from the app.'))return;
+  await api(`/api/videos/${id}/remove`,{method:'POST'}).catch(e=>alert(e.message));
+  loadMyVideos();
+}
 
 // ---- CLUB CHAT ----
 let chatPoll=null,chatLastId=0;
