@@ -121,3 +121,10 @@ CREATE INDEX IF NOT EXISTS idx_comments_video   ON comments(video_id, status);
 CREATE INDEX IF NOT EXISTS idx_comments_pending ON comments(status) WHERE status IN ('pending','flagged');
 CREATE INDEX IF NOT EXISTS idx_queue_due        ON cast_queue(run_at) WHERE done = false;
 CREATE INDEX IF NOT EXISTS idx_reactions_video  ON reactions(video_id);
+
+-- v2: shorts
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'video';
+
+-- v3: direct-to-bucket uploads
+ALTER TABLE videos DROP CONSTRAINT IF EXISTS videos_status_check;
+ALTER TABLE videos ADD CONSTRAINT videos_status_check CHECK (status IN ('uploading','live','hidden','removed'));
