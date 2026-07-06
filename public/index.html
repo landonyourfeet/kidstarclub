@@ -157,6 +157,52 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .sbghost{position:fixed;z-index:70;pointer-events:none;opacity:.95;filter:drop-shadow(0 6px 10px rgba(13,2,16,.6))}
 .sbcell.prev{background:#1e6b3a!important;box-shadow:0 0 10px rgba(74,222,128,.8),inset 0 0 6px rgba(74,222,128,.6)}
 .sbcell.badprev{background:#6b1e1e!important;box-shadow:0 0 8px rgba(248,113,113,.7)}
+/* shared game field */
+.gfield{position:relative;aspect-ratio:3/4;max-width:400px;margin:0 auto;overflow:hidden;
+  border:3px solid var(--cyan);border-radius:14px;touch-action:none;cursor:pointer;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(69,216,255,.12), transparent 40%),
+    radial-gradient(circle at 70% 80%, rgba(255,46,196,.14), transparent 45%),
+    linear-gradient(180deg,#160826,#0a0616);
+  box-shadow:0 0 18px rgba(69,216,255,.3), inset 0 0 30px rgba(13,2,16,.8)}
+/* star racer */
+.rcplayer{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);font-size:36px;
+  filter:drop-shadow(0 0 10px rgba(69,216,255,.9));transition:left .06s linear;pointer-events:none}
+.rcitem{position:absolute;font-size:28px;transform:translateX(-50%);pointer-events:none;
+  filter:drop-shadow(0 0 6px rgba(255,225,77,.7))}
+/* flappy */
+.flstar{position:absolute;left:14%;top:40%;font-size:34px;transform-origin:center;
+  filter:drop-shadow(0 0 10px rgba(255,225,77,.9));pointer-events:none;transition:transform .1s}
+.flpipe{position:absolute;width:12%;background:linear-gradient(90deg,var(--pink),#7a0a5e);
+  border:2px solid var(--white);border-radius:8px;box-shadow:0 0 12px rgba(255,46,196,.6);pointer-events:none}
+/* simon */
+.sigrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:340px;margin:0 auto;aspect-ratio:1}
+.sipad{border-radius:18px;border:3px solid var(--pc);background:color-mix(in srgb,var(--pc) 18%,#0d0210);
+  font-size:38px;cursor:pointer;opacity:.65;transition:all .12s;filter:grayscale(.4)}
+.sipad.lit,.sipad:active{opacity:1;filter:none;background:var(--pc);
+  box-shadow:0 0 26px var(--pc);transform:scale(1.05)}
+/* stacker */
+.stblock{position:absolute;height:6.5%;border:2px solid rgba(255,255,255,.85);border-radius:6px;
+  box-shadow:0 0 10px currentColor, inset 0 -4px 0 rgba(13,2,16,.35)}
+.stblock.moving{animation:none}
+.stblock.fall{animation:stfall .7s ease-in forwards}
+@keyframes stfall{to{transform:translateY(120vh) rotate(24deg);opacity:0}}
+/* beat star */
+.btfield{cursor:default}
+.btlane{position:absolute;top:0;bottom:0;width:25%}
+.btlane[data-l="0"]{left:0}.btlane[data-l="1"]{left:25%}.btlane[data-l="2"]{left:50%}.btlane[data-l="3"]{left:75%}
+.btlane:nth-child(odd){background:rgba(255,255,255,.025)}
+.btnote{position:absolute;top:-8%;left:50%;transform:translateX(-50%);font-size:30px;
+  filter:drop-shadow(0 0 8px currentColor);pointer-events:none}
+.btline{position:absolute;left:0;right:0;top:80%;height:4px;z-index:2;
+  background:linear-gradient(90deg,var(--cyan),var(--pink),var(--yellow));
+  box-shadow:0 0 14px rgba(69,216,255,.9);animation:btpulse 1s ease-in-out infinite}
+@keyframes btpulse{50%{box-shadow:0 0 26px rgba(255,46,196,.95)}}
+.btpads{display:flex;gap:8px;max-width:400px;margin:10px auto}
+.btpad{flex:1;font-size:28px;padding:12px 0;border-radius:14px;border:3px solid var(--pc);
+  background:color-mix(in srgb,var(--pc) 16%,#0d0210);cursor:pointer;
+  transition:transform .08s}
+.btpad:active{transform:scale(.9);background:var(--pc);box-shadow:0 0 20px var(--pc)}
 .sbrow{display:flex;gap:2px}
 .sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0;
   box-shadow:0 0 4px currentColor}
@@ -583,7 +629,7 @@ function go(view){
   if(view!=='video')stopPoll();
   if(view!=='studio')stopStudio();
   if(view!=='chat')stopChat();
-  if(view!=='arcade')stopDock();
+  if(view!=='arcade'){stopDock();if(typeof gReset==='function')gReset()}
   if(view==='feed')feed(); if(view==='me')meView(); if(view==='arcade')arcade();
   if(view==='studio')studio(); if(view==='chat')chat();
 }
@@ -1120,6 +1166,11 @@ const GAMES={
   starblast:{title:'⭐ STAR BLAST',blurb:'Fill rows & columns to BLAST them!',start:()=>sbNew()},
   zaptap:{title:'⚡ ZAP TAP',blurb:'30 seconds. Tap the stars. Dodge the bombs!',start:()=>ztNew()},
   starmatch:{title:'🃏 STAR MATCH',blurb:'Find all the pairs — fast fingers, big score!',start:()=>smNew()},
+  racer:{title:'🚀 STAR RACER',blurb:'Steer, grab stars, dodge bombs — it gets FAST!',start:()=>rcNew()},
+  flappy:{title:'🌟 FLAPPY STAR',blurb:'Tap to flap through the neon walls!',start:()=>flNew()},
+  beatstar:{title:'🎵 BEAT STAR',blurb:'Hit the notes on the beat — build the combo!',start:()=>btNew()},
+  simon:{title:'🧠 SIMON STARS',blurb:'Watch the light pattern… can you repeat it?',start:()=>siNew()},
+  stacker:{title:'🏗️ SKY STACKER',blurb:'Stack the tower to the stars — perfect drops grow it back!',start:()=>stNew()},
 };
 let currentGame=null;
 // ---- arcade chat dock ----
@@ -1186,6 +1237,7 @@ async function arcade(){
   }).join('');
 }
 function openGame(id){
+  gReset();stopRain();
   currentGame=id;
   $('#arcadeHub').classList.add('hide');
   const host=$('#gameHost');host.classList.remove('hide');
@@ -1454,6 +1506,266 @@ function smFlip(i){
       setTimeout(()=>{$('#sm'+a).classList.remove('up');$('#sm'+b).classList.remove('up');sm.lock=false},700);
     }
   }
+}
+
+
+// ---- shared game loop management ----
+let __raf=null,__ivals=[];
+function gReset(){if(__raf)cancelAnimationFrame(__raf);__raf=null;
+  __ivals.forEach(clearInterval);__ivals=[];}
+function gIval(fn,ms){const t=setInterval(fn,ms);__ivals.push(t);return t}
+
+// ---- GAME 4: STAR RACER (dodge the bombs, grab the stars) ----
+let rc={};
+function rcNew(){
+  gReset();
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">SCORE <span id="rcscore">0</span></div>
+    <div id="rcfield" class="gfield"><div id="rcplayer" class="rcplayer">🚀</div></div>
+    <p class="sbhint">Slide your finger to steer. Grab ⭐ (+5) — dodge the 💣!</p>
+    <button class="big cy" onclick="rcNew()">🔁 New game</button>`;
+  const field=$('#rcfield');
+  rc={x:.5,items:[],score:0,over:false,speed:2.2,t:0};
+  const move=e=>{const r=field.getBoundingClientRect();
+    rc.x=Math.max(.05,Math.min(.95,(e.clientX-r.left)/r.width))};
+  field.onpointermove=move;field.onpointerdown=move;
+  gIval(()=>{ if(rc.over)return;
+    const bomb=Math.random()<0.4;
+    const el=document.createElement('div');el.className='rcitem';
+    el.textContent=bomb?'💣':'⭐';el.dataset.bomb=bomb?1:0;
+    el.style.left=(5+Math.random()*90)+'%';el.style.top='-8%';
+    field.appendChild(el);rc.items.push({el,y:-8,bomb});
+  },650);
+  gIval(()=>{if(!rc.over){rc.score++;$('#rcscore').textContent=rc.score;rc.speed+=0.03}},1000);
+  const loop=()=>{
+    if(rc.over)return;
+    const fr=field.getBoundingClientRect();
+    $('#rcplayer').style.left=(rc.x*100)+'%';
+    for(const it of [...rc.items]){
+      it.y+=rc.speed*0.35;it.el.style.top=it.y+'%';
+      if(it.y>78&&it.y<94){
+        const ix=parseFloat(it.el.style.left)/100;
+        if(Math.abs(ix-rc.x)<0.09){
+          it.el.remove();rc.items=rc.items.filter(z=>z!==it);
+          if(it.bomb){rc.over=true;sndBad();sndBlast(1);
+            field.animate([{filter:'brightness(3)'},{filter:'brightness(1)'}],{duration:300});
+            submitScore('racer',rc.score).then(x=>setTimeout(()=>alert('💥 Crashed! '+rc.score+' points'+x),300));
+            return;
+          }else{rc.score+=5;$('#rcscore').textContent=rc.score;sndDrop();spawnFlyIn(field,'⭐')}
+        }
+      }
+      if(it.y>105){it.el.remove();rc.items=rc.items.filter(z=>z!==it)}
+    }
+    __raf=requestAnimationFrame(loop);
+  };
+  __raf=requestAnimationFrame(loop);
+}
+function spawnFlyIn(field,emoji){
+  const z=document.createElement('div');z.className='zap';z.textContent=emoji;
+  const r=field.getBoundingClientRect();
+  z.style.position='fixed';z.style.left=(r.left+r.width*rc.x)+'px';z.style.top=(r.top+r.height*.82)+'px';
+  document.body.appendChild(z);setTimeout(()=>z.remove(),900);
+}
+
+// ---- GAME 5: FLAPPY STAR ----
+let fl={};
+function flNew(){
+  gReset();
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">SCORE <span id="flscore">0</span></div>
+    <div id="flfield" class="gfield" onpointerdown="fl.vy=-2.6;sndPick()">
+      <div id="flstar" class="flstar">⭐</div></div>
+    <p class="sbhint">Tap to flap! Fly through the gaps in the neon walls.</p>
+    <button class="big cy" onclick="flNew()">🔁 New game</button>`;
+  fl={y:40,vy:0,pipes:[],score:0,over:false};
+  const field=$('#flfield');
+  gIval(()=>{ if(fl.over)return;
+    const gapY=15+Math.random()*50, gapH=30;
+    const top=document.createElement('div'),bot=document.createElement('div');
+    top.className='flpipe';bot.className='flpipe';
+    top.style.cssText=`left:102%;top:0;height:${gapY}%`;
+    bot.style.cssText=`left:102%;top:${gapY+gapH}%;height:${100-gapY-gapH}%`;
+    field.append(top,bot);
+    fl.pipes.push({top,bot,x:102,gapY,gapH,passed:false});
+  },1900);
+  const loop=()=>{
+    if(fl.over)return;
+    fl.vy+=0.09;fl.y+=fl.vy;
+    if(fl.y<2||fl.y>92)return flEnd();
+    $('#flstar').style.top=fl.y+'%';
+    $('#flstar').style.transform=`rotate(${Math.max(-30,Math.min(60,fl.vy*14))}deg)`;
+    for(const p of [...fl.pipes]){
+      p.x-=0.55;p.top.style.left=p.x+'%';p.bot.style.left=p.x+'%';
+      if(!p.passed&&p.x<14){p.passed=true;fl.score+=10;$('#flscore').textContent=fl.score;sndDrop()}
+      if(p.x>8&&p.x<22&&(fl.y<p.gapY+3||fl.y>p.gapY+p.gapH-3))return flEnd();
+      if(p.x<-14){p.top.remove();p.bot.remove();fl.pipes=fl.pipes.filter(z=>z!==p)}
+    }
+    __raf=requestAnimationFrame(loop);
+  };
+  __raf=requestAnimationFrame(loop);
+}
+function flEnd(){
+  if(fl.over)return;fl.over=true;sndBad();sndBlast(1);
+  submitScore('flappy',fl.score).then(x=>setTimeout(()=>alert('💥 '+fl.score+' points'+x),300));
+}
+
+// ---- GAME 6: SIMON STARS (repeat the light sequence) ----
+const SI_TONES=[392,494,587,698];
+const SI_COLORS=['#ff2ec4','#45d8ff','#ffe14d','#4ade80'];
+let si={};
+function siNew(){
+  gReset();
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">ROUND <span id="siround">1</span></div>
+    <div class="sigrid">${[0,1,2,3].map(i=>
+      `<button class="sipad" id="sip${i}" style="--pc:${SI_COLORS[i]}" onclick="siTap(${i})">⭐</button>`).join('')}</div>
+    <p class="sbhint" id="sihint">Watch the pattern… then repeat it!</p>
+    <button class="big cy" onclick="siNew()">🔁 New game</button>`;
+  si={seq:[],pos:0,round:1,lock:true,over:false};
+  setTimeout(siGrow,700);
+}
+function siGrow(){
+  si.seq.push(Math.floor(Math.random()*4));
+  $('#siround').textContent=si.round;
+  $('#sihint').textContent='Watch the pattern…';
+  si.lock=true;
+  si.seq.forEach((p,i)=>setTimeout(()=>siFlash(p),500+i*560));
+  setTimeout(()=>{si.lock=false;si.pos=0;$('#sihint').textContent='Your turn! ⭐'},500+si.seq.length*560);
+}
+function siFlash(i){
+  const pad=$('#sip'+i);if(!pad)return;
+  sfxTone(SI_TONES[i],0.32,'triangle',0.28);
+  pad.classList.add('lit');setTimeout(()=>pad.classList.remove('lit'),320);
+}
+function siTap(i){
+  if(si.lock||si.over)return;
+  siFlash(i);
+  if(i===si.seq[si.pos]){
+    si.pos++;
+    if(si.pos===si.seq.length){
+      si.round++;sndDrop();burst('pop');
+      setTimeout(siGrow,700);
+    }
+  }else{
+    si.over=true;sndBad();
+    const score=(si.round-1)*(si.round-1)*10;
+    submitScore('simon',score).then(x=>setTimeout(()=>alert('Round '+si.round+'! 🧠 '+score+' points'+x),300));
+  }
+}
+
+// ---- GAME 7: SKY STACKER (stack the blocks to the stars) ----
+let st={};
+function stNew(){
+  gReset();
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">HEIGHT <span id="stscore">0</span></div>
+    <div id="stfield" class="gfield" onpointerdown="stDrop()"></div>
+    <p class="sbhint">Tap to drop the block on the tower. Perfect drops = bonus + it grows back!</p>
+    <button class="big cy" onclick="stNew()">🔁 New game</button>`;
+  const field=$('#stfield');
+  st={rows:0,w:44,x:28,dir:1,lastX:28,lastW:44,score:0,over:false,speed:0.9};
+  const base=document.createElement('div');
+  base.className='stblock';base.style.cssText=`left:28%;width:44%;bottom:0;background:${SB_COLORS[0]}`;
+  field.appendChild(base);
+  stSpawn();
+  const loop=()=>{
+    if(st.over)return;
+    st.x+=st.dir*st.speed;
+    if(st.x<0||st.x+st.w>100)st.dir*=-1;
+    if(st.cur)st.cur.style.left=st.x+'%';
+    __raf=requestAnimationFrame(loop);
+  };
+  __raf=requestAnimationFrame(loop);
+}
+function stSpawn(){
+  const field=$('#stfield');
+  st.cur=document.createElement('div');
+  st.cur.className='stblock moving';
+  const bottom=Math.min(84,(st.rows+1)*7);
+  st.cur.style.cssText=`left:${st.x}%;width:${st.w}%;bottom:${bottom}%;background:${SB_COLORS[(st.rows+1)%SB_COLORS.length]}`;
+  field.appendChild(st.cur);
+  if(st.rows>10)field.style.setProperty('--shift',Math.min(40,(st.rows-10)*7)+'%');
+}
+function stDrop(){
+  if(st.over||!st.cur)return;
+  const L=Math.max(st.x,st.lastX), R=Math.min(st.x+st.w,st.lastX+st.lastW);
+  const overlap=R-L;
+  if(overlap<=2){
+    st.over=true;st.cur.classList.add('fall');sndBad();
+    submitScore('stacker',st.score).then(x=>setTimeout(()=>alert('Timber! 🏗️ '+st.score+' points'+x),300));
+    return;
+  }
+  const perfect=Math.abs(st.x-st.lastX)<2.5;
+  st.cur.classList.remove('moving');
+  st.cur.style.left=L+'%';st.cur.style.width=overlap+'%';
+  st.rows++;st.score+=perfect?25:10;
+  $('#stscore').textContent=st.score;
+  if(perfect){sndBlast(1);burst('pop');st.w=Math.min(50,overlap+6)}
+  else{sndDrop();st.w=overlap}
+  st.lastX=L;st.lastW=overlap;
+  st.speed=Math.min(2.4,0.9+st.rows*0.07);
+  st.x=st.dir>0?0:100-st.w;
+  stSpawn();
+}
+
+// ---- GAME 8: BEAT STAR (rhythm tapper) ----
+const BT_TONES=[523,587,659,784];
+let bt={};
+function btNew(){
+  gReset();
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">SCORE <span id="btscore">0</span> · COMBO <span id="btcombo">0</span>× · ⏱ <span id="bttime">45</span>s</div>
+    <div id="btfield" class="gfield btfield">
+      <div class="btline"></div>
+      ${[0,1,2,3].map(i=>`<div class="btlane" data-l="${i}"></div>`).join('')}
+    </div>
+    <div class="btpads">${[0,1,2,3].map(i=>
+      `<button class="btpad" style="--pc:${SI_COLORS[i]}" onpointerdown="btTap(${i})">⭐</button>`).join('')}</div>
+    <p class="sbhint">Tap the pad when the star hits the line! Build that combo! 🎵</p>
+    <button class="big cy" onclick="btNew()">🔁 New game</button>`;
+  bt={notes:[],score:0,combo:0,time:45,over:false,bpmGap:900};
+  gIval(()=>{ if(bt.over)return;
+    bt.time--;$('#bttime').textContent=bt.time;
+    if(bt.time%10===0)bt.bpmGap=Math.max(480,bt.bpmGap-90);
+    if(bt.time<=0)btEnd();
+  },1000);
+  const spawn=()=>{ if(bt.over)return;
+    const l=Math.floor(Math.random()*4);
+    const el=document.createElement('div');el.className='btnote';el.textContent='⭐';
+    el.style.color=SI_COLORS[l];
+    document.querySelectorAll('.btlane')[l].appendChild(el);
+    bt.notes.push({el,l,y:-8});
+    setTimeout(spawn,bt.bpmGap*(0.7+Math.random()*0.6));
+  };
+  spawn();
+  const loop=()=>{
+    if(bt.over)return;
+    for(const n of [...bt.notes]){
+      n.y+=1.15;n.el.style.top=n.y+'%';
+      if(n.y>96){n.el.remove();bt.notes=bt.notes.filter(z=>z!==n);
+        bt.combo=0;$('#btcombo').textContent=0}
+    }
+    __raf=requestAnimationFrame(loop);
+  };
+  __raf=requestAnimationFrame(loop);
+}
+function btTap(l){
+  if(bt.over)return;
+  sfxTone(BT_TONES[l],0.12,'square',0.14);
+  const hit=bt.notes.filter(n=>n.l===l&&n.y>68&&n.y<92)
+    .sort((a,b)=>Math.abs(80-a.y)-Math.abs(80-b.y))[0];
+  if(!hit){bt.combo=0;$('#btcombo').textContent=0;return}
+  const perfect=Math.abs(hit.y-80)<5;
+  hit.el.remove();bt.notes=bt.notes.filter(z=>z!==hit);
+  bt.combo++;
+  bt.score+=(perfect?20:10)*Math.min(10,Math.ceil(bt.combo/5));
+  $('#btscore').textContent=bt.score;$('#btcombo').textContent=bt.combo;
+  if(perfect)sfxTone(BT_TONES[l]*2,0.1,'triangle',0.16);
+  if(bt.combo%10===0&&bt.combo>0)burst('pop');
+}
+function btEnd(){
+  if(bt.over)return;bt.over=true;sndWin();
+  submitScore('beatstar',bt.score).then(x=>setTimeout(()=>alert("That's a wrap! 🎵 "+bt.score+' points'+x),300));
 }
 
 // ---- CLUB CHAT ----
