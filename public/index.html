@@ -86,6 +86,27 @@ input::placeholder,textarea::placeholder{color:#b678a8}
 .zap{position:absolute;font-size:26px;pointer-events:none;animation:zap .9s ease-out forwards}
 @keyframes zap{0%{transform:scale(.4) rotate(-20deg);opacity:1}100%{transform:scale(1.8) translateY(-60px) rotate(15deg);opacity:0}}
 .hide{display:none}
+/* shorts */
+.kindrow{display:flex;gap:8px;margin-bottom:10px}
+.kbtn{flex:1;font-family:var(--block);font-size:14px;letter-spacing:.06em;background:#1c0a1e;
+  color:var(--white);border:2px solid var(--magenta);border-radius:10px;padding:10px;cursor:pointer}
+.kbtn.on{background:var(--cyan);color:var(--black);border-color:var(--white)}
+.shortswrap{position:fixed;inset:0;top:0;background:var(--black);z-index:40;
+  overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch}
+.short{position:relative;height:100vh;height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;
+  display:flex;align-items:center;justify-content:center}
+.short video{height:100%;width:100%;object-fit:contain;background:var(--black)}
+.short .overlay{position:absolute;left:14px;right:80px;bottom:28px;text-shadow:1px 1px 3px var(--black)}
+.short .overlay .st{font-family:var(--block);font-size:18px}
+.short .overlay .so{color:var(--cyan);font-weight:800;font-size:13px}
+.short .rail{position:absolute;right:10px;bottom:40px;display:flex;flex-direction:column;gap:14px;align-items:center}
+.short .rail button{background:rgba(13,2,16,.55);border:2px solid var(--pink);border-radius:50%;
+  width:52px;height:52px;font-size:22px;cursor:pointer;color:var(--white)}
+.short .rail .n{font-size:11px;font-weight:800;color:var(--white);text-shadow:1px 1px 2px var(--black)}
+.short .closer{position:absolute;top:14px;left:14px;background:rgba(13,2,16,.65);border:2px solid var(--white);
+  border-radius:999px;color:var(--white);font-family:var(--block);padding:8px 16px;cursor:pointer;font-size:13px}
+.short .muter{position:absolute;top:14px;right:14px;background:rgba(13,2,16,.65);border:2px solid var(--cyan);
+  border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;color:var(--white)}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -97,6 +118,7 @@ input::placeholder,textarea::placeholder{color:#b678a8}
   <div class="tag">your stage · your fans · your club ⚡</div>
   <nav id="nav" class="hide">
     <button data-v="feed" class="on" onclick="go('feed')">Stage</button>
+    <button data-v="shorts" onclick="go('shorts')">Shorts</button>
     <button data-v="upload" onclick="go('upload')">Post</button>
     <button data-v="me" onclick="go('me')">My Star</button>
   </nav>
@@ -125,6 +147,9 @@ input::placeholder,textarea::placeholder{color:#b678a8}
   <!-- FEED -->
   <section id="v-feed" class="hide"></section>
 
+  <!-- SHORTS -->
+  <section id="v-shorts" class="hide"><div id="shortsWrap" class="shortswrap"></div></section>
+
   <!-- SINGLE VIDEO -->
   <section id="v-video" class="hide"></section>
 
@@ -132,6 +157,10 @@ input::placeholder,textarea::placeholder{color:#b678a8}
   <section id="v-upload" class="hide">
     <div class="sticker">
       <h2 class="scrawl">Drop a new video 🎬</h2>
+      <div class="kindrow">
+        <button type="button" id="kv" class="kbtn on" onclick="setKind('video')">🎬 Video</button>
+        <button type="button" id="ks" class="kbtn" onclick="setKind('short')">⚡ Short</button>
+      </div>
       <input id="ut" placeholder="video title — make it POP" maxlength="120">
       <textarea id="ud" rows="2" placeholder="tell your fans about it (optional)" maxlength="500"></textarea>
       <input id="uf" type="file" accept="video/*" capture="user">
@@ -164,7 +193,60 @@ let ME=null;
 function go(view){
   document.querySelectorAll('main section').forEach(s=>s.classList.toggle('hide',s.id!=='v-'+view));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
-  if(view==='feed')feed(); if(view==='me')meView();
+  if(view!=='shorts')stopShorts();
+  if(view==='feed')feed(); if(view==='me')meView(); if(view==='shorts')shorts();
+}
+
+// ---- SHORTS ----
+let shortsObserver=null;
+function stopShorts(){
+  document.querySelectorAll('#shortsWrap video').forEach(v=>v.pause());
+  if(shortsObserver){shortsObserver.disconnect();shortsObserver=null}
+  $('#shortsWrap').innerHTML='';
+}
+let shortsMuted=true;
+async function shorts(){
+  const vids=await api('/api/feed?kind=short');
+  const wrap=$('#shortsWrap');
+  if(!vids.length){
+    wrap.innerHTML=`<div class="short"><div class="sticker center" style="max-width:320px">
+      <h2 class="scrawl">No shorts yet ⚡</h2><p>Tap Post → Short and film one right now!</p>
+      <button class="big" style="margin-top:10px" onclick="go('upload');setKind('short')">Make a Short 🎥</button>
+      <button class="big cy" style="margin-top:8px" onclick="go('feed')">Back to Stage</button></div></div>`;
+    return;
+  }
+  wrap.innerHTML=vids.map(v=>`
+    <div class="short" data-vid="${v.id}">
+      <video src="/api/videos/${v.id}/stream" loop playsinline muted preload="metadata"
+        onclick="this.paused?this.play():this.pause()"></video>
+      <button class="closer" onclick="go('feed')">✕ Stage</button>
+      <button class="muter" onclick="toggleMute(event)">🔇</button>
+      <div class="overlay">
+        <div class="st">${esc(v.title)}</div>
+        <div class="so">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${ago(v.created_at)}</div>
+      </div>
+      <div class="rail">
+        <button onclick="shortReact(${v.id},this,event)">⚡</button><div class="n">${v.reaction_count}</div>
+        <button onclick="openVideo(${v.id})">💬</button><div class="n">${v.comment_count}</div>
+      </div>
+    </div>`).join('');
+  shortsObserver=new IntersectionObserver(es=>es.forEach(e=>{
+    const vid=e.target.querySelector('video');
+    if(e.isIntersecting){vid.muted=shortsMuted;vid.play().catch(()=>{})}else vid.pause();
+  }),{root:wrap,threshold:.6});
+  wrap.querySelectorAll('.short').forEach(s=>shortsObserver.observe(s));
+}
+function toggleMute(ev){
+  ev.stopPropagation();
+  shortsMuted=!shortsMuted;
+  document.querySelectorAll('#shortsWrap video').forEach(v=>v.muted=shortsMuted);
+  document.querySelectorAll('.muter').forEach(b=>b.textContent=shortsMuted?'🔇':'🔊');
+}
+async function shortReact(id,btn,ev){
+  ev.stopPropagation();
+  await api(`/api/videos/${id}/react`,{method:'POST',body:{kind:'star'}}).catch(()=>{});
+  const n=btn.nextElementSibling;n.textContent=parseInt(n.textContent)+1;
+  btn.textContent='⭐';setTimeout(()=>btn.textContent='⚡',800);
 }
 async function boot(){
   ME=await api('/api/me').catch(()=>null);
@@ -251,17 +333,40 @@ async function react(videoId,kind,ev){
 }
 
 // ---- UPLOAD ----
+let uploadKind='video';
+function setKind(k){
+  uploadKind=k;
+  $('#kv').classList.toggle('on',k==='video');
+  $('#ks').classList.toggle('on',k==='short');
+  const f=$('#uf');
+  if(k==='short'){f.setAttribute('capture','user');$('#ut').placeholder='short title — quick and catchy ⚡'}
+  else{f.removeAttribute('capture');$('#ut').placeholder='video title — make it POP'}
+}
 async function upload(){
   const f=$('#uf').files[0], t=$('#ut').value.trim();
   if(!f||!t){$('#uerr').textContent='Need a title and a video!';return}
-  $('#ubtn').disabled=true;$('#ubtn').textContent='Uploading… 🚀';
+  if(f.size>5*1024*1024*1024){$('#uerr').textContent='Whoa — 5GB max per video. Trim it a little!';return}
+  $('#ubtn').disabled=true;$('#uerr').textContent='';
   try{
-    const q=new URLSearchParams({title:t,description:$('#ud').value.trim()});
-    const r=await fetch('/api/videos?'+q,{method:'POST',headers:{'content-type':f.type||'video/mp4'},body:f});
-    const j=await r.json(); if(!r.ok)throw new Error(j.error||'Upload failed.');
+    // 1) presign
+    const p=await api('/api/videos/presign',{method:'POST',
+      body:{title:t,description:$('#ud').value.trim(),kind:uploadKind}});
+    // 2) direct PUT to bucket with progress
+    await new Promise((res,rej)=>{
+      const x=new XMLHttpRequest();
+      x.open('PUT',p.put_url);
+      x.setRequestHeader('content-type',f.type||'video/mp4');
+      x.upload.onprogress=e=>{if(e.lengthComputable)
+        $('#ubtn').textContent=`Uploading… ${Math.round(e.loaded/e.total*100)}% 🚀`};
+      x.onload=()=>x.status>=200&&x.status<300?res():rej(new Error('Storage upload failed ('+x.status+').'));
+      x.onerror=()=>rej(new Error('Network error during upload — try again.'));
+      x.send(f);
+    });
+    // 3) go live
+    await api(`/api/videos/${p.video_id}/complete`,{method:'POST'});
     $('#ut').value='';$('#ud').value='';$('#uf').value='';
-    alert('🎉 Posted! The club is on its way — cheers and comments will roll in all day. Check back!');
-    go('feed');
+    alert(uploadKind==='short'?'⚡ Short posted! The club is on its way!':'🎉 Posted! The club is on its way — cheers and comments will roll in all day. Check back!');
+    go(uploadKind==='short'?'shorts':'feed');
   }catch(e){$('#uerr').textContent=e.message}
   finally{$('#ubtn').disabled=false;$('#ubtn').textContent='Post it! ⚡'}
 }
