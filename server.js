@@ -17,6 +17,8 @@ const app = express();
 process.on('unhandledRejection', e => console.error('[unhandledRejection]', e?.message || e));
 process.on('uncaughtException', e => console.error('[uncaughtException]', e?.message || e));
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : undefined });
+// Idle-client errors (db restarts, network blips) must never bubble into a crash.
+pool.on('error', e => console.error('[pg-pool]', e?.message || e));
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -584,6 +586,45 @@ app.get('/watch/:token', async (req, res) => {
 </body></html>`);
 });
 
+// ---------- Puppy Park: AI friends (Grok, openly labeled) ----------
+const PARK_CAST = {
+  Zoe:   'Zoe, 10, loves cartwheels and collecting shiny rocks. Bubbly, giggles a lot.',
+  Marco: 'Marco, 11, soccer fanatic who narrates everything like a sports announcer.',
+  Piper: 'Piper, 9, wants to be a vet, knows a fun animal fact for every situation.',
+  Dev:   'Dev, 12, chill skater kid, says "no way" a lot, hypes everyone up.',
+  Luna:  'Luna, 10, dreamy artist who describes everything by its colors.',
+  Rex:   'Rex, 11, jokester who does terrible puns and cracks himself up.',
+  Maya:  'Maya, 12, big-sister energy, organizes games and cheers for everyone.',
+};
+app.post('/api/park/talk', requireUser, async (req, res) => {
+  const npc = String(req.body?.npc || '').slice(0, 20);
+  const message = String(req.body?.message || '').trim().slice(0, 300);
+  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-6) : [];
+  if (!PARK_CAST[npc] || !message) return res.status(400).json({ error: 'Bad request' });
+  try {
+    const r = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.XAI_API_KEY}` },
+      body: JSON.stringify({
+        model: process.env.XAI_MODEL || 'grok-4.3',
+        max_tokens: 90,
+        messages: [
+          { role: 'system', content: `You are ${PARK_CAST[npc]} You are an AI character in the KidStarClub park game — the kids KNOW you are an AI character; never claim to be human, never claim real-world meetings or sightings, never ask personal questions (school, address, schedule, photos), never suggest other platforms. Keep it G-rated, playful, and SHORT: 1-2 sentences, like a kid chatting at the park. Playful teasing is fine; never mean, never about the kid personally.` },
+          ...history.filter(h => ['user', 'assistant'].includes(h.role))
+            .map(h => ({ role: h.role, content: String(h.content).slice(0, 300) })),
+          { role: 'user', content: message },
+        ],
+      }),
+    });
+    const data = await r.json();
+    const reply = data?.choices?.[0]?.message?.content?.trim().slice(0, 400) || "Let's play! 🐾";
+    res.json({ reply });
+  } catch (e) {
+    console.error('[park-talk]', e?.message || e);
+    res.json({ reply: 'Whoa, I spaced out watching a butterfly — say that again? 🦋' });
+  }
+});
+
 // ---------- Arcade ----------
 app.get('/api/games/summary', requireUser, async (req, res) => {
   const games = String(req.query.games || '').split(',').filter(Boolean).slice(0, 12);
@@ -800,6 +841,14 @@ app.post('/api/admin/cast/:id/active', requireAdmin, async (req, res) => {
     bucket.setCors(['*']).then(() => console.log('[boot] bucket CORS set'))
       .catch(e => console.error('[boot] bucket CORS failed (direct uploads may not work):', e.message));
   castEngine.startWorker(pool, { onStarMeter: bumpStars });
+  // Global error middleware: a throwing route answers 500 instead of hanging or crashing.
+  app.use((err, req, res, next) => {
+    console.error('[route-error]', req.method, req.path, err?.message || err);
+    if (!res.headersSent) res.status(500).json({ error: 'Something hiccuped — try again!' });
+  });
   const port = process.env.PORT || 3000;
-  app.listen(port, () => console.log(`[boot] KidStarClub live on :${port}`));
+  const server = app.listen(port, () => console.log(`[boot] KidStarClub live on :${port}`));
+  // Hung requests release their sockets instead of piling up.
+  server.requestTimeout = 30000;
+  server.headersTimeout = 31000;
 })().catch(e => { console.error('[boot] fatal', e); process.exit(1); });
