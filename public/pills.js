@@ -10,8 +10,8 @@
 // Used by index.html (in-app comments + chat).
 function pillHtml(c){
   if(c.cast_name){
-    if(c.cast_tier==='judge')return '<span class="tag judgep">🤖 JUDGE</span>';
-    if(c.cast_tier==='regular')return '<span class="tag crewp">🤖 CREW</span>';
+    if(c.cast_tier==='judge')return '<span class="tag judgep"> JUDGE</span>';
+    if(c.cast_tier==='regular')return '<span class="tag crewp"> CREW</span>';
     return '<span class="tag fanp">🤖 FAN</span>';
   }
   if(c.user_role==='admin')return '<span class="tag hq">🛡️ HQ</span>';
@@ -31,8 +31,8 @@ function mentionCastTag(){
 // Used by watch-page.js (public share pages).
 function watchPill(c){
   if(c.cast_name){
-    if(c.cast_tier==='judge')return '<span class="pill pj">🤖 JUDGE</span>';
-    if(c.cast_tier==='regular')return '<span class="pill pc">🤖 CREW</span>';
+    if(c.cast_tier==='judge')return '<span class="pill pj"> JUDGE</span>';
+    if(c.cast_tier==='regular')return '<span class="pill pc"> CREW</span>';
     return '<span class="pill pf">🤖 FAN</span>';
   }
   return '';
