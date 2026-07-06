@@ -203,6 +203,13 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   background:color-mix(in srgb,var(--pc) 16%,#0d0210);cursor:pointer;
   transition:transform .08s}
 .btpad:active{transform:scale(.9);background:var(--pc);box-shadow:0 0 20px var(--pc)}
+/* puppy park */
+.ppwrap{position:relative;aspect-ratio:3/4;max-width:420px;margin:0 auto;overflow:hidden;
+  border:3px solid var(--cyan);border-radius:14px;background:#87d8ff;
+  box-shadow:0 0 18px rgba(69,216,255,.3)}
+.ppwrap canvas{display:block;width:100%!important;height:100%!important;border-radius:11px}
+.pphud{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:#0d0210;text-align:center;padding:20px}
 .sbrow{display:flex;gap:2px}
 .sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0;
   box-shadow:0 0 4px currentColor}
@@ -1171,6 +1178,7 @@ const GAMES={
   beatstar:{title:'🎵 BEAT STAR',blurb:'Hit the notes on the beat — build the combo!',start:()=>btNew()},
   simon:{title:'🧠 SIMON STARS',blurb:'Watch the light pattern… can you repeat it?',start:()=>siNew()},
   stacker:{title:'🏗️ SKY STACKER',blurb:'Stack the tower to the stars — perfect drops grow it back!',start:()=>stNew()},
+  puppy:{title:'🐶 PUPPY PARK',blurb:'Run around a 3D park and fetch the bones!',start:()=>ppNew()},
 };
 let currentGame=null;
 // ---- arcade chat dock ----
@@ -1766,6 +1774,173 @@ function btTap(l){
 function btEnd(){
   if(bt.over)return;bt.over=true;sndWin();
   submitScore('beatstar',bt.score).then(x=>setTimeout(()=>alert("That's a wrap! 🎵 "+bt.score+' points'+x),300));
+}
+
+
+// ---- GAME 9: PUPPY PARK (3D!) ----
+let pp={};
+function ppNew(){
+  gReset();
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">🦴 <span id="ppscore">0</span> · ⏱ <span id="pptime">90</span>s</div>
+    <div id="ppwrap" class="ppwrap"><div class="pphud">🐶 loading the park…</div></div>
+    <p class="sbhint">Drag to run! Fetch the bones before time runs out! 🦴</p>
+    <button class="big cy" onclick="ppNew()">🔁 New game</button>`;
+  if(window.THREE)ppBoot();
+  else{
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    sc.onload=ppBoot;
+    sc.onerror=()=>{$('#ppwrap').innerHTML='<div class="pphud">Could not load 3D engine — check the connection and retry! 🐾</div>'};
+    document.head.appendChild(sc);
+  }
+}
+function ppBoot(){
+  const wrap=$('#ppwrap');if(!wrap)return;
+  wrap.innerHTML='';
+  const W=wrap.clientWidth,H=wrap.clientHeight;
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(W,H);renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+  renderer.shadowMap.enabled=true;
+  wrap.appendChild(renderer.domElement);
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x87d8ff);
+  scene.fog=new THREE.Fog(0x87d8ff,30,80);
+  const cam=new THREE.PerspectiveCamera(55,W/H,0.1,200);
+
+  // light
+  const sun=new THREE.DirectionalLight(0xfff4d6,1.15);
+  sun.position.set(12,20,8);sun.castShadow=true;
+  sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.camera.left=-40;sun.shadow.camera.right=40;
+  sun.shadow.camera.top=40;sun.shadow.camera.bottom=-40;
+  scene.add(sun,new THREE.AmbientLight(0xbfd9ff,0.7));
+
+  // ground
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(90,90),
+    new THREE.MeshLambertMaterial({color:0x4ec24e}));
+  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+
+  const mat=c=>new THREE.MeshLambertMaterial({color:c});
+  // trees + hedges
+  for(let i=0;i<14;i++){
+    const t=new THREE.Group();
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.5,2.2,7),mat(0x8a5a2b));
+    trunk.position.y=1.1;
+    const leaf=new THREE.Mesh(new THREE.ConeGeometry(2.2,4,8),mat(0x2e8b3a));
+    leaf.position.y=4;
+    trunk.castShadow=leaf.castShadow=true;
+    t.add(trunk,leaf);
+    t.position.set((Math.random()-.5)*70,0,(Math.random()-.5)*70);
+    if(t.position.length()<8)t.position.setLength(14);
+    scene.add(t);
+  }
+  for(const [x,z,w,d] of [[0,-40,84,2],[0,40,84,2],[-40,0,2,84],[40,0,2,84]]){
+    const h=new THREE.Mesh(new THREE.BoxGeometry(w,2,d),mat(0x1e6b2e));
+    h.position.set(x,1,z);h.castShadow=true;scene.add(h);
+  }
+
+  // puppy (low-poly primitives)
+  const puppy=new THREE.Group();
+  const fur=0xc98a4b,dark=0x8a5a2b;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.5,1,2.2),mat(fur));body.position.y=1;
+  const head=new THREE.Mesh(new THREE.BoxGeometry(1.1,1,1),mat(fur));head.position.set(0,1.7,1.4);
+  const snout=new THREE.Mesh(new THREE.BoxGeometry(.55,.45,.5),mat(0xe8c9a0));snout.position.set(0,1.5,2);
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(.14,8,8),mat(0x222222));nose.position.set(0,1.55,2.28);
+  const earL=new THREE.Mesh(new THREE.BoxGeometry(.3,.7,.2),mat(dark));earL.position.set(-.5,2.3,1.3);earL.rotation.z=.3;
+  const earR=earL.clone();earR.position.x=.5;earR.rotation.z=-.3;
+  const tail=new THREE.Mesh(new THREE.BoxGeometry(.25,.25,1),mat(dark));tail.position.set(0,1.35,-1.3);
+  const eyeL=new THREE.Mesh(new THREE.SphereGeometry(.1,8,8),mat(0x111111));eyeL.position.set(-.28,1.85,1.92);
+  const eyeR=eyeL.clone();eyeR.position.x=.28;
+  const legs=[];
+  for(const [x,z] of [[-.5,.8],[.5,.8],[-.5,-.8],[.5,-.8]]){
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(.35,.9,.35),mat(dark));
+    leg.position.set(x,.45,z);legs.push(leg);puppy.add(leg);
+  }
+  [body,head,snout,earL,earR,tail].forEach(m=>m.castShadow=true);
+  puppy.add(body,head,snout,nose,earL,earR,tail,eyeL,eyeR);
+  scene.add(puppy);
+
+  // bones
+  const bones=[];
+  function boneMesh(){
+    const g=new THREE.Group();
+    const bar=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,1.1,8),mat(0xfff6e0));
+    bar.rotation.z=Math.PI/2;
+    for(const sx of [-.55,.55])for(const sy of [-.16,.16]){
+      const k=new THREE.Mesh(new THREE.SphereGeometry(.22,8,8),mat(0xfff6e0));
+      k.position.set(sx,sy,0);g.add(k);
+    }
+    g.add(bar);g.traverse(m=>m.castShadow=true);
+    return g;
+  }
+  function placeBone(b){
+    b.position.set((Math.random()-.5)*68,0.9,(Math.random()-.5)*68);
+  }
+  for(let i=0;i<14;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
+
+  pp={score:0,time:90,over:false,vel:new THREE.Vector2(0,0),joy:null};
+  gIval(()=>{ if(pp.over)return;
+    pp.time--; const el=$('#pptime'); if(el)el.textContent=pp.time;
+    if(pp.time<=0){pp.over=true;sndWin();
+      submitScore('puppy',pp.score).then(x=>setTimeout(()=>alert('Good dog!! 🐶 '+pp.score+' bones-worth of points'+x),300))}
+  },1000);
+
+  // joystick: drag anywhere on the canvas
+  const el=renderer.domElement;
+  el.style.touchAction='none';
+  el.addEventListener('pointerdown',e=>{pp.joy={x:e.clientX,y:e.clientY}});
+  el.addEventListener('pointermove',e=>{
+    if(!pp.joy)return;
+    const dx=e.clientX-pp.joy.x, dy=e.clientY-pp.joy.y;
+    const len=Math.hypot(dx,dy)||1, cl=Math.min(len,60)/60;
+    pp.vel.set(dx/len*cl, dy/len*cl);
+  });
+  const stop=()=>{pp.joy=null;pp.vel.set(0,0)};
+  el.addEventListener('pointerup',stop);el.addEventListener('pointercancel',stop);
+  // keyboard for desktop
+  const keys={};
+  const kd=e=>{keys[e.key]=true},ku=e=>{keys[e.key]=false};
+  addEventListener('keydown',kd);addEventListener('keyup',ku);
+
+  let t=0;
+  const loop=()=>{
+    if(!document.body.contains(el)){ // torn down
+      removeEventListener('keydown',kd);removeEventListener('keyup',ku);
+      renderer.dispose();return;
+    }
+    t+=0.08;
+    let vx=pp.vel.x,vz=pp.vel.y;
+    if(keys.ArrowLeft||keys.a)vx=-1; if(keys.ArrowRight||keys.d)vx=1;
+    if(keys.ArrowUp||keys.w)vz=-1; if(keys.ArrowDown||keys.s)vz=1;
+    const speed=0.28, moving=Math.hypot(vx,vz)>0.05;
+    if(moving&&!pp.over){
+      puppy.position.x=Math.max(-37,Math.min(37,puppy.position.x+vx*speed));
+      puppy.position.z=Math.max(-37,Math.min(37,puppy.position.z+vz*speed));
+      puppy.rotation.y=Math.atan2(vx,vz);
+      legs.forEach((l,i)=>l.rotation.x=Math.sin(t*3+i*Math.PI)*0.7);
+      puppy.position.y=Math.abs(Math.sin(t*3))*0.12;
+    }else{
+      legs.forEach(l=>l.rotation.x*=0.8);
+      puppy.position.y*=0.8;
+    }
+    tail.rotation.y=Math.sin(t*4)*0.6; // always wagging
+    // bones spin + collect
+    for(const b of bones){
+      b.rotation.y+=0.04; b.position.y=0.9+Math.sin(t+b.position.x)*0.15;
+      if(!pp.over&&b.position.distanceTo(puppy.position)<1.8){
+        pp.score+=10; const se=$('#ppscore'); if(se)se.textContent=pp.score;
+        sndDrop(); burst('pop'); placeBone(b);
+      }
+    }
+    // follow cam
+    const target=new THREE.Vector3(puppy.position.x,puppy.position.y+6.5,puppy.position.z+9);
+    cam.position.lerp(target,0.08);
+    cam.lookAt(puppy.position.x,1.2,puppy.position.z);
+    renderer.render(scene,cam);
+    __raf=requestAnimationFrame(loop);
+  };
+  __raf=requestAnimationFrame(loop);
 }
 
 // ---- CLUB CHAT ----
