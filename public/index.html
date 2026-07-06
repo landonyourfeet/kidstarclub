@@ -210,6 +210,31 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .ppwrap canvas{display:block;width:100%!important;height:100%!important;border-radius:11px}
 .pphud{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-weight:800;color:#0d0210;text-align:center;padding:20px}
+/* park character creator */
+.ppstyle{max-width:420px;margin:0 auto 8px;background:#160826;border:2px solid var(--magenta);
+  border-radius:12px;padding:8px}
+.pprow{display:flex;align-items:center;gap:6px;margin:5px 0;flex-wrap:wrap}
+.pplbl{font:900 10px var(--body);letter-spacing:.14em;color:#d9a8cc;width:44px}
+.ppbody{flex:1;font:800 13px var(--body);padding:8px 4px;border-radius:10px;cursor:pointer;
+  border:2px solid var(--magenta);background:#1c0a1e;color:#fff;opacity:.7}
+.ppbody.on{opacity:1;border-color:var(--yellow);box-shadow:0 0 10px rgba(255,225,77,.5)}
+.ppsw{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.5);cursor:pointer}
+.ppsw.on{border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.8);transform:scale(1.15)}
+/* park talk */
+.pptalk{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:6;
+  background:var(--cyan);color:var(--black);border:3px solid #fff;border-radius:999px;
+  font:900 13px var(--body);padding:10px 16px;cursor:pointer;white-space:nowrap;
+  box-shadow:0 4px 0 rgba(13,2,16,.5);animation:pillnudge 1.4s ease-in-out infinite}
+.ppchat{position:absolute;left:8px;right:8px;bottom:8px;z-index:7;background:rgba(13,2,16,.96);
+  border:3px solid var(--cyan);border-radius:14px;padding:8px}
+.ppchead{display:flex;justify-content:space-between;align-items:center;font-weight:900;
+  color:var(--cyan);font-size:14px;margin-bottom:6px}
+.ppcmsgs{max-height:26vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;
+  margin-bottom:8px;overscroll-behavior:contain}
+.ppcme{align-self:flex-end;background:var(--magenta);border-radius:12px 12px 2px 12px;
+  padding:6px 10px;font-size:13px;font-weight:700;max-width:85%}
+.ppcnpc{align-self:flex-start;background:#123a52;border:1px solid var(--cyan);
+  border-radius:12px 12px 12px 2px;padding:6px 10px;font-size:13px;font-weight:700;max-width:85%}
 /* street hoops 3d */
 .hpspotlbl{font-size:13px;background:rgba(13,2,16,.6);border:2px solid var(--yellow);color:var(--yellow);
   border-radius:8px;padding:1px 8px;margin-left:6px;vertical-align:middle}
@@ -1251,7 +1276,7 @@ const GAMES={
   beatstar:{title:'🎵 BEAT STAR',blurb:'Hit the notes on the beat — build the combo!',start:()=>btNew()},
   simon:{title:'🧠 SIMON STARS',blurb:'Watch the light pattern… can you repeat it?',start:()=>siNew()},
   stacker:{title:'🏗️ SKY STACKER',blurb:'Stack the tower to the stars — perfect drops grow it back!',start:()=>stNew()},
-  puppy:{title:'🐶 PUPPY PARK',blurb:'Run around a 3D park and fetch the bones!',start:()=>ppNew()},
+  puppy:{title:'🐶 PUPPY PARK',blurb:'A big 3D park! Make your character, meet AI friends, fetch bones!',start:()=>ppNew()},
   hoops:{title:'🏀 STREET HOOPS 3D',blurb:'Night court under the lights — flick to shoot in full 3D!',start:()=>hpNew()},
 };
 let currentGame=null;
@@ -1852,84 +1877,177 @@ function btEnd(){
 }
 
 
-// ---- GAME 9: PUPPY PARK (3D!) ----
+// ---- GAME 9: PUPPY PARK (3D world!) ----
 let pp={};
+const PP_NPCS=['Zoe','Marco','Piper','Dev','Luna','Rex','Maya'];
+const PP_SKINS=[0xe8b98a,0xc98a5b,0x8d5a3b,0xf0cfae];
+const PP_SWATCH={hair:['#2a1a0f','#6b3f1f','#c98a2b','#e8d44d','#ff5fb0','#45d8ff'],
+  shirt:['#ff2ec4','#45d8ff','#ffe14d','#ff8c1a','#a78bfa','#4ade80'],
+  pants:['#1a63c4','#0d0210','#7a0a5e','#3a5a2e','#8a5a2b','#c4108f']};
+function ppCfg(){
+  try{return {body:'girl',hair:'#6b3f1f',shirt:'#ff2ec4',pants:'#1a63c4',
+    ...JSON.parse(localStorage.getItem('ksc_avatar')||'{}')}}
+  catch(e){return {body:'girl',hair:'#6b3f1f',shirt:'#ff2ec4',pants:'#1a63c4'}}
+}
 function ppNew(){
   gReset();
+  const cfg=ppCfg();
+  const sw=(kind,cur)=>PP_SWATCH[kind].map(c=>
+    `<button class="ppsw${c===cur?' on':''}" style="background:${c}" onclick="ppSetAv('${kind}','${c}')"></button>`).join('');
   $('#gameArea').innerHTML=`
-    <div class="sbtop">🦴 <span id="ppscore">0</span> · ⏱ <span id="pptime">90</span>s</div>
-    <div id="ppwrap" class="ppwrap"><div class="pphud">🐶 loading the park…</div></div>
-    <p class="sbhint">Drag to run! Fetch the bones before time runs out! 🦴</p>
-    <button class="big cy" onclick="ppNew()">🔁 New game</button>`;
+    <div class="sbtop">🦴 <span id="ppscore">0</span> · ⏱ <span id="pptime">120</span>s</div>
+    <div class="ppstyle">
+      <div class="pprow">
+        <button class="ppbody${cfg.body==='girl'?' on':''}" onclick="ppSetAv('body','girl')">👧 Girl</button>
+        <button class="ppbody${cfg.body==='boy'?' on':''}" onclick="ppSetAv('body','boy')">👦 Boy</button>
+        <button class="ppbody${cfg.body==='puppy'?' on':''}" onclick="ppSetAv('body','puppy')">🐶 Puppy</button>
+      </div>
+      ${cfg.body!=='puppy'?`
+      <div class="pprow"><span class="pplbl">HAIR</span>${sw('hair',cfg.hair)}</div>
+      <div class="pprow"><span class="pplbl">SHIRT</span>${sw('shirt',cfg.shirt)}</div>
+      <div class="pprow"><span class="pplbl">PANTS</span>${sw('pants',cfg.pants)}</div>`:''}
+    </div>
+    <div id="ppwrap" class="ppwrap"><div class="pphud">🌳 opening the park…</div>
+      <button id="ppTalk" class="pptalk hide"></button>
+      <div id="ppChat" class="ppchat hide">
+        <div class="ppchead"><span id="ppcName"></span><button class="act-mini" onclick="ppCloseChat()">✕</button></div>
+        <div id="ppcMsgs" class="ppcmsgs"></div>
+        <div class="chatrow"><input id="ppcIn" placeholder="say hi…" maxlength="200"
+          onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
+      </div>
+    </div>
+    <p class="sbhint">Drag to run! Fetch bones 🦴, and walk up to the other kids to chat — they're AI club friends! 🤖</p>
+    <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadThree(ppBoot,$('#ppwrap'));
+}
+function ppSetAv(k,v){
+  const cfg=ppCfg();cfg[k]=v;
+  localStorage.setItem('ksc_avatar',JSON.stringify(cfg));
+  ppNew();
+}
+function ppHumanoid(cfg,skin){
+  const g=new THREE.Group(), mm=c=>new THREE.MeshLambertMaterial({color:c});
+  const legL=new THREE.Mesh(new THREE.BoxGeometry(.28,.8,.3),mm(cfg.pants));legL.position.set(-.18,.4,0);
+  const legR=legL.clone();legR.position.x=.18;
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(.7,.85,.4),mm(cfg.shirt));torso.position.y=1.22;
+  const armL=new THREE.Mesh(new THREE.BoxGeometry(.2,.75,.22),mm(cfg.shirt));armL.position.set(-.48,1.25,0);
+  const armR=armL.clone();armR.position.x=.48;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.32,12,12),mm(skin));head.position.y=1.98;
+  const hair=new THREE.Mesh(new THREE.SphereGeometry(.34,12,12,0,Math.PI*2,0,Math.PI/2),mm(cfg.hair));
+  hair.position.y=2.03;
+  g.add(legL,legR,torso,armL,armR,head,hair);
+  if(cfg.body==='girl'){
+    const pony=new THREE.Mesh(new THREE.CylinderGeometry(.09,.05,.6,6),mm(cfg.hair));
+    pony.position.set(0,1.85,-.32);pony.rotation.x=.5;g.add(pony);
+    const skirt=new THREE.Mesh(new THREE.ConeGeometry(.5,.4,10),mm(cfg.pants));
+    skirt.position.y=.78;g.add(skirt);
+  }
+  g.traverse(m=>m.castShadow=true);
+  g.userData.limbs={legL,legR,armL,armR};
+  return g;
+}
+function ppPuppy(){
+  const g=new THREE.Group(), mm=c=>new THREE.MeshLambertMaterial({color:c});
+  const fur=0xc98a4b,dark=0x8a5a2b;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.9,.6,1.3),mm(fur));body.position.y=.6;
+  const head=new THREE.Mesh(new THREE.BoxGeometry(.65,.6,.6),mm(fur));head.position.set(0,1,.85);
+  const snout=new THREE.Mesh(new THREE.BoxGeometry(.32,.26,.3),mm(0xe8c9a0));snout.position.set(0,.88,1.2);
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(.08,8,8),mm(0x222));nose.position.set(0,.92,1.37);
+  const earL=new THREE.Mesh(new THREE.BoxGeometry(.18,.4,.12),mm(dark));earL.position.set(-.3,1.35,.78);earL.rotation.z=.3;
+  const earR=earL.clone();earR.position.x=.3;earR.rotation.z=-.3;
+  const tail=new THREE.Mesh(new THREE.BoxGeometry(.15,.15,.6),mm(dark));tail.position.set(0,.8,-.78);
+  const legs=[];
+  for(const [x,z] of [[-.3,.45],[.3,.45],[-.3,-.45],[.3,-.45]]){
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(.2,.55,.2),mm(dark));
+    leg.position.set(x,.27,z);legs.push(leg);g.add(leg);
+  }
+  g.add(body,head,snout,nose,earL,earR,tail);
+  g.traverse(m=>m.castShadow=true);
+  g.userData={legs,tail};
+  return g;
 }
 function ppBoot(){
   const wrap=$('#ppwrap');if(!wrap)return;
-  wrap.innerHTML='';
+  wrap.querySelector('.pphud')?.remove();
+  const cfg=ppCfg();
   const W=wrap.clientWidth,H=wrap.clientHeight;
   const renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(W,H);renderer.setPixelRatio(Math.min(2,devicePixelRatio));
   renderer.shadowMap.enabled=true;
-  wrap.appendChild(renderer.domElement);
+  wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
   scene.background=new THREE.Color(0x87d8ff);
-  scene.fog=new THREE.Fog(0x87d8ff,30,80);
-  const cam=new THREE.PerspectiveCamera(55,W/H,0.1,200);
+  scene.fog=new THREE.Fog(0x87d8ff,45,130);
+  const cam=new THREE.PerspectiveCamera(55,W/H,0.1,300);
+  const mat=c=>new THREE.MeshLambertMaterial({color:c});
 
-  // light
   const sun=new THREE.DirectionalLight(0xfff4d6,1.15);
-  sun.position.set(12,20,8);sun.castShadow=true;
+  sun.position.set(24,36,14);sun.castShadow=true;
   sun.shadow.mapSize.set(1024,1024);
-  sun.shadow.camera.left=-40;sun.shadow.camera.right=40;
-  sun.shadow.camera.top=40;sun.shadow.camera.bottom=-40;
+  sun.shadow.camera.left=-70;sun.shadow.camera.right=70;
+  sun.shadow.camera.top=70;sun.shadow.camera.bottom=-70;
   scene.add(sun,new THREE.AmbientLight(0xbfd9ff,0.7));
 
-  // ground
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(90,90),
-    new THREE.MeshLambertMaterial({color:0x4ec24e}));
+  const B=72; // world half-size (much bigger park)
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(B*2+10,B*2+10),mat(0x4ec24e));
   ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-
-  const mat=c=>new THREE.MeshLambertMaterial({color:c});
-  // trees + hedges
-  for(let i=0;i<14;i++){
+  // winding path
+  const path=new THREE.Mesh(new THREE.PlaneGeometry(6,B*2),mat(0xc9b98a));
+  path.rotation.x=-Math.PI/2;path.rotation.z=.3;path.position.y=.01;scene.add(path);
+  // pond
+  const pond=new THREE.Mesh(new THREE.CircleGeometry(9,24),
+    new THREE.MeshLambertMaterial({color:0x2e9dff,transparent:true,opacity:.9}));
+  pond.rotation.x=-Math.PI/2;pond.position.set(-26,.02,-20);scene.add(pond);
+  // trees, flowers, benches
+  for(let i=0;i<40;i++){
     const t=new THREE.Group();
-    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.5,2.2,7),mat(0x8a5a2b));
-    trunk.position.y=1.1;
-    const leaf=new THREE.Mesh(new THREE.ConeGeometry(2.2,4,8),mat(0x2e8b3a));
-    leaf.position.y=4;
-    trunk.castShadow=leaf.castShadow=true;
-    t.add(trunk,leaf);
-    t.position.set((Math.random()-.5)*70,0,(Math.random()-.5)*70);
-    if(t.position.length()<8)t.position.setLength(14);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.5,2.2,7),mat(0x8a5a2b));trunk.position.y=1.1;
+    const leaf=new THREE.Mesh(new THREE.ConeGeometry(2.2,4,8),mat(i%3?0x2e8b3a:0x3aa34e));leaf.position.y=4;
+    trunk.castShadow=leaf.castShadow=true;t.add(trunk,leaf);
+    t.position.set((Math.random()-.5)*B*1.9,0,(Math.random()-.5)*B*1.9);
+    if(t.position.length()<10)t.position.setLength(16);
+    if(t.position.distanceTo(pond.position)<12)t.position.x+=16;
     scene.add(t);
   }
-  for(const [x,z,w,d] of [[0,-40,84,2],[0,40,84,2],[-40,0,2,84],[40,0,2,84]]){
-    const h=new THREE.Mesh(new THREE.BoxGeometry(w,2,d),mat(0x1e6b2e));
-    h.position.set(x,1,z);h.castShadow=true;scene.add(h);
+  for(let i=0;i<60;i++){
+    const f=new THREE.Mesh(new THREE.SphereGeometry(.16,6,6),
+      mat([0xff2ec4,0xffe14d,0xff8c1a,0xa78bfa][i%4]));
+    f.position.set((Math.random()-.5)*B*1.9,.16,(Math.random()-.5)*B*1.9);
+    scene.add(f);
+  }
+  for(let i=0;i<5;i++){
+    const bench=new THREE.Group();
+    const seat=new THREE.Mesh(new THREE.BoxGeometry(2.4,.15,.7),mat(0x9a6a3b));seat.position.y=.6;
+    const back=new THREE.Mesh(new THREE.BoxGeometry(2.4,.7,.12),mat(0x9a6a3b));back.position.set(0,1.05,-.3);
+    bench.add(seat,back);bench.position.set((Math.random()-.5)*B*1.6,0,(Math.random()-.5)*B*1.6);
+    bench.rotation.y=Math.random()*Math.PI;bench.traverse(m=>m.castShadow=true);scene.add(bench);
+  }
+  // hedge borders
+  for(const [x,z,w,d] of [[0,-B,B*2+4,2],[0,B,B*2+4,2],[-B,0,2,B*2+4],[B,0,2,B*2+4]]){
+    const h=new THREE.Mesh(new THREE.BoxGeometry(w,2.2,d),mat(0x1e6b2e));
+    h.position.set(x,1.1,z);scene.add(h);
   }
 
-  // puppy (low-poly primitives)
-  const puppy=new THREE.Group();
-  const fur=0xc98a4b,dark=0x8a5a2b;
-  const body=new THREE.Mesh(new THREE.BoxGeometry(1.5,1,2.2),mat(fur));body.position.y=1;
-  const head=new THREE.Mesh(new THREE.BoxGeometry(1.1,1,1),mat(fur));head.position.set(0,1.7,1.4);
-  const snout=new THREE.Mesh(new THREE.BoxGeometry(.55,.45,.5),mat(0xe8c9a0));snout.position.set(0,1.5,2);
-  const nose=new THREE.Mesh(new THREE.SphereGeometry(.14,8,8),mat(0x222222));nose.position.set(0,1.55,2.28);
-  const earL=new THREE.Mesh(new THREE.BoxGeometry(.3,.7,.2),mat(dark));earL.position.set(-.5,2.3,1.3);earL.rotation.z=.3;
-  const earR=earL.clone();earR.position.x=.5;earR.rotation.z=-.3;
-  const tail=new THREE.Mesh(new THREE.BoxGeometry(.25,.25,1),mat(dark));tail.position.set(0,1.35,-1.3);
-  const eyeL=new THREE.Mesh(new THREE.SphereGeometry(.1,8,8),mat(0x111111));eyeL.position.set(-.28,1.85,1.92);
-  const eyeR=eyeL.clone();eyeR.position.x=.28;
-  const legs=[];
-  for(const [x,z] of [[-.5,.8],[.5,.8],[-.5,-.8],[.5,-.8]]){
-    const leg=new THREE.Mesh(new THREE.BoxGeometry(.35,.9,.35),mat(dark));
-    leg.position.set(x,.45,z);legs.push(leg);puppy.add(leg);
-  }
-  [body,head,snout,earL,earR,tail].forEach(m=>m.castShadow=true);
-  puppy.add(body,head,snout,nose,earL,earR,tail,eyeL,eyeR);
-  scene.add(puppy);
+  // ---- player ----
+  const isPup=cfg.body==='puppy';
+  const player=isPup?ppPuppy():ppHumanoid(cfg,PP_SKINS[0]);
+  scene.add(player);
+  // companion puppy trots along with humanoid players
+  let buddy=null;
+  if(!isPup){buddy=ppPuppy();buddy.position.set(1.5,0,1.5);scene.add(buddy)}
 
-  // bones
+  // ---- AI friends wandering the park ----
+  const npcs=PP_NPCS.map((name,i)=>{
+    const c={body:i%2?'boy':'girl',
+      hair:PP_SWATCH.hair[i%6],shirt:PP_SWATCH.shirt[(i+2)%6],pants:PP_SWATCH.pants[(i+4)%6]};
+    const mesh=ppHumanoid(c,PP_SKINS[i%4]);
+    mesh.position.set((Math.random()-.5)*B*1.4,0,(Math.random()-.5)*B*1.4);
+    scene.add(mesh);
+    return {name,mesh,target:new THREE.Vector3(),wait:Math.random()*3,frozen:false};
+  });
+  npcs.forEach(n=>n.target.set((Math.random()-.5)*B*1.6,0,(Math.random()-.5)*B*1.6));
+
+  // ---- bones ----
   const bones=[];
   function boneMesh(){
     const g=new THREE.Group();
@@ -1939,22 +2057,19 @@ function ppBoot(){
       const k=new THREE.Mesh(new THREE.SphereGeometry(.22,8,8),mat(0xfff6e0));
       k.position.set(sx,sy,0);g.add(k);
     }
-    g.add(bar);g.traverse(m=>m.castShadow=true);
-    return g;
+    g.add(bar);g.traverse(m=>m.castShadow=true);return g;
   }
-  function placeBone(b){
-    b.position.set((Math.random()-.5)*68,0.9,(Math.random()-.5)*68);
-  }
-  for(let i=0;i<14;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
+  function placeBone(b){b.position.set((Math.random()-.5)*B*1.8,0.9,(Math.random()-.5)*B*1.8)}
+  for(let i=0;i<22;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
 
-  pp={score:0,time:90,over:false,vel:new THREE.Vector2(0,0),joy:null};
-  gIval(()=>{ if(pp.over)return;
-    pp.time--; const el=$('#pptime'); if(el)el.textContent=pp.time;
+  pp={score:0,time:120,over:false,vel:new THREE.Vector2(0,0),joy:null,
+    chatting:false,chatNpc:null,hist:[]};
+  gIval(()=>{ if(pp.over||pp.chatting)return; // chatting pauses the clock
+    pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
     if(pp.time<=0){pp.over=true;sndWin();
-      submitScore('puppy',pp.score).then(x=>setTimeout(()=>alert('Good dog!! 🐶 '+pp.score+' bones-worth of points'+x),300))}
+      submitScore('puppy',pp.score).then(x=>setTimeout(()=>alert('Good round!! 🐾 '+pp.score+' points'+x),300))}
   },1000);
 
-  // joystick: drag anywhere on the canvas
   const el=renderer.domElement;
   el.style.touchAction='none';
   el.addEventListener('pointerdown',e=>{pp.joy={x:e.clientX,y:e.clientY}});
@@ -1964,16 +2079,44 @@ function ppBoot(){
     const len=Math.hypot(dx,dy)||1, cl=Math.min(len,60)/60;
     pp.vel.set(dx/len*cl, dy/len*cl);
   });
-  const stop=()=>{pp.joy=null;pp.vel.set(0,0)};
-  el.addEventListener('pointerup',stop);el.addEventListener('pointercancel',stop);
-  // keyboard for desktop
+  const stopJoy=()=>{pp.joy=null;pp.vel.set(0,0)};
+  el.addEventListener('pointerup',stopJoy);el.addEventListener('pointercancel',stopJoy);
   const keys={};
   const kd=e=>{keys[e.key]=true},ku=e=>{keys[e.key]=false};
   addEventListener('keydown',kd);addEventListener('keyup',ku);
 
+  // talking
+  window.ppOpenChat=npc=>{
+    pp.chatting=true;pp.chatNpc=npc;pp.hist=[];
+    npcs.find(n=>n.name===npc).frozen=true;
+    $('#ppcName').innerHTML=`${esc(npc)} <span class="aitag fanp">🤖 AI FRIEND</span>`;
+    $('#ppcMsgs').innerHTML='<p style="color:#b678a8;font-size:12px">Say hi! 👋</p>';
+    $('#ppChat').classList.remove('hide');$('#ppTalk').classList.add('hide');
+    $('#ppcIn').focus();
+  };
+  window.ppCloseChat=()=>{
+    pp.chatting=false;
+    npcs.forEach(n=>n.frozen=false);
+    $('#ppChat').classList.add('hide');
+  };
+  window.ppcSend=async()=>{
+    const t=$('#ppcIn').value.trim();if(!t||!pp.chatNpc)return;
+    $('#ppcIn').value='';
+    const box=$('#ppcMsgs');
+    box.insertAdjacentHTML('beforeend',`<div class="ppcme">${esc(t)}</div>`);
+    box.scrollTop=box.scrollHeight;
+    pp.hist.push({role:'user',content:t});
+    try{
+      const r=await api('/api/park/talk',{method:'POST',body:{npc:pp.chatNpc,message:t,history:pp.hist.slice(0,-1)}});
+      pp.hist.push({role:'assistant',content:r.reply});
+      box.insertAdjacentHTML('beforeend',`<div class="ppcnpc">${esc(r.reply)}</div>`);
+      box.scrollTop=box.scrollHeight;sndPick();
+    }catch(e){}
+  };
+
   let t=0;
   const loop=()=>{
-    if(!document.body.contains(el)){ // torn down
+    if(!document.body.contains(el)){
       removeEventListener('keydown',kd);removeEventListener('keyup',ku);
       renderer.dispose();return;
     }
@@ -1981,36 +2124,82 @@ function ppBoot(){
     let vx=pp.vel.x,vz=pp.vel.y;
     if(keys.ArrowLeft||keys.a)vx=-1; if(keys.ArrowRight||keys.d)vx=1;
     if(keys.ArrowUp||keys.w)vz=-1; if(keys.ArrowDown||keys.s)vz=1;
-    const speed=0.28, moving=Math.hypot(vx,vz)>0.05;
+    const moving=Math.hypot(vx,vz)>0.05&&!pp.chatting;
     if(moving&&!pp.over){
-      puppy.position.x=Math.max(-37,Math.min(37,puppy.position.x+vx*speed));
-      puppy.position.z=Math.max(-37,Math.min(37,puppy.position.z+vz*speed));
-      puppy.rotation.y=Math.atan2(vx,vz);
-      legs.forEach((l,i)=>l.rotation.x=Math.sin(t*3+i*Math.PI)*0.7);
-      puppy.position.y=Math.abs(Math.sin(t*3))*0.12;
-    }else{
-      legs.forEach(l=>l.rotation.x*=0.8);
-      puppy.position.y*=0.8;
+      player.position.x=Math.max(-B+2,Math.min(B-2,player.position.x+vx*0.34));
+      player.position.z=Math.max(-B+2,Math.min(B-2,player.position.z+vz*0.34));
+      player.rotation.y=Math.atan2(vx,vz);
     }
-    tail.rotation.y=Math.sin(t*4)*0.6; // always wagging
-    // bones spin + collect
+    // walk anim
+    if(isPup){
+      player.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(t*3+i*Math.PI)*0.7:l.rotation.x*0.8);
+      player.userData.tail.rotation.y=Math.sin(t*4)*0.6;
+    }else{
+      const L=player.userData.limbs, sw=moving?Math.sin(t*3):0;
+      L.legL.rotation.x=sw*0.8;L.legR.rotation.x=-sw*0.8;
+      L.armL.rotation.x=-sw*0.7;L.armR.rotation.x=sw*0.7;
+      player.position.y=moving?Math.abs(Math.sin(t*3))*0.1:0;
+    }
+    // buddy puppy follows
+    if(buddy){
+      const behind=player.position.clone().add(new THREE.Vector3(Math.sin(player.rotation.y+2.5)*1.8,0,Math.cos(player.rotation.y+2.5)*1.8));
+      buddy.position.lerp(behind,0.06);
+      const bd=behind.clone().sub(buddy.position);
+      if(bd.length()>0.2)buddy.rotation.y=Math.atan2(bd.x,bd.z);
+      buddy.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(t*3.4+i*Math.PI)*(bd.length()>0.4?0.7:0.1));
+      buddy.userData.tail.rotation.y=Math.sin(t*5)*0.7;
+    }
+    // NPCs wander
+    let nearest=null,nd=1e9;
+    for(const n of npcs){
+      if(!n.frozen&&!pp.chatting){
+        const d=n.target.clone().sub(n.mesh.position);d.y=0;
+        if(d.length()<1.5){
+          n.wait-=0.016;
+          if(n.wait<=0){n.wait=1+Math.random()*4;
+            n.target.set((Math.random()-.5)*B*1.6,0,(Math.random()-.5)*B*1.6)}
+          const L=n.mesh.userData.limbs;
+          L.legL.rotation.x*=0.8;L.legR.rotation.x*=0.8;L.armL.rotation.x*=0.8;L.armR.rotation.x*=0.8;
+        }else{
+          d.normalize();
+          n.mesh.position.x+=d.x*0.11;n.mesh.position.z+=d.z*0.11;
+          n.mesh.rotation.y=Math.atan2(d.x,d.z);
+          const L=n.mesh.userData.limbs, sw=Math.sin(t*2.6+n.mesh.position.x);
+          L.legL.rotation.x=sw*0.7;L.legR.rotation.x=-sw*0.7;
+          L.armL.rotation.x=-sw*0.55;L.armR.rotation.x=sw*0.55;
+        }
+      }
+      const pd=n.mesh.position.distanceTo(player.position);
+      if(pd<nd){nd=pd;nearest=n}
+      // face the player when close
+      if(pd<4)n.mesh.lookAt(player.position.x,0,player.position.z);
+    }
+    // talk button
+    const tb=$('#ppTalk');
+    if(tb&&!pp.chatting){
+      if(nearest&&nd<3.6){
+        tb.textContent=`💬 Talk to ${nearest.name} (AI)`;
+        tb.classList.remove('hide');
+        tb.onclick=()=>ppOpenChat(nearest.name);
+      }else tb.classList.add('hide');
+    }
+    // bones
     for(const b of bones){
-      b.rotation.y+=0.04; b.position.y=0.9+Math.sin(t+b.position.x)*0.15;
-      if(!pp.over&&b.position.distanceTo(puppy.position)<1.8){
-        pp.score+=10; const se=$('#ppscore'); if(se)se.textContent=pp.score;
-        sndDrop(); burst('pop'); placeBone(b);
+      b.rotation.y+=0.04;b.position.y=0.9+Math.sin(t+b.position.x)*0.15;
+      if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<1.9){
+        pp.score+=10;const se=$('#ppscore');if(se)se.textContent=pp.score;
+        sndDrop();burst('pop');placeBone(b);
       }
     }
-    // follow cam
-    const target=new THREE.Vector3(puppy.position.x,puppy.position.y+6.5,puppy.position.z+9);
+    // camera
+    const target=new THREE.Vector3(player.position.x,player.position.y+7,player.position.z+10);
     cam.position.lerp(target,0.08);
-    cam.lookAt(puppy.position.x,1.2,puppy.position.z);
+    cam.lookAt(player.position.x,1.4,player.position.z);
     renderer.render(scene,cam);
     __raf=requestAnimationFrame(loop);
   };
   __raf=requestAnimationFrame(loop);
 }
-
 
 // ---- GAME 10: STREET HOOPS 🏀 (full 3D) ----
 let hp={};
