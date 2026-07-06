@@ -181,3 +181,6 @@ CREATE TABLE IF NOT EXISTS judge_scores (
 
 -- v11: per-user themes
 ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'punk';
+
+-- v12: shareable watch-only links
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE;
