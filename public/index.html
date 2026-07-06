@@ -946,6 +946,7 @@ function vrowHtml(v){
       <div class="vd">${fdate(v.created_at)} · 💬 ${v.comment_count}</div>
     </div>
     <div class="vacts">
+      <button class="act-mini" onclick="shareVid(${v.id})">🔗</button>
       <button class="act-mini" onclick="editVid(${v.id})">✏️</button>
       <button class="act-mini bad" onclick="removeVid(${v.id})">🗑️</button>
     </div>
@@ -968,6 +969,17 @@ async function saveVid(id){
       body:{title:$('#ev_t'+id).value,description:$('#ev_d'+id).value}});
     loadMyVideos();
   }catch(e){$('#ev_e'+id).textContent=e.message}
+}
+async function shareVid(id){
+  try{
+    const r=await api(`/api/videos/${id}/share`,{method:'POST'});
+    if(navigator.share){
+      await navigator.share({title:'Watch me on KidStarClub! ⭐',url:r.url}).catch(()=>{});
+    }else{
+      await navigator.clipboard.writeText(r.url).catch(()=>{});
+      alert('🔗 Share link copied!\n\n'+r.url+'\n\nAnyone with this link can watch this video and see the comments — but they need an invite code to join and comment.');
+    }
+  }catch(e){alert(e.message)}
 }
 async function removeVid(id){
   if(!confirm('Remove this video from the club? The video, its comments, and its chart score all come down. This cannot be undone from the app.'))return;
