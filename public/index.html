@@ -403,7 +403,7 @@ async function shorts(){
       <button class="muter" onclick="toggleMute(event)">🔇</button>
       <div class="overlay">
         <div class="st">${esc(v.title)}</div>
-        <div class="so">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · 👁 ${v.views} · ${ago(v.created_at)}</div>
+        <div class="so">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${ago(v.created_at)}</div>
       </div>
       <div class="rail">
         <button onclick="shortReact(${v.id},this,event)">⚡</button><div class="n">${v.reaction_count}</div>
@@ -471,7 +471,7 @@ async function feed(){
       </div>
       <div class="vtitle">${esc(v.title)}</div>
       <div class="vmeta">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
-      <div class="vmeta" style="color:#b678a8">👁 ${v.views} view${v.views===1?'':'s'} · ${ago(v.created_at)} · ${fdate(v.created_at)}</div>
+      <div class="vmeta" style="color:#b678a8">${ago(v.created_at)} · ${fdate(v.created_at)}</div>
       <div class="statrow">
         <span class="chip" style="background:#3a2e08;border-color:var(--yellow);color:var(--yellow)">📈 ${v.chart_score||0}</span>
         <span class="chip">⚡ ${v.reaction_count} cheers</span>
@@ -496,7 +496,7 @@ async function openVideo(id){
     <div class="sticker vcard">
       <div class="vtitle">${esc(v.title)}</div>
       <div class="vmeta">${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
-      <div class="vmeta" style="color:#b678a8">👁 <span id="viewN">${v.views||0}</span> views · posted ${fdate(v.created_at)}
+      <div class="vmeta" style="color:#b678a8">posted ${fdate(v.created_at)}
         <span class="chip" id="hypeChip" style="margin-left:8px">⚡ HYPE <span id="hypeN">0</span></span></div>
       <div class="chartline">📈 CHART SCORE <span id="chartN">${v.chart_score||0}</span>
         ${v.judge_count?`<span class="panel">panel: ${v.avg_score.toFixed(1)}/10 · ×${Math.max(1,Math.round(v.avg_score*v.avg_score))} multiplier</span>`:'<span class="panel">judges are still voting…</span>'}</div>
@@ -522,15 +522,13 @@ async function openVideo(id){
   // HYPE = every cheer + comment (cast + humans), weighted. Views = real plays.
   const hype0=(v.reactions||[]).reduce((s,r)=>s+r.n,0)+cms.length*2;
   $('#hypeN').textContent=hype0;
-  let viewed=false,lastViews=v.views||0,lastHype=hype0;
-  $('#mainvid').addEventListener('play',async()=>{
+  let viewed=false,lastHype=hype0,lastChart=v.chart_score||0;
+  // Plays are still counted quietly as Chart Score fuel — no counter shown.
+  $('#mainvid').addEventListener('play',()=>{
     if(viewed)return;viewed=true;
-    const r=await api(`/api/videos/${id}/view`,{method:'POST'}).catch(()=>null);
-    if(r){countUp('#viewN',lastViews,r.views);
-      for(const m of MILESTONES)if(lastViews<m&&r.views>=m)burst(r.views>=1000?'storm':'pop');
-      lastViews=r.views}
+    api(`/api/videos/${id}/view`,{method:'POST'}).catch(()=>{});
   });
-  // Every full rewatch counts as a fresh view — TikTok rules.
+  // Every full rewatch counts as fresh chart fuel.
   $('#mainvid').addEventListener('ended',()=>{viewed=false});
   liveVideoId=id;liveCount=cms.length;
   livePoll=setInterval(async()=>{
@@ -539,15 +537,11 @@ async function openVideo(id){
       api(`/api/videos/${id}/comments`).catch(()=>null),
       api(`/api/videos/${id}`).catch(()=>null)]);
     if(vf){
-      if(vf.views>lastViews){
-        countUp('#viewN',lastViews,vf.views);
-        for(const m of MILESTONES)if(lastViews<m&&vf.views>=m)burst(m>=1000?'storm':'pop');
-        lastViews=vf.views;
-      }
       const cEl=$('#chartN');
-      if(cEl&&vf.chart_score>parseInt(cEl.textContent||'0')){
-        countUp('#chartN',parseInt(cEl.textContent||'0'),vf.chart_score);
-        for(const m of MILESTONES)if(parseInt(cEl.textContent||'0')<m&&vf.chart_score>=m&&m>=1000)burst('storm');
+      if(cEl&&vf.chart_score>lastChart){
+        countUp('#chartN',lastChart,vf.chart_score);
+        for(const m of MILESTONES)if(lastChart<m&&vf.chart_score>=m)burst(m>=1000?'storm':'pop');
+        lastChart=vf.chart_score;
       }
       const hy=(vf.reactions||[]).reduce((s,r)=>s+r.n,0)+(fresh?fresh.length*2:lastHype);
       if(hy>lastHype){countUp('#hypeN',lastHype,hy);lastHype=hy;
