@@ -120,6 +120,10 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .act-mini.bad{border-color:#a33}
 /* live emoji rain over the player */
 .vidwrap{position:relative;overflow:visible}
+.unmutepill{position:absolute;top:10px;left:10px;z-index:6;background:rgba(13,2,16,.8);
+  border:2px solid var(--cyan);color:var(--white);border-radius:999px;padding:8px 14px;
+  font:800 13px var(--body);cursor:pointer;animation:pillnudge 1.6s ease-in-out infinite}
+@keyframes pillnudge{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 .flyemoji{position:absolute;bottom:0;font-size:28px;pointer-events:none;z-index:5;
   animation:flyup var(--dur,3.2s) linear forwards;filter:drop-shadow(0 0 4px rgba(13,2,16,.6))}
 @keyframes flyup{
@@ -570,7 +574,8 @@ async function openVideo(id){
       ${!v.is_own?`<button class="big ${v.i_subscribe?'cy':''}" style="margin:6px 0"
           onclick="event.stopPropagation();toggleSub(${v.channel_id},${v.i_subscribe},${id})">
           ${v.i_subscribe?'✓ Subscribed':'⭐ Subscribe'}</button>`:''}
-      <div class="vidwrap"><video id="mainvid" controls playsinline src="/api/videos/${id}/stream"></video></div>
+      <div class="vidwrap"><video id="mainvid" controls playsinline autoplay src="/api/videos/${id}/stream"></video>
+        <button id="unmute" class="unmutepill hide" onclick="$('#mainvid').muted=false;this.classList.add('hide')">🔊 Tap for sound</button></div>
       ${v.description?`<p style="margin-top:8px">${esc(v.description)}</p>`:''}
       <div class="reacts">${rbtn('star','⭐')}${rbtn('fire','🔥')}${rbtn('clap','👏')}${rbtn('heart','💜')}${rbtn('wow','🤩')}</div>
     </div>
@@ -588,6 +593,14 @@ async function openVideo(id){
   let viewed=false,lastHype=hype0,lastChart=v.chart_score||0;
   let rxNow=Object.fromEntries((v.reactions||[]).map(r=>[r.kind,r.n]));
   startRain(rxNow);
+  // Autoplay: try with sound (we arrived via a tap); fall back to muted + unmute pill.
+  {
+    const mv=$('#mainvid');
+    mv.play().catch(()=>{
+      mv.muted=true;
+      mv.play().then(()=>$('#unmute').classList.remove('hide')).catch(()=>{});
+    });
+  }
   // Plays are counted quietly as Chart Score fuel — no counter shown.
   $('#mainvid').addEventListener('play',()=>{
     if(viewed)return;viewed=true;
