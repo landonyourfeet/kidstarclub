@@ -34,6 +34,7 @@ main{padding:20px;max-width:1200px;margin:0 auto}
 .tag.pending{background:#3a2e10;color:var(--amber)} .tag.flagged{background:#3a1515;color:var(--red)}
 .tag.member{background:#152a3a;color:var(--cyan)} .tag.kid{background:#1a2e1a;color:var(--green)}
 .tag.cast{background:#241a3a;color:var(--purple)} .tag.banned{background:#3a1515;color:var(--red)}
+.tag.admin{background:#0a2e1a;color:#4ade80}
 .tag.suspended{background:#3a2e10;color:var(--amber)} .tag.active{background:#1a2e1a;color:var(--green)}
 .btnrow{display:flex;gap:8px;flex-wrap:wrap}
 button.act{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:6px;padding:6px 12px;font:12px var(--mono);cursor:pointer}
@@ -187,13 +188,24 @@ async function users() {
     <td>${u.comment_count}${u.removed_count ? ` <span style="color:var(--red)">(${u.removed_count} removed)</span>` : ''}</td>
     <td>${ago(u.created_at)} ago</td>
     <td><div class="btnrow">
-      ${u.status === 'active'
+      ${u.role!=='admin'
+        ?`<button class="act ok" onclick="setRole(${u.id},'admin','${esc(u.display_name)}')">Make moderator</button>`
+        :`<button class="act warn" onclick="setRole(${u.id},'member','${esc(u.display_name)}')">Remove moderator</button>`}
+      ${u.role!=='admin'?(u.status === 'active'
         ? `<button class="act warn" onclick="setStatus(${u.id},'suspended')">Suspend</button>
            <button class="act bad" onclick="setStatus(${u.id},'banned')">Ban</button>`
         : `<button class="act ok" onclick="setStatus(${u.id},'active')">Restore</button>
-           ${u.status !== 'banned' ? `<button class="act bad" onclick="setStatus(${u.id},'banned')">Ban</button>` : ''}`}
+           ${u.status !== 'banned' ? `<button class="act bad" onclick="setStatus(${u.id},'banned')">Ban</button>` : ''}`):''}
     </div></td></tr>`).join('')}</table>
   ${rows.length ? '' : '<div class="empty">No members yet. Create invite codes to bring the club in.</div>'}`;
+}
+async function setRole(id,role,name){
+  const msg=role==='admin'
+    ?`Make ${name} a moderator? They get full Mission Control access: moderation, bans, invites, cast controls.`
+    :`Remove ${name}'s moderator access?`;
+  if(!confirm(msg))return;
+  await api(`/api/admin/users/${id}/role`,{method:'POST',body:{role}});
+  users();
 }
 async function setStatus(id, status, presetReason) {
   const reason = presetReason ?? (status !== 'active' ? (prompt(`Reason for ${status} (logged):`) || '') : '');
@@ -218,9 +230,12 @@ async function invites() {
       <td><code>${esc(i.code)}</code></td>
       <td><span class="tag ${esc(i.role)}">${esc(i.role)}</span></td>
       <td>${esc(i.note || '—')}</td>
-      <td>${i.uses}/${i.max_uses}</td>
-      <td>${i.revoked ? '<span class="tag banned">revoked</span>' : i.uses >= i.max_uses ? '<span class="tag suspended">used up</span>' : '<span class="tag active">live</span>'}</td>
-      <td>${!i.revoked ? `<button class="act bad" onclick="api('/api/admin/invites/${esc(i.code)}/revoke',{method:'POST'}).then(invites)">Revoke</button>` : ''}</td>
+      <td>${i.max_uses===0?'∞':`${i.uses}/${i.max_uses}`}</td>
+      <td>${i.revoked ? '<span class="tag banned">revoked</span>' : (i.max_uses!==0&&i.uses >= i.max_uses) ? '<span class="tag suspended">used up</span>' : '<span class="tag active">live</span>'}</td>
+      <td><div class="btnrow">
+        ${i.max_uses!==0?`<button class="act ok" onclick="api('/api/admin/invites/${esc(i.code)}/unlimited',{method:'POST'}).then(invites)">Make unlimited</button>`:''}
+        ${!i.revoked ? `<button class="act bad" onclick="api('/api/admin/invites/${esc(i.code)}/revoke',{method:'POST'}).then(invites)">Revoke</button>` : ''}
+      </div></td>
     </tr>`).join('')}</table>`;
 }
 async function mkInvite() {
