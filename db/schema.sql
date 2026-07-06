@@ -178,3 +178,6 @@ CREATE TABLE IF NOT EXISTS judge_scores (
   score    INT NOT NULL CHECK (score BETWEEN 1 AND 10),
   UNIQUE (video_id, cast_id)
 );
+
+-- v11: per-user themes
+ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'punk';
