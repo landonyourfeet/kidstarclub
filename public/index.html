@@ -221,6 +221,29 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .pwfill{width:100%;height:0;border-radius:0 0 8px 8px;transition:height .05s linear}
 .pwlbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-90deg);
   font:900 9px var(--body);letter-spacing:.2em;color:#fff;opacity:.8;pointer-events:none}
+/* club record banner — slams in on every screen */
+.crownbanner{position:fixed;top:74px;left:10px;right:10px;z-index:95;pointer-events:none;
+  max-width:620px;margin:0 auto;text-align:center;
+  background:linear-gradient(100deg,#3a2e08,#0d0210 40%,#3a2e08);
+  border:4px solid var(--yellow);border-radius:16px;padding:12px 16px;
+  box-shadow:0 0 26px rgba(255,225,77,.85), 6px 6px 0 rgba(13,2,16,.6);
+  transform-origin:center}
+.crownbanner .cb1{font-family:var(--block);font-size:19px;letter-spacing:.06em;color:var(--yellow);
+  text-shadow:0 0 14px rgba(255,225,77,.8)}
+.crownbanner .cb2{font-weight:800;font-size:14px;color:#fff;margin-top:2px}
+.crownbanner .cb2 b{color:var(--cyan)}
+.crownbanner .cb2 s{color:#ff8080}
+.crownbanner.slam{animation:cbslam .55s cubic-bezier(.2,2.4,.4,1) forwards}
+@keyframes cbslam{
+  0%{transform:scale(3.2) rotate(-9deg);opacity:0}
+  55%{transform:scale(.92) rotate(2deg);opacity:1}
+  75%{transform:scale(1.06) rotate(-1deg)}
+  100%{transform:scale(1) rotate(0)}}
+.crownbanner.boom{animation:cbboom .5s ease-in forwards}
+@keyframes cbboom{
+  0%{transform:scale(1);opacity:1;filter:brightness(1)}
+  35%{transform:scale(1.18);filter:brightness(2.4)}
+  100%{transform:scale(1.7) rotate(3deg);opacity:0;filter:brightness(3)}}
 .sbrow{display:flex;gap:2px}
 .sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0;
   box-shadow:0 0 4px currentColor}
@@ -504,6 +527,7 @@ body.theme-court .vcard video{border-color:#ff8c1a}
     <button data-v="chat" onclick="go('chat')"><span class="ni" data-ic="chat"></span>Chat<span id="chatBadge" class="navbadge hide"><b></b></span></button>
     <button data-v="me" onclick="go('me')"><span class="ni" data-ic="star"></span>My Star</button>
   </nav>
+  <div id="crownBanner" class="crownbanner hide"></div>
   <div id="createSheet" class="sheet hide" onclick="this.classList.add('hide')">
     <div class="sheetin" onclick="event.stopPropagation()">
       <h2 class="scrawl">Create ⚡</h2>
@@ -1307,7 +1331,8 @@ async function submitScore(game,score){
   let extra='';
   try{
     const r=await api(`/api/games/${game}/score`,{method:'POST',body:{score}});
-    if(score>=r.best&&score>0){extra='\n🏆 NEW PERSONAL BEST!';burst('storm')}
+    if(r.event)queueCrown(r.event); // club crown taken — slam it immediately
+    else if(score>=r.best&&score>0){extra='\n🏆 NEW PERSONAL BEST!';burst('storm')}
   }catch(e){}
   boardFor(game);
   return extra;
@@ -2429,10 +2454,55 @@ function bing(){
 }
 function setChatSeen(id){chatSeenId=Math.max(chatSeenId,id);localStorage.setItem('ksc_chat_seen',chatSeenId);
   chatUnread=0;$('#chatBadge').classList.add('hide')}
+// ---- club record banner ----
+let evSeen=parseInt(localStorage.getItem('ksc_ev_seen')||'0'),cbQueue=[],cbBusy=false;
+function crownText(p){
+  const line2=p.old_name
+    ?`<b>${esc(p.new_name)}</b> SLAMMED <s>${esc(p.old_name)}'s</s> crown — <b>${p.new_score}</b> beats ${p.old_score}!`
+    :p.defended
+      ?`<b>${esc(p.new_name)}</b> raised their own record to <b>${p.new_score}</b>!`
+      :`<b>${esc(p.new_name)}</b> set the first record — <b>${p.new_score}</b>! Who's coming for it?`;
+  return `<div class="cb1">🏆 NEW ${esc(p.title)} CLUB RECORD! 🏆</div><div class="cb2">${line2}</div>`;
+}
+function queueCrown(ev){
+  if(ev.id<=evSeen)return;
+  evSeen=Math.max(evSeen,ev.id);localStorage.setItem('ksc_ev_seen',evSeen);
+  cbQueue.push(ev.payload);cbNext();
+}
+function cbNext(){
+  if(cbBusy||!cbQueue.length)return;
+  cbBusy=true;
+  const p=cbQueue.shift();
+  const el=$('#crownBanner');
+  el.innerHTML=crownText(p);
+  el.classList.remove('hide','boom');
+  void el.offsetWidth;
+  el.classList.add('slam');
+  document.body.animate([{translate:'0 0'},{translate:'-5px 2px'},{translate:'5px -2px'},{translate:'0 0'}],{duration:350});
+  sndBlast(2);
+  setTimeout(()=>burst('pop'),250);
+  setTimeout(()=>{
+    el.classList.remove('slam');el.classList.add('boom');
+    burst('storm');sndBlast(3);
+    const r=el.getBoundingClientRect();
+    for(let i=0;i<10;i++){
+      const z=document.createElement('div');z.className='zap';z.textContent=['⭐','👑','⚡'][i%3];
+      z.style.position='fixed';z.style.zIndex=96;
+      z.style.left=(r.left+Math.random()*r.width)+'px';
+      z.style.top=(r.top+Math.random()*r.height)+'px';
+      document.body.appendChild(z);setTimeout(()=>z.remove(),900);
+    }
+    setTimeout(()=>{el.classList.add('hide');el.classList.remove('boom');cbBusy=false;cbNext()},520);
+  },4200);
+}
 setInterval(async()=>{
   if(!ME||document.hidden)return;
   const inChat=!$('#v-chat').classList.contains('hide');
-  const r=await api('/api/chat/latest').catch(()=>null);
+  const [r,evs]=await Promise.all([
+    api('/api/chat/latest').catch(()=>null),
+    api('/api/events?after='+evSeen).catch(()=>[])
+  ]);
+  (evs||[]).forEach(ev=>{if(ev.kind==='crown')queueCrown(ev)});
   if(!r)return;
   if(inChat){setChatSeen(r.id);return}
   if(r.id>chatSeenId){
