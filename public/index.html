@@ -210,30 +210,10 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .ppwrap canvas{display:block;width:100%!important;height:100%!important;border-radius:11px}
 .pphud{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-weight:800;color:#0d0210;text-align:center;padding:20px}
-/* street hoops */
-.hpfield{cursor:grab;background:
-  radial-gradient(circle at 50% 120%, transparent 44%, rgba(255,255,255,.14) 44.5% 45%, transparent 45.5%),
-  radial-gradient(circle at 50% 120%, transparent 30%, rgba(255,140,26,.2) 30.5% 31%, transparent 31.5%),
-  linear-gradient(180deg,#1a2c4a 0%,#233a5e 30%,#2b2b34 31%,#3a3a44 100%)}
-.hpboard{position:absolute;right:8%;top:6%;width:4%;height:28%;background:#e8e8f0;
-  border:2px solid #0d0210;border-radius:4px;box-shadow:0 0 10px rgba(255,255,255,.3)}
-.hprim{position:absolute;left:63%;top:25%;width:14%;height:3px;background:#ff8c1a;
-  border-radius:3px;box-shadow:0 0 8px rgba(255,140,26,.9);z-index:2}
-.hpnet{position:absolute;left:64.5%;top:26%;width:11%;height:9%;z-index:1;
-  background:repeating-linear-gradient(75deg,rgba(255,255,255,.75) 0 1.5px,transparent 1.5px 6px),
-             repeating-linear-gradient(-75deg,rgba(255,255,255,.75) 0 1.5px,transparent 1.5px 6px);
-  clip-path:polygon(0 0,100% 0,78% 100%,22% 100%)}
-.hpnet.swish{animation:netswish .35s ease}
-@keyframes netswish{30%{transform:scaleY(1.35) translateY(4%)}100%{transform:none}}
-.hpball{position:absolute;font-size:34px;transform:translate(-50%,-50%);z-index:3;
-  filter:drop-shadow(0 3px 4px rgba(13,2,16,.5));pointer-events:none;transition:none}
-.hpball.blaze{filter:drop-shadow(0 0 12px #ff8c1a) drop-shadow(0 0 22px #ff2e2e)}
-.hpspot{position:absolute;transform:translate(-50%,0);font:900 11px var(--body);color:#ffe14d;
-  background:rgba(13,2,16,.6);border:2px solid #ffe14d;border-radius:8px;padding:2px 8px;z-index:2}
-.hpspot.deep{color:#ff8c1a;border-color:#ff8c1a}
-.hparrow{position:absolute;height:4px;background:linear-gradient(90deg,#ffe14d,transparent);
-  transform-origin:left center;z-index:4;pointer-events:none;border-radius:2px;
-  box-shadow:0 0 8px rgba(255,225,77,.7)}
+/* street hoops 3d */
+.hpspotlbl{font-size:13px;background:rgba(13,2,16,.6);border:2px solid var(--yellow);color:var(--yellow);
+  border-radius:8px;padding:1px 8px;margin-left:6px;vertical-align:middle}
+.hpspotlbl.deep{border-color:#ff8c1a;color:#ff8c1a}
 #hpfire{color:#ff8c1a;text-shadow:0 0 10px rgba(255,140,26,.9);animation:pillnudge .7s ease-in-out infinite}
 .sbrow{display:flex;gap:2px}
 .sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0;
@@ -1209,7 +1189,7 @@ const GAMES={
   simon:{title:'🧠 SIMON STARS',blurb:'Watch the light pattern… can you repeat it?',start:()=>siNew()},
   stacker:{title:'🏗️ SKY STACKER',blurb:'Stack the tower to the stars — perfect drops grow it back!',start:()=>stNew()},
   puppy:{title:'🐶 PUPPY PARK',blurb:'Run around a 3D park and fetch the bones!',start:()=>ppNew()},
-  hoops:{title:'🏀 STREET HOOPS',blurb:'Flick to shoot! Swishes, 3-pointers, and 🔥 streaks!',start:()=>hpNew()},
+  hoops:{title:'🏀 STREET HOOPS 3D',blurb:'Night court under the lights — flick to shoot in full 3D!',start:()=>hpNew()},
 };
 let currentGame=null;
 // ---- arcade chat dock ----
@@ -1817,14 +1797,7 @@ function ppNew(){
     <div id="ppwrap" class="ppwrap"><div class="pphud">🐶 loading the park…</div></div>
     <p class="sbhint">Drag to run! Fetch the bones before time runs out! 🦴</p>
     <button class="big cy" onclick="ppNew()">🔁 New game</button>`;
-  if(window.THREE)ppBoot();
-  else{
-    const sc=document.createElement('script');
-    sc.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-    sc.onload=ppBoot;
-    sc.onerror=()=>{$('#ppwrap').innerHTML='<div class="pphud">Could not load 3D engine — check the connection and retry! 🐾</div>'};
-    document.head.appendChild(sc);
-  }
+  loadThree(ppBoot,$('#ppwrap'));
 }
 function ppBoot(){
   const wrap=$('#ppwrap');if(!wrap)return;
@@ -1975,110 +1948,200 @@ function ppBoot(){
 }
 
 
-// ---- GAME 10: STREET HOOPS 🏀 ----
+// ---- GAME 10: STREET HOOPS 🏀 (full 3D) ----
 let hp={};
+function loadThree(cb,failEl){
+  if(window.THREE)return cb();
+  const sc=document.createElement('script');
+  sc.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  sc.onload=cb;
+  sc.onerror=()=>{if(failEl)failEl.innerHTML='<div class="pphud">Could not load 3D engine — check the connection and retry! 🏀</div>'};
+  document.head.appendChild(sc);
+}
 function hpNew(){
   gReset();
   $('#gameArea').innerHTML=`
-    <div class="sbtop">SCORE <span id="hpscore">0</span> · ⏱ <span id="hptime">60</span>s <span id="hpfire" class="hide">🔥 BLAZING ×2</span></div>
-    <div id="hpfield" class="gfield hpfield">
-      <div class="hpboard"></div>
-      <div class="hprim"></div>
-      <div class="hpnet"></div>
-      <div id="hpspot" class="hpspot"></div>
-      <div id="hpball" class="hpball">🏀</div>
-      <div id="hparrow" class="hparrow hide"></div>
-    </div>
-    <p class="sbhint">Drag the ball back and let it FLY. Deep shots = 3 points. Swish = bonus. 3 in a row = 🔥 BLAZING!</p>
+    <div class="sbtop">SCORE <span id="hpscore">0</span> · ⏱ <span id="hptime">60</span>s
+      <span id="hpspotlbl" class="hpspotlbl">2PT</span>
+      <span id="hpfire" class="hide">🔥 BLAZING ×2</span></div>
+    <div id="hpwrap" class="ppwrap"><div class="pphud">🏀 lacing up…</div></div>
+    <p class="sbhint">Drag back on the court and release to shoot. Swish = bonus. 3 in a row = 🔥 BLAZING!</p>
     <button class="big cy" onclick="hpNew()">🔁 New game</button>`;
-  hp={score:0,time:60,over:false,streak:0,fire:false,
-    bx:50,by:78,vx:0,vy:0,flying:false,drag:null,three:false,rimTouched:false,scored:false};
-  hpPlaceSpot();
+  loadThree(hpBoot,$('#hpwrap'));
+}
+function hpBoot(){
+  const wrap=$('#hpwrap');if(!wrap)return;
+  wrap.innerHTML='';
+  const W=wrap.clientWidth,H=wrap.clientHeight;
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(W,H);renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+  renderer.shadowMap.enabled=true;
+  wrap.appendChild(renderer.domElement);
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0a1228);
+  scene.fog=new THREE.Fog(0x0a1228,26,70);
+  const cam=new THREE.PerspectiveCamera(58,W/H,0.1,200);
+  const mat=c=>new THREE.MeshLambertMaterial({color:c});
+
+  scene.add(new THREE.AmbientLight(0x8fa8d8,0.55));
+  // street lights
+  for(const x of [-9,9]){
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.15,7,6),mat(0x333340));
+    pole.position.set(x,3.5,-6);scene.add(pole);
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.3,8,8),
+      new THREE.MeshBasicMaterial({color:0xffe9b0}));
+    bulb.position.set(x,7,-6);scene.add(bulb);
+    const lamp=new THREE.SpotLight(0xffe9b0,0.9,40,0.7,0.5);
+    lamp.position.copy(bulb.position);lamp.target.position.set(x*0.4,0,-8);
+    lamp.castShadow=true;scene.add(lamp,lamp.target);
+  }
+  // moon
+  const moon=new THREE.Mesh(new THREE.SphereGeometry(1.4,12,12),
+    new THREE.MeshBasicMaterial({color:0xf5f0dc}));
+  moon.position.set(-14,16,-40);scene.add(moon);
+  // skyline silhouettes
+  for(let i=0;i<16;i++){
+    const h=3+Math.random()*10;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(2+Math.random()*3,h,2),mat(0x121a30));
+    b.position.set(-30+i*4+Math.random()*2,h/2,-38-Math.random()*8);
+    scene.add(b);
+  }
+  // asphalt + court paint
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(80,80),mat(0x2b2b34));
+  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+  const paint=c=>new THREE.MeshBasicMaterial({color:c});
+  const arc=new THREE.Mesh(new THREE.RingGeometry(6.6,6.9,48,1,Math.PI,Math.PI),paint(0xffffff));
+  arc.rotation.x=-Math.PI/2;arc.position.set(0,0.01,-12);scene.add(arc);
+  const key=new THREE.Mesh(new THREE.RingGeometry(2.2,2.4,32,1,Math.PI,Math.PI),paint(0xff8c1a));
+  key.rotation.x=-Math.PI/2;key.position.set(0,0.01,-12);scene.add(key);
+
+  // hoop
+  const RIMY=3.05, RIMZ=-12, RIMR=0.55;
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.14,.18,3.9,8),mat(0x555566));
+  pole.position.set(0,1.95,RIMZ-1.2);pole.castShadow=true;scene.add(pole);
+  const board=new THREE.Mesh(new THREE.BoxGeometry(2.6,1.6,.08),
+    new THREE.MeshLambertMaterial({color:0xe8ecf5,transparent:true,opacity:0.85}));
+  board.position.set(0,RIMY+0.75,RIMZ-0.62);scene.add(board);
+  const sq=new THREE.Mesh(new THREE.RingGeometry(0.32,0.38,4,1),paint(0xff2ec4));
+  sq.position.set(0,RIMY+0.35,RIMZ-0.57);sq.rotation.z=Math.PI/4;scene.add(sq);
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(RIMR,0.045,10,28),
+    new THREE.MeshLambertMaterial({color:0xff8c1a,emissive:0x552200}));
+  rim.rotation.x=Math.PI/2;rim.position.set(0,RIMY,RIMZ);scene.add(rim);
+  const net=new THREE.Mesh(new THREE.ConeGeometry(RIMR*0.95,0.75,10,4,true),
+    new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.7}));
+  net.position.set(0,RIMY-0.42,RIMZ);net.rotation.x=Math.PI;scene.add(net);
+
+  // ball
+  const ball=new THREE.Group();
+  const sphere=new THREE.Mesh(new THREE.SphereGeometry(0.32,18,18),
+    new THREE.MeshLambertMaterial({color:0xe86a1a,emissive:0x000000}));
+  sphere.castShadow=true;
+  for(const rz of [0,Math.PI/2]){
+    const seam=new THREE.Mesh(new THREE.TorusGeometry(0.32,0.012,6,24),mat(0x1a1a1a));
+    seam.rotation.y=rz;ball.add(seam);
+  }
+  ball.add(sphere);
+  const fireLight=new THREE.PointLight(0xff5510,0,6);
+  ball.add(fireLight);
+  scene.add(ball);
+  // ghost spot ring
+  const spotRing=new THREE.Mesh(new THREE.RingGeometry(0.5,0.68,24),paint(0xffe14d));
+  spotRing.rotation.x=-Math.PI/2;spotRing.position.y=0.02;scene.add(spotRing);
+
+  hp={score:0,time:60,over:false,streak:0,fire:false,flying:false,scored:false,
+    touched:false,pos:new THREE.Vector3(),vel:new THREE.Vector3(),drag:null,spot:new THREE.Vector3(),three:false};
+
   gIval(()=>{ if(hp.over)return;
-    hp.time--;$('#hptime').textContent=hp.time;
+    hp.time--;const el=$('#hptime');if(el)el.textContent=hp.time;
     if(hp.time<=0){hp.over=true;sndWin();
       submitScore('hoops',hp.score).then(x=>setTimeout(()=>alert('Buzzer! 🏀 '+hp.score+' points'+x),300))}
   },1000);
-  const field=$('#hpfield');
-  field.onpointerdown=e=>{
-    if(hp.flying||hp.over)return;
-    const r=field.getBoundingClientRect();
-    const px=(e.clientX-r.left)/r.width*100, py=(e.clientY-r.top)/r.height*100;
-    if(Math.hypot(px-hp.bx,py-hp.by)<14){hp.drag={x:e.clientX,y:e.clientY,r};sndPick()}
-  };
-  field.onpointermove=e=>{
+
+  function newSpot(){
+    const ang=(Math.random()*1.6-0.8);            // fan around the key
+    const dist=3.5+Math.random()*5.5;             // 3.5..9m from hoop
+    hp.three=dist>6.7;
+    hp.spot.set(Math.sin(ang)*dist, 0, RIMZ+Math.cos(ang)*dist);
+    hp.pos.set(hp.spot.x,1.5,hp.spot.z);
+    hp.vel.set(0,0,0);hp.flying=false;hp.scored=false;hp.touched=false;
+    spotRing.position.x=hp.spot.x;spotRing.position.z=hp.spot.z;
+    spotRing.material.color.set(hp.three?0xff8c1a:0xffe14d);
+    const l=$('#hpspotlbl');
+    if(l){l.textContent=hp.three?'3PT':'2PT';l.classList.toggle('deep',hp.three)}
+  }
+  newSpot();
+
+  const el=renderer.domElement;
+  el.style.touchAction='none';
+  el.addEventListener('pointerdown',e=>{if(!hp.flying&&!hp.over){hp.drag={x:e.clientX,y:e.clientY};sndPick()}});
+  el.addEventListener('pointerup',e=>{
     if(!hp.drag)return;
-    const dx=(hp.drag.x-e.clientX)/hp.drag.r.width*100;
-    const dy=(hp.drag.y-e.clientY)/hp.drag.r.height*100;
-    const ar=$('#hparrow');
-    ar.classList.remove('hide');
-    ar.style.left=hp.bx+'%';ar.style.top=hp.by+'%';
-    ar.style.width=Math.min(34,Math.hypot(dx,dy)*1.4)+'%';
-    ar.style.transform=`rotate(${Math.atan2(-dy,-dx)*180/Math.PI}deg)`;
-  };
-  field.onpointerup=e=>{
-    if(!hp.drag)return;
-    const dx=(hp.drag.x-e.clientX)/hp.drag.r.width*100;
-    const dy=(hp.drag.y-e.clientY)/hp.drag.r.height*100;
-    hp.drag=null;$('#hparrow').classList.add('hide');
-    if(Math.hypot(dx,dy)<4)return;
-    hp.vx=dx*0.055;hp.vy=dy*0.075;
-    hp.flying=true;hp.rimTouched=false;hp.scored=false;
-    sndDrop();
-  };
-  const RIM={x1:63,x2:77,y:26};
+    const dx=e.clientX-hp.drag.x, dy=e.clientY-hp.drag.y;
+    hp.drag=null;
+    if(Math.hypot(dx,dy)<12)return;
+    // aim at the hoop; drag length = power, vertical drag = arc, horizontal = curve
+    const toHoop=new THREE.Vector3(0,0,RIMZ).sub(hp.pos);toHoop.y=0;
+    const d=toHoop.length();toHoop.normalize();
+    const power=Math.min(1.35,Math.hypot(dx,dy)/170);
+    const fwd=(0.085+d*0.0125)*power/0.9;
+    hp.vel.copy(toHoop).multiplyScalar(fwd);
+    hp.vel.y=(0.14+d*0.006)*(power*0.55+0.55)+Math.max(0,-dy)*0.0006;
+    hp.vel.x+=dx*0.00035;
+    hp.flying=true;sndDrop();
+  });
+
+  let t=0;
   const loop=()=>{
-    const ball=$('#hpball');if(!ball)return;
+    if(!document.body.contains(el)){renderer.dispose();return}
+    t+=0.06;
+    spotRing.scale.setScalar(1+Math.sin(t*2)*0.08);
     if(hp.flying&&!hp.over){
-      hp.vy+=0.055;
-      hp.bx+=hp.vx;hp.by+=hp.vy;
+      hp.vel.y-=0.0058;
+      hp.pos.add(hp.vel);
+      ball.rotation.x-=hp.vel.length()*1.6;
       // backboard
-      if(hp.bx>84&&hp.by<34&&hp.by>8){hp.bx=84;hp.vx*=-0.55;hp.rimTouched=true;sfxTone(160,0.06,'square',0.12)}
-      // rim edges
-      for(const rx of [RIM.x1,RIM.x2]){
-        if(Math.abs(hp.bx-rx)<2.5&&Math.abs(hp.by-RIM.y)<2.5&&!hp.scored){
-          hp.vx*=-0.5;hp.vy*=0.5;hp.rimTouched=true;sfxTone(200,0.05,'square',0.12);
-        }
+      if(hp.pos.z<RIMZ-0.55&&hp.pos.z>RIMZ-0.75&&hp.pos.y>RIMY-0.2&&hp.pos.y<RIMY+1.6&&Math.abs(hp.pos.x)<1.3){
+        hp.vel.z*=-0.5;hp.pos.z=RIMZ-0.55;hp.touched=true;sfxTone(150,0.06,'square',0.12);
       }
-      // score: falling through the rim
-      if(!hp.scored&&hp.vy>0&&hp.by>RIM.y&&hp.by<RIM.y+4&&hp.bx>RIM.x1+2&&hp.bx<RIM.x2-2){
+      // rim edge
+      const flat=Math.hypot(hp.pos.x,hp.pos.z-RIMZ);
+      if(Math.abs(hp.pos.y-RIMY)<0.14&&Math.abs(flat-RIMR)<0.14&&!hp.scored){
+        const nx=hp.pos.x/flat, nz=(hp.pos.z-RIMZ)/flat;
+        const dot=hp.vel.x*nx+hp.vel.z*nz;
+        hp.vel.x-=1.4*dot*nx;hp.vel.z-=1.4*dot*nz;hp.vel.y*=0.4;
+        hp.touched=true;sfxTone(210,0.05,'square',0.14);
+      }
+      // score
+      if(!hp.scored&&hp.vel.y<0&&hp.pos.y<RIMY&&hp.pos.y>RIMY-0.3&&flat<RIMR-0.12){
         hp.scored=true;
-        const pts=(hp.three?3:2)*(hp.fire?2:1)+(hp.rimTouched?0:1);
+        const pts=(hp.three?3:2)*(hp.fire?2:1)+(hp.touched?0:1);
         hp.score+=pts;hp.streak++;
-        $('#hpscore').textContent=hp.score;
-        $('#hpnet').classList.add('swish');setTimeout(()=>$('#hpnet')?.classList.remove('swish'),350);
-        if(!hp.rimTouched){sfxTone(700,0.22,'triangle',0.22,0,1300)}
+        const se=$('#hpscore');if(se)se.textContent=hp.score;
+        net.scale.set(1.25,1.35,1.25);setTimeout(()=>net.scale.set(1,1,1),260);
+        if(!hp.touched)sfxTone(720,0.24,'triangle',0.22,0,1350);
         sndBlast(1);burst('pop');
-        if(hp.streak===3&&!hp.fire){hp.fire=true;$('#hpfire').classList.remove('hide');burst('storm');sndWin()}
+        if(hp.streak===3&&!hp.fire){hp.fire=true;$('#hpfire')?.classList.remove('hide');
+          sphere.material.emissive.set(0xff3300);fireLight.intensity=1.4;burst('storm');sndWin()}
       }
-      // out / landed
-      if(hp.by>92||hp.bx<-6||hp.bx>106){
+      // landed / out
+      if(hp.pos.y<0.32||Math.abs(hp.pos.x)>30||hp.pos.z<-40||hp.pos.z>20){
         if(!hp.scored){hp.streak=0;
-          if(hp.fire){hp.fire=false;$('#hpfire').classList.add('hide')}
-          sndBad();}
-        hpReset();
+          if(hp.fire){hp.fire=false;$('#hpfire')?.classList.add('hide');
+            sphere.material.emissive.set(0x000000);fireLight.intensity=0}
+          sndBad()}
+        newSpot();
       }
-      ball.style.left=hp.bx+'%';ball.style.top=hp.by+'%';
-      ball.style.transform=`translate(-50%,-50%) rotate(${hp.bx*14}deg)`;
-      ball.classList.toggle('blaze',hp.fire);
     }
+    ball.position.copy(hp.pos);
+    if(hp.fire)sphere.scale.setScalar(1+Math.sin(t*8)*0.06);
+    // camera: over the shoulder behind the ball spot, looking at the rim
+    const back=new THREE.Vector3(hp.spot.x*1.18,2.6,hp.spot.z+((hp.spot.z-RIMZ)*0.32+2.4));
+    cam.position.lerp(back,0.07);
+    cam.lookAt(0,RIMY-0.4,RIMZ);
+    renderer.render(scene,cam);
     __raf=requestAnimationFrame(loop);
   };
   __raf=requestAnimationFrame(loop);
-}
-function hpPlaceSpot(){
-  hp.three=Math.random()<0.45;
-  hp.bx=hp.three?8+Math.random()*16:26+Math.random()*22;
-  hp.by=hp.three?76+Math.random()*8:70+Math.random()*12;
-  const sp=$('#hpspot');
-  sp.style.left=hp.bx+'%';sp.style.top=(hp.by+6)+'%';
-  sp.textContent=hp.three?'3PT':'2PT';
-  sp.classList.toggle('deep',hp.three);
-  const b=$('#hpball');b.style.left=hp.bx+'%';b.style.top=hp.by+'%';
-}
-function hpReset(){
-  hp.flying=false;hp.vx=0;hp.vy=0;
-  hpPlaceSpot();
 }
 
 // ---- CLUB CHAT ----
