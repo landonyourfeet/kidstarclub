@@ -480,8 +480,13 @@ app.get('/api/share/:token/stream', async (req, res) => {
 });
 app.get('/api/share/:token/thumb', async (req, res) => {
   const v = await shareVideo(req.params.token);
-  if (!v?.thumb_key) return res.status(404).send('Not found');
-  res.redirect(bucket.presignGet(v.thumb_key, 3600));
+  if (!v?.thumb_key) return res.redirect('/share-card.png'); // brand card fallback
+  try {
+    const obj = await bucket.get(v.thumb_key);
+    res.set('content-type', 'image/jpeg');
+    res.set('cache-control', 'public, max-age=3600');
+    res.send(obj.body);
+  } catch (e) { res.redirect('/share-card.png'); }
 });
 app.get('/api/share/:token/data', async (req, res) => {
   const v = await shareVideo(req.params.token);
@@ -540,12 +545,25 @@ app.get('/watch/:token', async (req, res) => {
   if (!v) return res.status(404).send('<h1 style="font-family:sans-serif;padding:40px">This link has expired. Ask your friend for a new one! ⭐</h1>');
   const t = req.params.token;
   const safeTitle = v.title.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const { rows: rxs } = await pool.query(
+    `SELECT kind, count(*)::int AS n FROM reactions WHERE video_id=$1 GROUP BY kind`, [v.id]);
+  const { rows: [{ n: cmn }] } = await pool.query(
+    `SELECT count(*)::int AS n FROM comments WHERE video_id=$1 AND status='visible'`, [v.id]);
+  const { rows: [jury2] } = await pool.query(
+    `SELECT COALESCE(AVG(score),0)::float AS avg, count(*)::int AS n FROM judge_scores WHERE video_id=$1`, [v.id]);
+  const RXE = { star: '⭐', fire: '🔥', clap: '👏', heart: '💜', wow: '🤩' };
+  const rxLine = rxs.filter(r => r.n > 0).map(r => `${RXE[r.kind] || '⭐'}${r.n}`).join(' ') || '⭐ new!';
+  const chart2 = Math.floor(v.views * Math.max(1, jury2.avg * jury2.avg));
+  const desc = `${rxLine} · 💬 ${cmn} comments · 📈 Chart ${chart2}` +
+    (jury2.n ? ` · Judges ${jury2.avg.toFixed(1)}/10` : '') + ` — ${v.owner_name} on KidStarClub`;
   res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${safeTitle} — KidStarClub ⭐</title>
 <meta property="og:title" content="${safeTitle} ⭐ KidStarClub">
-<meta property="og:description" content="Watch this performance on KidStarClub — the private club for stars.">
+<meta property="og:description" content="${desc.replace(/"/g, '&quot;')}">
 <meta property="og:image" content="https://kidstarclub.com/api/share/${t}/thumb">
+<meta property="og:image:width" content="640">
+<meta name="twitter:card" content="summary_large_image">
 <meta property="og:type" content="video.other">
 <link rel="icon" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Anton&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
