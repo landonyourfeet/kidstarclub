@@ -10,9 +10,9 @@
 // Used by index.html (in-app comments + chat).
 function pillHtml(c){
   if(c.cast_name){
-    if(c.cast_tier==='judge')return '<span class="aitag judgep">🤖 AI JUDGE</span>';
-    if(c.cast_tier==='regular')return '<span class="aitag crewp">🤖 AI CREW</span>';
-    return '<span class="aitag fanp">🤖 AI FAN</span>';
+    if(c.cast_tier==='judge')return '<span class="aitag judgep">🤖 JUDGE</span>';
+    if(c.cast_tier==='regular')return '<span class="aitag crewp">🤖 CREW</span>';
+    return '<span class="aitag fanp">🤖 FAN</span>';
   }
   if(c.user_role==='admin')return '<span class="aitag hq">🛡️ HQ</span>';
   if(c.user_role==='kid')return '<span class="aitag star">⭐ STAR</span>';
@@ -25,15 +25,15 @@ function pillHtml(c){
 
 // Used by the @mention autocomplete dropdown in chat.
 function mentionCastTag(){
-  return '<span class="aitag fanp">🤖 AI</span>';
+  return '<span class="aitag fanp">🤖 </span>';
 }
 
 // Used by watch-page.js (public share pages).
 function watchPill(c){
   if(c.cast_name){
-    if(c.cast_tier==='judge')return '<span class="pill pj">🤖 AI JUDGE</span>';
-    if(c.cast_tier==='regular')return '<span class="pill pc">🤖 AI CREW</span>';
-    return '<span class="pill pf">🤖 AI FAN</span>';
+    if(c.cast_tier==='judge')return '<span class="pill pj">🤖 JUDGE</span>';
+    if(c.cast_tier==='regular')return '<span class="pill pc">🤖 CREW</span>';
+    return '<span class="pill pf">🤖 FAN</span>';
   }
   return '';
 }
