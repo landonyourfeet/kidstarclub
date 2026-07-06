@@ -212,6 +212,24 @@ input::placeholder,textarea::placeholder{color:#b678a8}
 .navbadge{position:absolute;top:-4px;right:2px;background:#ff4040;color:#fff;border-radius:999px;
   min-width:18px;height:18px;font:800 11px var(--body);display:flex;align-items:center;justify-content:center;padding:0 4px}
 nav button{position:relative}
+/* judges rating bar */
+.jbar{position:relative;height:18px;background:#14061a;border:2px solid var(--white);border-radius:999px;
+  overflow:hidden;margin-top:10px}
+.jbar .jfill{position:absolute;inset:0;width:0;border-radius:999px;transition:width 1s ease;
+  background:linear-gradient(90deg,#45d8ff,#ff2ec4 55%,#ffe14d)}
+.jbar .jlabel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--block);font-size:11px;letter-spacing:.12em;color:var(--white);
+  text-shadow:1px 1px 2px var(--black)}
+.jbar.warm .jfill{animation:jpulse 1.6s ease-in-out infinite}
+.jbar.hot .jfill{animation:jpulse .9s ease-in-out infinite}
+.jbar.hot{border-color:var(--yellow)}
+.jbar.max .jfill{animation:jpulse .45s ease-in-out infinite}
+.jbar.max{border-color:var(--yellow);box-shadow:0 0 14px rgba(255,225,77,.8)}
+@keyframes jpulse{
+  0%,100%{filter:brightness(1);box-shadow:0 0 4px rgba(255,46,196,.5)}
+  50%{filter:brightness(1.5);box-shadow:0 0 18px rgba(255,225,77,.95),0 0 34px rgba(255,46,196,.7)}
+}
+@media(prefers-reduced-motion:reduce){.jbar .jfill{animation:none!important}}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -433,6 +451,13 @@ async function join(){
 }
 
 // ---- FEED ----
+function jbarHtml(avg){
+  const a=avg||0;
+  const cls=a>=9.5?'max':a>=8.5?'hot':a>=7?'warm':'';
+  const label=a>0?`JUDGES ${a.toFixed(1)} / 10`:'JUDGES VOTING…';
+  return `<div class="jbar ${cls}"><div class="jfill" style="width:${a*10}%"></div>
+    <div class="jlabel">${label}</div></div>`;
+}
 async function feed(){
   const vids=await api('/api/feed');
   $('#v-feed').innerHTML=vids.length?vids.map(v=>`
@@ -452,6 +477,7 @@ async function feed(){
         <span class="chip">⚡ ${v.reaction_count} cheers</span>
         <span class="chip cy">💬 ${v.comment_count} comments</span>
       </div>
+      ${jbarHtml(v.avg_score)}
     </div>`).join('')
   :'<div class="sticker center"><h2 class="scrawl">The stage is empty…</h2><p>Post your first video and the club goes WILD. ⚡</p></div>';
 }
@@ -474,6 +500,7 @@ async function openVideo(id){
         <span class="chip" id="hypeChip" style="margin-left:8px">⚡ HYPE <span id="hypeN">0</span></span></div>
       <div class="chartline">📈 CHART SCORE <span id="chartN">${v.chart_score||0}</span>
         ${v.judge_count?`<span class="panel">panel: ${v.avg_score.toFixed(1)}/10 · ×${Math.max(1,Math.round(v.avg_score*v.avg_score))} multiplier</span>`:'<span class="panel">judges are still voting…</span>'}</div>
+      ${jbarHtml(v.avg_score)}
       ${!v.is_own?`<button class="big ${v.i_subscribe?'cy':''}" style="margin:6px 0"
           onclick="event.stopPropagation();toggleSub(${v.channel_id},${v.i_subscribe},${id})">
           ${v.i_subscribe?'✓ Subscribed':'⭐ Subscribe'}</button>`:''}
