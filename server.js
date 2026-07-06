@@ -62,7 +62,7 @@ app.get('/api/me', (req, res) => res.json(req.user || null));
 app.post('/api/join', async (req, res) => {
   const { code, username, password, display_name } = req.body || {};
   if (!code || !username || !password || !display_name) return res.status(400).json({ error: 'All fields are required.' });
-  const { rows: [inv] } = await pool.query('SELECT * FROM invite_codes WHERE code=$1 AND NOT revoked AND uses < max_uses', [code.trim()]);
+  const { rows: [inv] } = await pool.query('SELECT * FROM invite_codes WHERE upper(code)=upper($1) AND NOT revoked AND uses < max_uses', [code.trim()]);
   if (!inv) return res.status(400).json({ error: 'That invite code is not valid.' });
   try {
     const { rows: [u] } = await pool.query(
@@ -104,7 +104,9 @@ app.post('/api/videos', requireUser, express.raw({ type: ['video/*'], limit: '50
   if (!['kid', 'admin'].includes(req.user.role)) return res.status(403).json({ error: 'Only club stars can post videos.' });
   const title = (req.query.title || 'Untitled').toString().slice(0, 120);
   const description = (req.query.description || '').toString().slice(0, 500);
-  const { rows: [channel] } = await pool.query('SELECT * FROM channels WHERE owner_id=$1', [req.user.id]);
+  let { rows: [channel] } = await pool.query('SELECT * FROM channels WHERE owner_id=$1', [req.user.id]);
+  if (!channel && req.user.role === 'admin')
+    ({ rows: [channel] } = await pool.query(`INSERT INTO channels (owner_id,name) VALUES ($1,'Club HQ 🎪') RETURNING *`, [req.user.id]));
   if (!channel) return res.status(400).json({ error: 'No channel found for this account.' });
   if (!req.body?.length) return res.status(400).json({ error: 'No video data received.' });
   const key = `videos/${channel.id}/${Date.now()}-${crypto.randomBytes(4).toString('hex')}.mp4`;
