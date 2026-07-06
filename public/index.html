@@ -1105,11 +1105,13 @@ setInterval(async()=>{
 const popObs=new IntersectionObserver(es=>es.forEach(e=>{
   if(e.isIntersecting){e.target.classList.add('in');popObs.unobserve(e.target)}
 }),{threshold:.08});
-new MutationObserver(()=>{
+function popScan(){
   document.querySelectorAll('.sticker:not(.in):not([data-obs])').forEach(el=>{
     el.dataset.obs=1;popObs.observe(el);
   });
-}).observe(document.querySelector('main'),{childList:true,subtree:true});
+}
+popScan(); // static stickers (login/join, upload, studio, chat) present before any mutation
+new MutationObserver(popScan).observe(document.querySelector('main'),{childList:true,subtree:true});
 
 boot();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
