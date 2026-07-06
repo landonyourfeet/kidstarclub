@@ -182,13 +182,18 @@ app.get('/api/videos/:id/thumb', requireUser, async (req, res) => {
 
 app.get('/api/videos/:id', requireUser, async (req, res) => {
   const { rows: [v] } = await pool.query(
-    `SELECT v.*, c.name AS channel_name, c.star_meter, u.display_name AS owner_name
+    `SELECT v.*, c.name AS channel_name, c.star_meter, c.id AS channel_id, c.owner_id, u.display_name AS owner_name
      FROM videos v JOIN channels c ON c.id=v.channel_id JOIN users u ON u.id=c.owner_id
      WHERE v.id=$1 AND v.status='live'`, [req.params.id]);
   if (!v) return res.status(404).json({ error: 'Video not found.' });
   const { rows: reactions } = await pool.query(
     `SELECT kind, count(*)::int AS n FROM reactions WHERE video_id=$1 GROUP BY kind`, [req.params.id]);
-  res.json({ ...v, bucket_key: undefined, reactions });
+  const { rows: [sub] } = await pool.query(
+    `SELECT (SELECT count(*)::int FROM subscriptions WHERE channel_id=$1) AS n,
+            EXISTS(SELECT 1 FROM subscriptions WHERE channel_id=$1 AND user_id=$2) AS mine`,
+    [v.channel_id, req.user.id]);
+  res.json({ ...v, bucket_key: undefined, reactions,
+    subscriber_count: sub.n, i_subscribe: sub.mine, is_own: v.owner_id === req.user.id });
 });
 
 // ---------- Comments ----------
@@ -249,6 +254,57 @@ async function awardBadges(channelId) {
 app.get('/api/channels/:id/badges', requireUser, async (req, res) => {
   const { rows } = await pool.query('SELECT key,label,emoji,earned_at FROM badges WHERE channel_id=$1 ORDER BY earned_at', [req.params.id]);
   res.json(rows);
+});
+
+// ---------- Subscriptions (real members only) ----------
+app.post('/api/channels/:id/subscribe', requireUser, async (req, res) => {
+  const { rows: [c] } = await pool.query('SELECT owner_id FROM channels WHERE id=$1', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Channel not found.' });
+  if (c.owner_id === req.user.id) return res.status(400).json({ error: "You can't subscribe to your own stage!" });
+  await pool.query(`INSERT INTO subscriptions (user_id,channel_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+    [req.user.id, req.params.id]);
+  await bumpStars(req.params.id, 3);
+  res.json({ ok: true });
+});
+app.post('/api/channels/:id/unsubscribe', requireUser, async (req, res) => {
+  await pool.query(`DELETE FROM subscriptions WHERE user_id=$1 AND channel_id=$2`, [req.user.id, req.params.id]);
+  res.json({ ok: true });
+});
+app.get('/api/channels/:id/subscribers', requireUser, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT u.display_name, u.avatar_emoji, s.created_at FROM subscriptions s
+     JOIN users u ON u.id=s.user_id WHERE s.channel_id=$1 AND u.status='active' ORDER BY s.created_at`,
+    [req.params.id]);
+  res.json(rows);
+});
+
+// ---------- Studio track library ----------
+app.get('/api/tracks', requireUser, async (req, res) => {
+  const { rows } = await pool.query(`SELECT id,title,created_at FROM tracks WHERE active ORDER BY title`);
+  res.json(rows);
+});
+app.get('/api/tracks/:id/stream', requireUser, async (req, res) => {
+  const { rows: [t] } = await pool.query(`SELECT bucket_key FROM tracks WHERE id=$1 AND active`, [req.params.id]);
+  if (!t) return res.status(404).json({ error: 'Track not found.' });
+  res.redirect(bucket.presignGet(t.bucket_key, 3600));
+});
+// Admin adds a song: presign, PUT the audio file, then confirm.
+app.post('/api/tracks/presign', requireAdmin, async (req, res) => {
+  const title = (req.body?.title || '').trim().slice(0, 120);
+  if (!title) return res.status(400).json({ error: 'Track needs a title.' });
+  const key = `tracks/${Date.now()}-${crypto.randomBytes(4).toString('hex')}.mp3`;
+  const { rows: [t] } = await pool.query(
+    `INSERT INTO tracks (title,bucket_key,added_by,active) VALUES ($1,$2,$3,false) RETURNING id`,
+    [title, key, req.user.id]);
+  res.json({ track_id: t.id, put_url: bucket.presignPut(key) });
+});
+app.post('/api/tracks/:id/complete', requireAdmin, async (req, res) => {
+  await pool.query(`UPDATE tracks SET active=true WHERE id=$1`, [req.params.id]);
+  res.json({ ok: true });
+});
+app.post('/api/tracks/:id/remove', requireAdmin, async (req, res) => {
+  await pool.query(`UPDATE tracks SET active=false WHERE id=$1`, [req.params.id]);
+  res.json({ ok: true });
 });
 
 // =====================================================================
