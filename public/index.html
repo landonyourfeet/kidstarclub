@@ -266,6 +266,32 @@ nav button{position:relative}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ---- THEME: Street Court 🏀 (blue asphalt + graffiti orange) ---- */
+body.theme-court{
+  --pink:#ff8c1a; --magenta:#1a63c4; --deep:#0a1c33; --yellow:#ffe14d; --cyan:#45d8ff;
+  background:
+    radial-gradient(circle at 50% 130%, transparent 34%, rgba(255,255,255,.10) 34.4% 34.9%, transparent 35.3%),
+    radial-gradient(circle at 50% 130%, transparent 22%, rgba(255,140,26,.16) 22.4% 22.9%, transparent 23.3%),
+    radial-gradient(circle at 20% 10%, rgba(255,255,255,.10) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 80% 30%, rgba(0,0,0,.4) 0 2px, transparent 2.5px),
+    linear-gradient(160deg,#2e9dff 0%,#1257a8 45%,#071c38 100%);
+  background-size:100% 100%,100% 100%,22px 22px,28px 28px,cover;
+}
+body.theme-court::before{opacity:.35}
+body.theme-court header{border-bottom-color:#ff8c1a}
+body.theme-court .logo span.star{background:#ff8c1a}
+body.theme-court .tag{color:#ffe14d}
+body.theme-court .sticker{box-shadow:6px 6px 0 rgba(4,12,26,.6),0 0 0 3px #ff8c1a inset}
+body.theme-court nav{border-top-color:#ff8c1a}
+body.theme-court nav button.plus{background:#ff8c1a}
+body.theme-court .jbar .jfill{background:linear-gradient(90deg,#45d8ff,#ff8c1a 55%,#ffe14d)}
+.themerow{display:flex;gap:8px;margin:10px 0}
+.themebtn{flex:1;border:3px solid var(--white);border-radius:12px;padding:10px;cursor:pointer;
+  font:800 13px var(--body);color:#fff;opacity:.7;transition:transform .12s cubic-bezier(.34,1.8,.64,1)}
+.themebtn:active{transform:scale(.93)}
+.themebtn.on{opacity:1;box-shadow:0 0 0 3px var(--yellow)}
+.themebtn.tpunk{background:linear-gradient(140deg,#ff2ec4,#7a0a5e)}
+.themebtn.tcourt{background:linear-gradient(140deg,#2e9dff,#0a1c33)}
 </style>
 </head>
 <body>
@@ -427,9 +453,16 @@ setInterval(()=>{if(!document.hidden&&!$('#v-feed').classList.contains('hide')&&
 
 
 function showCreate(){$('#createSheet').classList.remove('hide')}
+function applyTheme(t){document.body.classList.toggle('theme-court',t==='court')}
+async function setTheme(t){
+  ME.theme=t;applyTheme(t);
+  await api('/api/profile/theme',{method:'POST',body:{theme:t}}).catch(()=>{});
+  meView();
+}
 async function boot(){
   ME=await api('/api/me').catch(()=>null);
   if(!ME){go('auth');return}
+  applyTheme(ME.theme);
   $('#nav').classList.remove('hide');
   go('feed');
 }
@@ -746,6 +779,11 @@ async function meView(){
     </div>
     <input id="pfName" value="${esc(ME.display_name)}" maxlength="40" placeholder="screen name">
     <button class="big" onclick="saveName()">Save name ⭐</button>
+    <h2 class="scrawl" style="margin-top:12px;font-size:16px">My theme 🎨</h2>
+    <div class="themerow">
+      <button class="themebtn tpunk ${ME.theme!=='court'?'on':''}" onclick="setTheme('punk')">💖 Punk Pop</button>
+      <button class="themebtn tcourt ${ME.theme==='court'?'on':''}" onclick="setTheme('court')">🏀 Street Court</button>
+    </div>
     <button class="big" style="margin-top:8px;background:#444;color:#fff" onclick="logout()">👋 Sign out</button>
     <div class="errmsg" id="pfErr"></div>
   </div>`;
