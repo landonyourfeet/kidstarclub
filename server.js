@@ -95,6 +95,8 @@ app.get('/api/feed', requireUser, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT v.id, v.title, v.description, v.created_at, v.channel_id, v.kind, v.views,
        (v.thumb_key IS NOT NULL) AS has_thumb,
+       COALESCE((SELECT AVG(score) FROM judge_scores js WHERE js.video_id=v.id),0)::float AS avg_score,
+       FLOOR(v.views * GREATEST(1, POWER(COALESCE((SELECT AVG(score) FROM judge_scores js WHERE js.video_id=v.id),0),2)))::int AS chart_score,
        c.name AS channel_name, u.display_name AS owner_name, u.avatar_emoji,
        (SELECT count(*)::int FROM reactions r WHERE r.video_id=v.id) AS reaction_count,
        (SELECT count(*)::int FROM comments cm WHERE cm.video_id=v.id AND cm.status='visible') AS comment_count
@@ -199,8 +201,13 @@ app.get('/api/videos/:id', requireUser, async (req, res) => {
     `SELECT (SELECT count(*)::int FROM subscriptions WHERE channel_id=$1) AS n,
             EXISTS(SELECT 1 FROM subscriptions WHERE channel_id=$1 AND user_id=$2) AS mine`,
     [v.channel_id, req.user.id]);
+  const { rows: [jury] } = await pool.query(
+    `SELECT COALESCE(AVG(score),0)::float AS avg, count(*)::int AS n FROM judge_scores WHERE video_id=$1`,
+    [req.params.id]);
+  const chart = Math.floor(v.views * Math.max(1, jury.avg * jury.avg));
   res.json({ ...v, bucket_key: undefined, reactions,
-    subscriber_count: sub.n, i_subscribe: sub.mine, is_own: v.owner_id === req.user.id });
+    subscriber_count: sub.n, i_subscribe: sub.mine, is_own: v.owner_id === req.user.id,
+    avg_score: jury.avg, judge_count: jury.n, chart_score: chart });
 });
 
 // ---------- Comments ----------
@@ -363,6 +370,13 @@ app.get('/api/chat/mentionables', requireUser, async (req, res) => {
   const { rows: cast } = await pool.query(
     `SELECT name, emoji, 'cast' AS kind FROM cast_members WHERE active AND tier IN ('judge','regular') ORDER BY name`);
   res.json([...users, ...cast]);
+});
+
+// Cheap poll target for the chat notification badge.
+app.get('/api/chat/latest', requireUser, async (req, res) => {
+  const { rows: [m] } = await pool.query(
+    `SELECT COALESCE(MAX(id),0)::int AS id FROM chat_messages WHERE status='visible'`);
+  res.json({ id: m.id });
 });
 
 app.post('/api/chat', requireUser, async (req, res) => {
