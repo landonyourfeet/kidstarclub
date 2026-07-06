@@ -101,8 +101,17 @@ input::placeholder,textarea::placeholder{color:#b678a8}
 .comment.judge{border-left-color:var(--yellow)}
 .comment .who{font-weight:800;font-size:13px;color:var(--cyan)}
 .comment.judge .who{color:var(--yellow)}
-.comment .aitag{font-size:10px;background:var(--deep);border:1px solid var(--cyan);color:var(--cyan);
-  border-radius:6px;padding:1px 6px;margin-left:6px;letter-spacing:.08em;vertical-align:middle}
+.comment .aitag{font-size:10px;border-radius:6px;padding:1px 7px;margin-left:6px;letter-spacing:.08em;
+  vertical-align:middle;font-weight:800;border:1px solid}
+.aitag.judgep{background:#2e2408;border-color:var(--yellow);color:var(--yellow)}
+.aitag.crewp{background:#241a3a;border-color:var(--purple);color:var(--purple)}
+.aitag.fanp{background:var(--deep);border-color:var(--cyan);color:var(--cyan)}
+.aitag.bronze{background:#2b1a0c;border-color:#cd7f32;color:#e8a463}
+.aitag.silver{background:#232328;border-color:#c0c0c0;color:#d9d9de}
+.aitag.gold{background:#2e2408;border-color:#ffd700;color:#ffe14d}
+.aitag.plat{background:#20242c;border-color:#9ad6e8;color:#d7f4ff}
+.aitag.star{background:#3a0a2e;border-color:var(--pink);color:var(--pink)}
+.aitag.hq{background:#0a2e1a;border-color:#4ade80;color:#4ade80}
 .comment .pending{font-size:11px;color:var(--yellow);font-style:italic}
 .comment .body{font-size:14px;margin-top:2px}
 .comment .reply{background:none;border:none;color:var(--pink);font-weight:800;font-size:12px;cursor:pointer;padding:2px 0}
@@ -412,6 +421,20 @@ async function openVideo(id){
     box.lastElementChild?.animate([{background:'rgba(69,216,255,.35)'},{background:'transparent'}],{duration:1200});
   },15000);
 }
+function pillHtml(c){
+  if(c.cast_name){
+    if(c.cast_tier==='judge')return '<span class="aitag judgep">🤖 AI JUDGE</span>';
+    if(c.cast_tier==='regular')return '<span class="aitag crewp">🤖 AI CREW</span>';
+    return '<span class="aitag fanp">🤖 AI FAN</span>';
+  }
+  if(c.user_role==='admin')return '<span class="aitag hq">🛡️ HQ</span>';
+  if(c.user_role==='kid')return '<span class="aitag star">⭐ STAR</span>';
+  const n=c.activity_n||0;
+  if(n>=150)return '<span class="aitag plat">💎 PLATINUM</span>';
+  if(n>=50)return '<span class="aitag gold">🥇 GOLD</span>';
+  if(n>=10)return '<span class="aitag silver">🥈 SILVER</span>';
+  return '<span class="aitag bronze">🥉 BRONZE</span>';
+}
 function commentHtml(c){
   const isCast=!!c.cast_name;
   const judge=c.cast_tier==='judge';
@@ -420,7 +443,7 @@ function commentHtml(c){
   return `<div class="comment ${judge?'judge':''}" ${c.parent_id?'style="margin-left:18px"':''}>
     <div class="av">${esc(av)}</div>
     <div class="cbody">
-      <span class="who">${name}</span>${isCast?'<span class="aitag">AI CAST</span>':''}
+      <span class="who">${name}</span>${pillHtml(c)}
       ${c.status==='pending'?'<div class="pending">waiting for admin approval — only you can see this</div>':''}
       <div class="body">${esc(c.body)}</div>
       ${isCast?`<button class="reply" onclick="setReply(${c.id},'${esc(c.cast_name).replace(/'/g,"\\'")}')">reply</button>`:''}
