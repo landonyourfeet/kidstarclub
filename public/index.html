@@ -191,6 +191,26 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .lscore{font-family:var(--block);color:var(--yellow);font-size:16px;letter-spacing:.05em}
 body.theme-court .sbpiece.on{border-color:#ff8c1a}
 body.theme-court .gametile{border-color:#ff8c1a}
+/* arcade chat dock */
+#v-arcade{padding-bottom:64px}
+.chatdock{position:fixed;left:10px;right:10px;bottom:calc(84px + env(safe-area-inset-bottom));
+  z-index:55;background:rgba(13,2,16,.97);border:3px solid var(--cyan);border-radius:14px;
+  box-shadow:0 4px 18px rgba(13,2,16,.6);max-width:620px;margin:0 auto}
+.dockbar{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer}
+.dockic{font-size:17px}
+.docklatest{flex:1;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;color:#d9a8cc}
+.docklatest b{color:var(--cyan)}
+#dockArrow{color:var(--cyan);font-weight:900;transition:transform .2s}
+.chatdock.open #dockArrow{transform:rotate(180deg)}
+.dockpanel{border-top:2px solid var(--magenta);padding:8px 10px calc(8px)}
+.dockmsgs{max-height:34vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;
+  padding:4px 0 8px;overscroll-behavior:contain}
+.dockmsgs .cmsg .av{width:26px;height:26px;flex:0 0 26px;font-size:12px}
+.dockmsgs .bub{padding:5px 8px}
+.dockmsgs .ctext{font-size:13px}
+.docknew{animation:docknew .5s ease}
+@keyframes docknew{0%{background:rgba(69,216,255,.28)}100%{background:transparent}}
 /* live emoji rain over the player */
 .vidwrap{position:relative;overflow:visible}
 .unmutepill{position:absolute;top:10px;left:10px;z-index:6;background:rgba(13,2,16,.8);
@@ -483,6 +503,22 @@ body.theme-court .jbar .jfill{background:linear-gradient(90deg,#45d8ff,#ff8c1a 5
         <div id="gameBoard"></div>
       </div>
     </div>
+    <!-- chat dock: play & chat at the same time -->
+    <div id="chatDock" class="chatdock">
+      <div class="dockbar" onclick="dockToggle()">
+        <span class="dockic">💬</span>
+        <span id="dockLatest" class="docklatest">Club Chat — tap to open</span>
+        <span id="dockArrow">▲</span>
+      </div>
+      <div id="dockPanel" class="dockpanel hide">
+        <div id="dockMsgs" class="dockmsgs"></div>
+        <div class="chatrow">
+          <input id="dockIn" placeholder="chat while you play…" maxlength="500"
+            onkeydown="if(event.key==='Enter')dockSend()">
+          <button class="act-send" onclick="dockSend()">➤</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- MY STAR -->
@@ -543,6 +579,7 @@ function go(view){
   if(view!=='video')stopPoll();
   if(view!=='studio')stopStudio();
   if(view!=='chat')stopChat();
+  if(view!=='arcade')stopDock();
   if(view==='feed')feed(); if(view==='me')meView(); if(view==='arcade')arcade();
   if(view==='studio')studio(); if(view==='chat')chat();
 }
@@ -1081,8 +1118,55 @@ const GAMES={
   starmatch:{title:'🃏 STAR MATCH',blurb:'Find all the pairs — fast fingers, big score!',start:()=>smNew()},
 };
 let currentGame=null;
+// ---- arcade chat dock ----
+let dockPoll=null,dockLast=0,dockOpen=false;
+function stopDock(){if(dockPoll){clearInterval(dockPoll);dockPoll=null}dockOpen=false;
+  $('#dockPanel')?.classList.add('hide');$('#chatDock')?.classList.remove('open')}
+function dockToggle(){
+  dockOpen=!dockOpen;
+  $('#dockPanel').classList.toggle('hide',!dockOpen);
+  $('#chatDock').classList.toggle('open',dockOpen);
+  if(dockOpen){const m=$('#dockMsgs');m.scrollTop=m.scrollHeight;if(dockLast)setChatSeen(dockLast)}
+}
+async function startDock(){
+  stopDock();dockLast=0;
+  if(!MENTIONABLES.length)MENTIONABLES=await api('/api/chat/mentionables').catch(()=>[]);
+  const msgs=await api('/api/chat').catch(()=>[]);
+  const box=$('#dockMsgs');
+  box.innerHTML=msgs.slice(-25).map(chatMsgHtml).join('');
+  if(msgs.length){dockLast=msgs[msgs.length-1].id;dockLatestLine(msgs[msgs.length-1])}
+  dockPoll=setInterval(async()=>{
+    if(document.hidden)return;
+    const fresh=await api('/api/chat?after='+dockLast).catch(()=>[]);
+    if(!fresh.length)return;
+    dockLast=fresh[fresh.length-1].id;
+    dockLatestLine(fresh[fresh.length-1]);
+    const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<100;
+    fresh.forEach(m=>{box.insertAdjacentHTML('beforeend',chatMsgHtml(m));
+      box.lastElementChild.classList.add('docknew')});
+    if(dockOpen){if(nearBottom)box.scrollTop=box.scrollHeight;setChatSeen(dockLast)}
+  },6000);
+}
+function dockLatestLine(m){
+  const who=m.cast_name||m.user_name||'';
+  const txt=m.body||(m.has_image?'📷 photo':'');
+  $('#dockLatest').innerHTML=`<b>${esc(who)}:</b> ${esc(txt).slice(0,80)}`;
+}
+async function dockSend(){
+  const t=$('#dockIn').value.trim();if(!t)return;
+  $('#dockIn').value='';
+  try{
+    await api('/api/chat',{method:'POST',body:{body:t}});
+    const fresh=await api('/api/chat?after='+dockLast).catch(()=>[]);
+    if(fresh.length){dockLast=fresh[fresh.length-1].id;dockLatestLine(fresh[fresh.length-1]);
+      const box=$('#dockMsgs');
+      fresh.forEach(m=>box.insertAdjacentHTML('beforeend',chatMsgHtml(m)));
+      box.scrollTop=box.scrollHeight;setChatSeen(dockLast)}
+  }catch(e){alert(e.message)}
+}
 async function arcade(){
   currentGame=null;
+  startDock();
   $('#gameHost').classList.add('hide');
   const hub=$('#arcadeHub');hub.classList.remove('hide');
   const sum=await api('/api/games/summary?games='+Object.keys(GAMES).join(',')).catch(()=>({}));
