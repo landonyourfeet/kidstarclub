@@ -118,6 +118,29 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   padding:7px 9px;cursor:pointer;transition:transform .12s cubic-bezier(.34,2,.64,1)}
 .act-mini:active{transform:scale(.85) rotate(-6deg)}
 .act-mini.bad{border-color:#a33}
+/* STAR BLAST */
+.sbtop{font-family:var(--block);font-size:18px;letter-spacing:.08em;color:var(--yellow);margin-bottom:8px}
+.sbgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;background:#14061a;
+  border:3px solid var(--white);border-radius:12px;padding:6px;aspect-ratio:1;max-width:420px;margin:0 auto}
+.sbcell{background:#241028;border-radius:5px;cursor:pointer;transition:transform .08s}
+.sbcell.fill{box-shadow:inset 0 -3px 0 rgba(13,2,16,.35);animation:cellpop .18s cubic-bezier(.34,2,.64,1)}
+@keyframes cellpop{0%{transform:scale(.4)}100%{transform:scale(1)}}
+.sbtray{display:flex;justify-content:space-around;align-items:center;gap:10px;margin:12px 0;min-height:74px}
+.sbpiece{padding:7px;border:2px solid var(--magenta);border-radius:10px;cursor:pointer;background:#1c0a1e;
+  transition:transform .12s cubic-bezier(.34,2,.64,1)}
+.sbpiece.on{border-color:var(--yellow);box-shadow:0 0 12px rgba(255,225,77,.6);transform:scale(1.12)}
+.sbpiece.empty{border:none;background:none;min-width:40px}
+.sbrow{display:flex;gap:2px}
+.sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0}
+.sbhint{font-size:12px;font-weight:700;color:#b678a8;margin:6px 0 10px;text-align:center}
+.lrow{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px dashed var(--magenta)}
+.lrow:last-child{border-bottom:none}
+.lrow.me{background:rgba(69,216,255,.1);border-radius:8px}
+.lrank{font-size:18px;width:34px;text-align:center;font-weight:900}
+.av.lav{width:30px;height:30px;font-size:14px;flex:0 0 30px}
+.lname{flex:1;font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lscore{font-family:var(--block);color:var(--yellow);font-size:16px;letter-spacing:.05em}
+body.theme-court .sbpiece.on{border-color:#ff8c1a}
 /* live emoji rain over the player */
 .vidwrap{position:relative;overflow:visible}
 .unmutepill{position:absolute;top:10px;left:10px;z-index:6;background:rgba(13,2,16,.8);
@@ -300,6 +323,7 @@ body.theme-court .jbar .jfill{background:linear-gradient(90deg,#45d8ff,#ff8c1a 5
   <div class="tag">your stage · your fans · your club ⚡</div>
   <nav id="nav" class="hide">
     <button data-v="feed" class="on" onclick="go('feed')"><span class="ni" data-ic="stage"></span>Stage</button>
+    <button data-v="arcade" onclick="go('arcade')"><span class="ni" data-ic="game"></span>Arcade</button>
     <button id="plusBtn" class="plus" onclick="showCreate()"><span data-ic="plus"></span></button>
     <button data-v="chat" onclick="go('chat')"><span class="ni" data-ic="chat"></span>Chat<span id="chatBadge" class="navbadge hide"><b></b></span></button>
     <button data-v="me" onclick="go('me')"><span class="ni" data-ic="star"></span>My Star</button>
@@ -393,6 +417,22 @@ body.theme-court .jbar .jfill{background:linear-gradient(90deg,#45d8ff,#ff8c1a 5
     </div>
   </section>
 
+  <!-- ARCADE -->
+  <section id="v-arcade" class="hide">
+    <div class="sticker">
+      <h2 class="scrawl">⭐ STAR BLAST</h2>
+      <div class="sbtop">SCORE <span id="sbscore">0</span></div>
+      <div id="sbgrid" class="sbgrid"></div>
+      <div id="sbtray" class="sbtray"></div>
+      <p class="sbhint">Tap a piece, then tap the board. Fill a full row or column to BLAST it! 💥</p>
+      <button class="big cy" onclick="sbNew()">🔁 New game</button>
+    </div>
+    <div class="sticker">
+      <h2 class="scrawl">🏆 Club Leaderboard</h2>
+      <div id="sbboard"></div>
+    </div>
+  </section>
+
   <!-- MY STAR -->
   <section id="v-me" class="hide"></section>
 </main>
@@ -433,7 +473,12 @@ const ICONS={
       fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/>
     <path d="M24 15v18M15 24h18" stroke="#0d0210" stroke-width="6" stroke-linecap="round"/></svg>`,
   burst:`<svg viewBox="0 0 48 48"><path d="M24 3l5 8 9-3-1 10 10 3-8 6 5 9-10-1-3 10-7-8-8 7-2-10-10 1 6-9-8-6 10-3-2-10 9 4z"
-    fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/></svg>`
+    fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/></svg>`,
+  game:`<svg viewBox="0 0 48 48"><g transform="rotate(-3 24 24)">
+    <rect x="6" y="14" width="36" height="22" rx="11" fill="#fff" stroke="#0d0210" stroke-width="4"/>
+    <path d="M14 22v8M10 26h8" stroke="#0d0210" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="32" cy="23" r="3" fill="#ff2ec4" stroke="#0d0210" stroke-width="2"/>
+    <circle cx="38" cy="28" r="3" fill="#45d8ff" stroke="#0d0210" stroke-width="2"/></g></svg>`
 };
 document.querySelectorAll('[data-ic]').forEach(el=>el.innerHTML=ICONS[el.dataset.ic]||'');
 $('#chatBadge').insertAdjacentHTML('afterbegin',ICONS.burst);
@@ -445,7 +490,7 @@ function go(view){
   if(view!=='video')stopPoll();
   if(view!=='studio')stopStudio();
   if(view!=='chat')stopChat();
-  if(view==='feed')feed(); if(view==='me')meView();
+  if(view==='feed')feed(); if(view==='me')meView(); if(view==='arcade')arcade();
   if(view==='studio')studio(); if(view==='chat')chat();
 }
 // Stage auto-refresh: new videos/counts appear without reloading.
@@ -986,6 +1031,92 @@ async function removeVid(id){
   await api(`/api/videos/${id}/remove`,{method:'POST'}).catch(e=>alert(e.message));
   loadMyVideos();
 }
+
+
+// ---- ARCADE: STAR BLAST ----
+const SB_SHAPES=[
+  [[1]],[[1,1]],[[1],[1]],[[1,1,1]],[[1],[1],[1]],[[1,1,1,1]],[[1],[1],[1],[1]],
+  [[1,1],[1,1]],[[1,1,1],[1,1,1],[1,1,1]],
+  [[1,0],[1,0],[1,1]],[[0,1],[0,1],[1,1]],[[1,1],[1,0]],[[1,1],[0,1]],
+  [[1,1,1],[1,0,0]],[[1,0,0],[1,1,1]],[[1,1,1,1,1]],[[1],[1],[1],[1],[1]]
+];
+const SB_COLORS=['#ff2ec4','#45d8ff','#ffe14d','#ff8c1a','#a78bfa','#4ade80'];
+let sb={grid:null,tray:[],sel:-1,score:0,over:false,best:0};
+function sbNew(){
+  sb.grid=Array.from({length:8},()=>Array(8).fill(0));
+  sb.score=0;sb.over=false;sbFill();sbRender();
+}
+function sbFill(){
+  sb.tray=[0,1,2].map(()=>({m:SB_SHAPES[Math.floor(Math.random()*SB_SHAPES.length)],
+    c:1+Math.floor(Math.random()*SB_COLORS.length)}));
+  sb.sel=-1;
+}
+function sbCan(m,r,c){
+  for(let i=0;i<m.length;i++)for(let j=0;j<m[0].length;j++)
+    if(m[i][j]&&(r+i>7||c+j>7||sb.grid[r+i][c+j]))return false;
+  return true;
+}
+function sbAnyFit(){
+  return sb.tray.some(p=>p&&[...Array(8)].some((_,r)=>[...Array(8)].some((_,c)=>sbCan(p.m,r,c))));
+}
+function sbPlace(r,c){
+  const p=sb.tray[sb.sel];if(!p)return;
+  if(!sbCan(p.m,r,c)){
+    document.getElementById('sbgrid').animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}],{duration:200});
+    return;
+  }
+  let cells=0;
+  for(let i=0;i<p.m.length;i++)for(let j=0;j<p.m[0].length;j++)
+    if(p.m[i][j]){sb.grid[r+i][c+j]=p.c;cells++}
+  sb.tray[sb.sel]=null;sb.sel=-1;
+  // clear full rows/cols
+  const rows=[],cols=[];
+  for(let i=0;i<8;i++){if(sb.grid[i].every(v=>v))rows.push(i)}
+  for(let j=0;j<8;j++){if(sb.grid.every(row=>row[j]))cols.push(j)}
+  const lines=rows.length+cols.length;
+  rows.forEach(i=>sb.grid[i]=Array(8).fill(0));
+  cols.forEach(j=>sb.grid.forEach(row=>row[j]=0));
+  const gained=cells+(lines?10*lines*lines:0);
+  sb.score+=gained;
+  if(lines){burst(lines>=3?'storm':'pop')}
+  if(sb.tray.every(x=>!x))sbFill();
+  if(!sbAnyFit()){sb.over=true;sbGameOver()}
+  sbRender();
+}
+function sbRender(){
+  const g=document.getElementById('sbgrid');if(!g)return;
+  g.innerHTML=sb.grid.map((row,r)=>row.map((v,c)=>
+    `<div class="sbcell${v?' fill':''}" style="${v?'background:'+SB_COLORS[v-1]:''}"
+      onclick="sbPlace(${r},${c})"></div>`).join('')).join('');
+  document.getElementById('sbscore').textContent=sb.score;
+  document.getElementById('sbtray').innerHTML=sb.tray.map((p,i)=>{
+    if(!p)return '<div class="sbpiece empty"></div>';
+    const mini=p.m.map(row=>`<div class="sbrow">${row.map(v=>
+      `<span class="sbmini" style="${v?'background:'+SB_COLORS[p.c-1]:'visibility:hidden'}"></span>`).join('')}</div>`).join('');
+    return `<div class="sbpiece${sb.sel===i?' on':''}" onclick="sb.sel=${sb.sel===i?-1:i};sbRender()">${mini}</div>`;
+  }).join('');
+}
+async function sbGameOver(){
+  let msg='Game over! ⭐ '+sb.score+' points';
+  try{
+    const r=await api('/api/games/starblast/score',{method:'POST',body:{score:sb.score}});
+    if(r.best<=sb.score){msg+='\n🏆 NEW PERSONAL BEST!';burst('storm')}
+  }catch(e){}
+  setTimeout(()=>{alert(msg);sbLeaders();sbNew()},350);
+}
+async function sbLeaders(){
+  const rows=await api('/api/games/starblast/leaderboard').catch(()=>[]);
+  const medals=['🥇','🥈','🥉'];
+  document.getElementById('sbboard').innerHTML=rows.length?rows.map((r,i)=>`
+    <div class="lrow${r.display_name===ME.display_name?' me':''}">
+      <span class="lrank">${medals[i]||'#'+(i+1)}</span>
+      ${avHtml({user_has_avatar:r.user_has_avatar,user_id:r.user_id,user_emoji:r.avatar_emoji},'lav')}
+      <span class="lname">${esc(r.display_name)}${shim(r)}</span>
+      <span class="lscore">${r.score}</span>
+    </div>`).join('')
+  :'<p style="color:#b678a8">No scores yet — be the first on the board! 🏆</p>';
+}
+function arcade(){sbNew();sbLeaders()}
 
 // ---- CLUB CHAT ----
 let chatPoll=null,chatLastId=0;
