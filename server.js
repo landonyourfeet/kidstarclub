@@ -36,7 +36,7 @@ async function auth(req, res, next) {
   const raw = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('ksc='));
   const uid = unsign(raw?.slice(4));
   if (uid) {
-    const { rows: [u] } = await pool.query('SELECT id,role,display_name,username,status,(avatar_key IS NOT NULL) AS has_avatar FROM users WHERE id=$1', [uid]);
+    const { rows: [u] } = await pool.query('SELECT id,role,display_name,username,status,theme,(avatar_key IS NOT NULL) AS has_avatar FROM users WHERE id=$1', [uid]);
     if (u && u.status === 'active') req.user = u;
     else if (u) return res.status(403).json({ error: u.status === 'banned' ? 'This account has been removed from the club.' : 'This account is paused. Ask the club admin.' });
   }
@@ -330,8 +330,15 @@ app.post('/api/tracks/:id/remove', requireAdmin, async (req, res) => {
 app.post('/api/profile', requireUser, async (req, res) => {
   const name = (req.body?.display_name || '').trim().slice(0, 40);
   if (!name) return res.status(400).json({ error: 'Name cannot be empty.' });
-  await pool.query('UPDATE users SET display_name=$2 WHERE id=$1', [req.user.id, name]);
-  res.json({ ok: true, display_name: name });
+  const theme = ['punk', 'court'].includes(req.body?.theme) ? req.body.theme : null;
+  await pool.query('UPDATE users SET display_name=$2' + (theme ? ', theme=$3' : '') + ' WHERE id=$1',
+    theme ? [req.user.id, name, theme] : [req.user.id, name]);
+  res.json({ ok: true, display_name: name, theme });
+});
+app.post('/api/profile/theme', requireUser, async (req, res) => {
+  const theme = ['punk', 'court'].includes(req.body?.theme) ? req.body.theme : 'punk';
+  await pool.query('UPDATE users SET theme=$2 WHERE id=$1', [req.user.id, theme]);
+  res.json({ ok: true, theme });
 });
 app.post('/api/profile/avatar-presign', requireUser, async (req, res) => {
   if (!process.env.BUCKET_NAME) return res.status(500).json({ error: 'Storage not configured.' });
