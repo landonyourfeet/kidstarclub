@@ -57,13 +57,20 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;justify-conte
   transform:translateZ(0);will-change:transform}
 nav button{background:none;border:none;color:var(--white);font-family:var(--block);
   font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 8px;opacity:.75}
-nav button .ni{font-size:22px;line-height:1}
+  display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 8px;opacity:.75;
+  transition:transform .12s cubic-bezier(.34,1.8,.64,1)}
+nav button:active{transform:scale(.82) rotate(-4deg)}
+nav button .ni{width:30px;height:30px;display:block}
+nav button .ni svg{width:100%;height:100%;display:block}
 nav button.on{opacity:1;color:var(--cyan)}
-nav button.plus{width:56px;height:56px;border-radius:50%;background:var(--pink);color:var(--black);
-  border:3px solid var(--white);font-size:32px;line-height:1;font-family:var(--body);font-weight:800;
-  opacity:1;box-shadow:0 4px 0 rgba(13,2,16,.6);margin-top:-22px;padding:0;justify-content:center}
-nav button.plus:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(13,2,16,.6)}
+nav button.on .ni{animation:icobounce .5s cubic-bezier(.34,2.2,.64,1)}
+@keyframes icobounce{0%{transform:scale(.6) rotate(-12deg)}60%{transform:scale(1.25) rotate(6deg)}100%{transform:scale(1) rotate(0)}}
+nav button.plus{width:62px;height:62px;border-radius:50%;background:var(--pink);
+  border:3px solid var(--white);opacity:1;box-shadow:0 4px 0 rgba(13,2,16,.6);
+  margin-top:-24px;padding:7px;justify-content:center;animation:plusfloat 2.6s ease-in-out infinite}
+nav button.plus svg{width:100%;height:100%;display:block}
+nav button.plus:active{transform:translateY(3px) scale(.9) rotate(10deg);box-shadow:0 1px 0 rgba(13,2,16,.6);animation:none}
+@keyframes plusfloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}
 .sheet{position:fixed;inset:0;z-index:70;background:rgba(13,2,16,.7);display:flex;
   align-items:flex-end;justify-content:center}
 .sheetin{width:100%;max-width:480px;background:var(--black);border:3px solid var(--pink);
@@ -73,6 +80,9 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 90px}
   box-shadow:6px 6px 0 rgba(13,2,16,.55), 0 0 0 3px var(--pink) inset;padding:14px;margin-bottom:16px;
   transform:rotate(-.4deg)}
 .sticker:nth-child(even){transform:rotate(.5deg)}
+.sticker{opacity:0;translate:0 26px}
+.sticker.in{opacity:1;translate:0 0;transition:opacity .45s ease, translate .55s cubic-bezier(.34,1.6,.64,1)}
+@media(prefers-reduced-motion:reduce){.sticker{opacity:1;translate:none}}
 h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bottom:10px;transform:rotate(-1deg)}
 .vcard .vtitle{font-family:var(--block);font-size:19px;letter-spacing:.03em;color:var(--white)}
 .vcard .vmeta{color:var(--cyan);font-size:13px;font-weight:800;margin:2px 0 8px}
@@ -106,7 +116,12 @@ button.big{font-family:var(--block);font-size:16px;letter-spacing:.08em;text-tra
   background:var(--pink);color:var(--black);border:3px solid var(--white);border-radius:12px;
   padding:12px 18px;cursor:pointer;box-shadow:4px 4px 0 rgba(13,2,16,.6);width:100%}
 button.big.cy{background:var(--cyan)}
-button.big:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(13,2,16,.6)}
+button.big{transition:transform .1s cubic-bezier(.34,1.8,.64,1)}
+button.big:active{transform:translate(2px,2px) scale(.96) rotate(-.6deg);box-shadow:1px 1px 0 rgba(13,2,16,.6)}
+.reacts button{transition:transform .12s cubic-bezier(.34,2,.64,1)}
+.reacts button:active{transform:scale(1.35) rotate(-8deg)}
+.chip{transition:transform .12s ease}
+.trackbtn:active,.emojirow button:active{transform:scale(.9)}
 input,textarea,select{width:100%;background:#1c0a1e;border:2px solid var(--pink);border-radius:10px;
   color:var(--white);padding:12px;font-family:var(--body);font-weight:600;font-size:15px;margin-bottom:10px}
 input::placeholder,textarea::placeholder{color:#b678a8}
@@ -201,8 +216,13 @@ input::placeholder,textarea::placeholder{color:#b678a8}
 .chartline{font-family:var(--block);font-size:17px;letter-spacing:.05em;color:var(--yellow);
   margin:6px 0;text-shadow:2px 2px 0 rgba(13,2,16,.6)}
 .chartline .panel{display:block;font-family:var(--body);font-weight:800;font-size:12px;color:var(--cyan);letter-spacing:0}
-.navbadge{position:absolute;top:-4px;right:2px;background:#ff4040;color:#fff;border-radius:999px;
-  min-width:18px;height:18px;font:800 11px var(--body);display:flex;align-items:center;justify-content:center;padding:0 4px}
+.navbadge{position:absolute;top:-8px;right:-4px;width:26px;height:26px;
+  animation:badgepop .4s cubic-bezier(.34,2.4,.64,1), badgespin 5s linear 1s infinite}
+.navbadge svg{position:absolute;inset:0;width:100%;height:100%}
+.navbadge b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font:900 11px var(--body);color:#0d0210;transform:rotate(8deg)}
+@keyframes badgepop{0%{transform:scale(0) rotate(-90deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes badgespin{0%,86%{transform:rotate(0)}90%{transform:rotate(14deg)}94%{transform:rotate(-12deg)}100%{transform:rotate(0)}}
 nav button{position:relative}
 /* judges rating bar */
 .jbar{position:relative;height:18px;background:#14061a;border:2px solid var(--white);border-radius:999px;
@@ -232,10 +252,10 @@ nav button{position:relative}
   <a class="logo" href="#" onclick="go('feed');return false" id="logo"></a>
   <div class="tag">your stage · your fans · your club ⚡</div>
   <nav id="nav" class="hide">
-    <button data-v="feed" class="on" onclick="go('feed')"><span class="ni">🏠</span>Stage</button>
-    <button id="plusBtn" class="plus" onclick="showCreate()">＋</button>
-    <button data-v="chat" onclick="go('chat')"><span class="ni">💬</span>Chat<span id="chatBadge" class="navbadge hide"></span></button>
-    <button data-v="me" onclick="go('me')"><span class="ni">⭐</span>My Star</button>
+    <button data-v="feed" class="on" onclick="go('feed')"><span class="ni" data-ic="stage"></span>Stage</button>
+    <button id="plusBtn" class="plus" onclick="showCreate()"><span data-ic="plus"></span></button>
+    <button data-v="chat" onclick="go('chat')"><span class="ni" data-ic="chat"></span>Chat<span id="chatBadge" class="navbadge hide"><b></b></span></button>
+    <button data-v="me" onclick="go('me')"><span class="ni" data-ic="star"></span>My Star</button>
   </nav>
   <div id="createSheet" class="sheet hide" onclick="this.classList.add('hide')">
     <div class="sheetin" onclick="event.stopPropagation()">
@@ -344,6 +364,30 @@ async function api(url,opts={}){
 // ransom-note logo
 $('#logo').innerHTML='KID★STAR★CLUB'.split('').map((c,i)=>
   `<span class="${c==='★'?'star':i%5===3?'cy':''}">${c==='★'?'⭐':c}</span>`).join('');
+// ---- sticker icon set (custom SVGs, punk sticker style) ----
+const ICONS={
+  stage:`<svg viewBox="0 0 48 48"><g transform="rotate(-4 24 24)">
+    <path d="M8 40h32v-6H8z" fill="#45d8ff" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M24 6l4.7 9.4 10.3 1.5-7.5 7.3 1.8 10.3L24 29.6l-9.3 4.9 1.8-10.3-7.5-7.3 10.3-1.5z"
+      fill="#fff" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/></g></svg>`,
+  chat:`<svg viewBox="0 0 48 48"><g transform="rotate(3 24 24)">
+    <path d="M8 10h32a4 4 0 014 4v16a4 4 0 01-4 4H24l-9 8v-8H8a4 4 0 01-4-4V14a4 4 0 014-4z"
+      fill="#fff" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M27 14l-8 11h5l-3 9 9-12h-5l4-8z" fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/></g></svg>`,
+  star:`<svg viewBox="0 0 48 48"><g transform="rotate(-3 24 24)">
+    <path d="M26 8l4.7 9.4 10.3 1.5-7.5 7.3 1.8 10.3L26 31.6l-9.3 4.9 1.8-10.3-7.5-7.3 10.3-1.5z"
+      fill="#45d8ff" opacity=".9" transform="translate(-3,2)"/>
+    <path d="M24 6l4.7 9.4 10.3 1.5-7.5 7.3 1.8 10.3L24 29.6l-9.3 4.9 1.8-10.3-7.5-7.3 10.3-1.5z"
+      fill="#ffe14d" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/></g></svg>`,
+  plus:`<svg viewBox="0 0 48 48">
+    <path d="M24 3l5 8 9-3-1 10 10 3-8 6 5 9-10-1-3 10-7-8-8 7-2-10-10 1 6-9-8-6 10-3-2-10 9 4z"
+      fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M24 15v18M15 24h18" stroke="#0d0210" stroke-width="6" stroke-linecap="round"/></svg>`,
+  burst:`<svg viewBox="0 0 48 48"><path d="M24 3l5 8 9-3-1 10 10 3-8 6 5 9-10-1-3 10-7-8-8 7-2-10-10 1 6-9-8-6 10-3-2-10 9 4z"
+    fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/></svg>`
+};
+document.querySelectorAll('[data-ic]').forEach(el=>el.innerHTML=ICONS[el.dataset.ic]||'');
+$('#chatBadge').insertAdjacentHTML('afterbegin',ICONS.burst);
 
 let ME=null;
 function go(view){
@@ -933,9 +977,19 @@ setInterval(async()=>{
     const fresh=r.id-chatSeenId;
     if(fresh>chatUnread)bing();
     chatUnread=fresh;
-    const b=$('#chatBadge');b.textContent=fresh>9?'9+':fresh;b.classList.remove('hide');
+    const b=$('#chatBadge');b.querySelector('b').textContent=fresh>9?'9+':fresh;b.classList.remove('hide');
   }
 },20000);
+
+// scroll pop-in: stickers spring into view
+const popObs=new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting){e.target.classList.add('in');popObs.unobserve(e.target)}
+}),{threshold:.08});
+new MutationObserver(()=>{
+  document.querySelectorAll('.sticker:not(.in):not([data-obs])').forEach(el=>{
+    el.dataset.obs=1;popObs.observe(el);
+  });
+}).observe(document.querySelector('main'),{childList:true,subtree:true});
 
 boot();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
