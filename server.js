@@ -14,6 +14,8 @@ const bucket = require('./lib/bucket');
 const castEngine = require('./lib/cast-engine');
 
 const app = express();
+process.on('unhandledRejection', e => console.error('[unhandledRejection]', e?.message || e));
+process.on('uncaughtException', e => console.error('[uncaughtException]', e?.message || e));
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : undefined });
 
 app.use(express.json({ limit: '2mb' }));
@@ -89,13 +91,14 @@ app.get('/api/channels', requireUser, async (req, res) => {
 });
 
 app.get('/api/feed', requireUser, async (req, res) => {
+  const kind = req.query.kind === 'short' ? 'short' : 'video';
   const { rows } = await pool.query(
-    `SELECT v.id, v.title, v.description, v.created_at, v.channel_id,
+    `SELECT v.id, v.title, v.description, v.created_at, v.channel_id, v.kind,
        c.name AS channel_name, u.display_name AS owner_name, u.avatar_emoji,
        (SELECT count(*)::int FROM reactions r WHERE r.video_id=v.id) AS reaction_count,
        (SELECT count(*)::int FROM comments cm WHERE cm.video_id=v.id AND cm.status='visible') AS comment_count
      FROM videos v JOIN channels c ON c.id=v.channel_id JOIN users u ON u.id=c.owner_id
-     WHERE v.status='live' ORDER BY v.created_at DESC LIMIT 50`);
+     WHERE v.status='live' AND v.kind=$1 ORDER BY v.created_at DESC LIMIT 50`, [kind]);
   res.json(rows);
 });
 
@@ -109,11 +112,19 @@ app.post('/api/videos', requireUser, express.raw({ type: ['video/*'], limit: '50
     ({ rows: [channel] } = await pool.query(`INSERT INTO channels (owner_id,name) VALUES ($1,'Club HQ 🎪') RETURNING *`, [req.user.id]));
   if (!channel) return res.status(400).json({ error: 'No channel found for this account.' });
   if (!req.body?.length) return res.status(400).json({ error: 'No video data received.' });
+  if (!process.env.BUCKET_NAME || !process.env.AWS_ACCESS_KEY_ID)
+    return res.status(500).json({ error: 'Video storage is not configured yet. (Admin: bucket env vars missing.)' });
   const key = `videos/${channel.id}/${Date.now()}-${crypto.randomBytes(4).toString('hex')}.mp4`;
-  await bucket.put(key, req.body, req.headers['content-type'] || 'video/mp4');
+  const kind = req.query.kind === 'short' ? 'short' : 'video';
+  try {
+    await bucket.put(key, req.body, req.headers['content-type'] || 'video/mp4');
+  } catch (e) {
+    console.error('[upload] bucket PUT failed:', e.message);
+    return res.status(502).json({ error: 'Upload to storage failed. Try again in a minute.' });
+  }
   const { rows: [video] } = await pool.query(
-    `INSERT INTO videos (channel_id,title,description,bucket_key) VALUES ($1,$2,$3,$4) RETURNING *`,
-    [channel.id, title, description, key]);
+    `INSERT INTO videos (channel_id,title,description,bucket_key,kind) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [channel.id, title, description, key, kind]);
   await castEngine.scheduleWave(pool, video.id);           // the Studio Audience arrives
   await bumpStars(channel.id, 10);                          // posting itself earns stars
   await awardBadges(channel.id);
