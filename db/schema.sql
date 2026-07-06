@@ -147,3 +147,6 @@ CREATE TABLE IF NOT EXISTS tracks (
   active     BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- v6: join-code perks (shimmer stars for Eliora's crew)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS joined_code TEXT;
