@@ -205,6 +205,7 @@ async function invites() {
   const rows = await api('/api/admin/invites');
   $('#tab-invites').innerHTML = `
     <div class="row">
+      <input id="ivCode" placeholder="custom code (optional — e.g. ELIKAI)" style="width:210px">
       <input id="ivNote" placeholder="note — e.g. Grandma, Kai, Ms. Rivera's class">
       <select id="ivRole"><option value="member">member (family / classmate)</option><option value="kid">kid (star — gets a channel)</option></select>
       <input id="ivUses" type="number" min="1" value="1" style="width:70px" title="max uses">
@@ -221,7 +222,8 @@ async function invites() {
     </tr>`).join('')}</table>`;
 }
 async function mkInvite() {
-  await api('/api/admin/invites', { method:'POST', body:{ note:$('#ivNote').value, role:$('#ivRole').value, max_uses:$('#ivUses').value }});
+  await api('/api/admin/invites', { method:'POST', body:{ code:$('#ivCode').value.trim() || undefined, note:$('#ivNote').value, role:$('#ivRole').value, max_uses:$('#ivUses').value }});
+  $('#ivCode').value='';
   invites();
 }
 
