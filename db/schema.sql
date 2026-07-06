@@ -128,3 +128,22 @@ ALTER TABLE videos ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'video';
 -- v3: direct-to-bucket uploads
 ALTER TABLE videos DROP CONSTRAINT IF EXISTS videos_status_check;
 ALTER TABLE videos ADD CONSTRAINT videos_status_check CHECK (status IN ('uploading','live','hidden','removed'));
+
+-- v4: subscriptions (real members only — the cast never subscribes)
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT NOT NULL REFERENCES users(id),
+  channel_id INT NOT NULL REFERENCES channels(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, channel_id)
+);
+
+-- v5: Studio song library (admin-curated backing tracks)
+CREATE TABLE IF NOT EXISTS tracks (
+  id         SERIAL PRIMARY KEY,
+  title      TEXT NOT NULL,
+  bucket_key TEXT NOT NULL,
+  added_by   INT REFERENCES users(id),
+  active     BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
