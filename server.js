@@ -36,7 +36,7 @@ async function auth(req, res, next) {
   const raw = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('ksc='));
   const uid = unsign(raw?.slice(4));
   if (uid) {
-    const { rows: [u] } = await pool.query('SELECT id,role,display_name,username,status FROM users WHERE id=$1', [uid]);
+    const { rows: [u] } = await pool.query('SELECT id,role,display_name,username,status,(avatar_key IS NOT NULL) AS has_avatar FROM users WHERE id=$1', [uid]);
     if (u && u.status === 'active') req.user = u;
     else if (u) return res.status(403).json({ error: u.status === 'banned' ? 'This account has been removed from the club.' : 'This account is paused. Ask the club admin.' });
   }
@@ -64,7 +64,7 @@ app.get('/api/me', (req, res) => res.json(req.user || null));
 app.post('/api/join', async (req, res) => {
   const { code, username, password, display_name } = req.body || {};
   if (!code || !username || !password || !display_name) return res.status(400).json({ error: 'All fields are required.' });
-  const { rows: [inv] } = await pool.query('SELECT * FROM invite_codes WHERE upper(code)=upper($1) AND NOT revoked AND uses < max_uses', [code.trim()]);
+  const { rows: [inv] } = await pool.query('SELECT * FROM invite_codes WHERE upper(code)=upper($1) AND NOT revoked AND (max_uses=0 OR uses < max_uses)', [code.trim()]);
   if (!inv) return res.status(400).json({ error: 'That invite code is not valid.' });
   try {
     const { rows: [u] } = await pool.query(
@@ -108,12 +108,13 @@ app.get('/api/feed', requireUser, async (req, res) => {
 // 2) Browser PUTs the file straight to put_url (up to 5GB)
 // 3) POST /api/videos/:id/complete -> goes live, cast wave fires
 app.post('/api/videos/presign', requireUser, async (req, res) => {
-  if (!['kid', 'admin'].includes(req.user.role)) return res.status(403).json({ error: 'Only club stars can post videos.' });
   if (!process.env.BUCKET_NAME || !process.env.AWS_ACCESS_KEY_ID)
     return res.status(500).json({ error: 'Video storage is not configured yet. (Admin: bucket env vars missing.)' });
   let { rows: [channel] } = await pool.query('SELECT * FROM channels WHERE owner_id=$1', [req.user.id]);
-  if (!channel && req.user.role === 'admin')
-    ({ rows: [channel] } = await pool.query(`INSERT INTO channels (owner_id,name) VALUES ($1,'Club HQ 🎪') RETURNING *`, [req.user.id]));
+  if (!channel) // everyone in the club gets a stage on first post
+    ({ rows: [channel] } = await pool.query(
+      `INSERT INTO channels (owner_id,name) VALUES ($1,$2) RETURNING *`,
+      [req.user.id, req.user.role === 'admin' ? 'Club HQ 🎪' : `${req.user.display_name}'s Stage`]));
   if (!channel) return res.status(400).json({ error: 'No channel found for this account.' });
   const title = (req.body?.title || 'Untitled').toString().slice(0, 120);
   const description = (req.body?.description || '').toString().slice(0, 500);
@@ -141,7 +142,6 @@ app.post('/api/videos/:id/complete', requireUser, async (req, res) => {
 
 
 app.post('/api/videos', requireUser, express.raw({ type: ['video/*'], limit: '500mb' }), async (req, res) => {
-  if (!['kid', 'admin'].includes(req.user.role)) return res.status(403).json({ error: 'Only club stars can post videos.' });
   const title = (req.query.title || 'Untitled').toString().slice(0, 120);
   const description = (req.query.description || '').toString().slice(0, 500);
   let { rows: [channel] } = await pool.query('SELECT * FROM channels WHERE owner_id=$1', [req.user.id]);
@@ -207,7 +207,7 @@ app.get('/api/videos/:id', requireUser, async (req, res) => {
 app.get('/api/videos/:id/comments', requireUser, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cm.id, cm.body, cm.parent_id, cm.created_at, cm.status,
-       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.id AS user_id, u.role AS user_role, u.joined_code,
+       u.display_name AS user_name, u.avatar_emoji AS user_emoji, (u.avatar_key IS NOT NULL) AS user_has_avatar, u.id AS user_id, u.role AS user_role, u.joined_code,
        CASE WHEN u.id IS NOT NULL THEN
          (SELECT count(*)::int FROM comments c2 WHERE c2.user_id=u.id AND c2.status='visible')
          + (SELECT count(*)::int FROM reactions r2 WHERE r2.user_id=u.id)
@@ -319,17 +319,50 @@ app.post('/api/tracks/:id/remove', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Profile ----------
+app.post('/api/profile', requireUser, async (req, res) => {
+  const name = (req.body?.display_name || '').trim().slice(0, 40);
+  if (!name) return res.status(400).json({ error: 'Name cannot be empty.' });
+  await pool.query('UPDATE users SET display_name=$2 WHERE id=$1', [req.user.id, name]);
+  res.json({ ok: true, display_name: name });
+});
+app.post('/api/profile/avatar-presign', requireUser, async (req, res) => {
+  if (!process.env.BUCKET_NAME) return res.status(500).json({ error: 'Storage not configured.' });
+  const key = `avatars/${req.user.id}-${Date.now()}.jpg`;
+  res.json({ image_key: key, put_url: bucket.presignPut(key) });
+});
+app.post('/api/profile/avatar-complete', requireUser, async (req, res) => {
+  const key = (req.body?.image_key || '');
+  if (!key.startsWith(`avatars/${req.user.id}-`)) return res.status(400).json({ error: 'Bad avatar key.' });
+  await pool.query('UPDATE users SET avatar_key=$2 WHERE id=$1', [req.user.id, key]);
+  res.json({ ok: true });
+});
+app.get('/api/users/:id/avatar', requireUser, async (req, res) => {
+  const { rows: [u] } = await pool.query('SELECT avatar_key FROM users WHERE id=$1', [req.params.id]);
+  if (!u?.avatar_key) return res.status(404).json({ error: 'No avatar.' });
+  res.redirect(bucket.presignGet(u.avatar_key, 3600));
+});
+
 // ---------- Club Chat ----------
 app.get('/api/chat', requireUser, async (req, res) => {
   const after = parseInt(req.query.after) || 0;
   const { rows } = await pool.query(
     `SELECT cm.id, cm.body, cm.created_at, (cm.image_key IS NOT NULL) AS has_image,
-       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.role AS user_role, u.joined_code,
+       u.display_name AS user_name, u.avatar_emoji AS user_emoji, (u.avatar_key IS NOT NULL) AS user_has_avatar, u.id AS user_id, u.role AS user_role, u.joined_code,
        cs.name AS cast_name, cs.emoji AS cast_emoji, cs.tier AS cast_tier, cs.specialty
      FROM chat_messages cm LEFT JOIN users u ON u.id=cm.user_id LEFT JOIN cast_members cs ON cs.id=cm.cast_id
      WHERE cm.status='visible' AND cm.id > $1
      ORDER BY cm.id ${after ? 'ASC' : 'DESC'} LIMIT 60`, [after]);
   res.json(after ? rows : rows.reverse());
+});
+
+// Names available for @mentions: active humans + judges/regulars.
+app.get('/api/chat/mentionables', requireUser, async (req, res) => {
+  const { rows: users } = await pool.query(
+    `SELECT display_name AS name, avatar_emoji AS emoji, 'user' AS kind FROM users WHERE status='active' ORDER BY display_name`);
+  const { rows: cast } = await pool.query(
+    `SELECT name, emoji, 'cast' AS kind FROM cast_members WHERE active AND tier IN ('judge','regular') ORDER BY name`);
+  res.json([...users, ...cast]);
 });
 
 app.post('/api/chat', requireUser, async (req, res) => {
@@ -445,7 +478,7 @@ app.post('/api/admin/invites', requireAdmin, async (req, res) => {
   const role = req.body?.role === 'kid' ? 'kid' : 'member';
   const { rows: [inv] } = await pool.query(
     `INSERT INTO invite_codes (code,role,note,max_uses,created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [code, role, req.body?.note || null, Math.max(1, parseInt(req.body?.max_uses) || 1), req.user.id]);
+    [code, role, req.body?.note || null, Math.max(0, parseInt(req.body?.max_uses) || 0), req.user.id]);
   res.json(inv);
 });
 app.post('/api/admin/invites/:code/revoke', requireAdmin, async (req, res) => {
