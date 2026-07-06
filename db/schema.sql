@@ -150,3 +150,6 @@ CREATE TABLE IF NOT EXISTS tracks (
 
 -- v6: join-code perks (shimmer stars for Eliora's crew)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS joined_code TEXT;
+
+-- v7: real view counts (actual plays only)
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS views INT NOT NULL DEFAULT 0;
