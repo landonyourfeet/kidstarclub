@@ -173,6 +173,30 @@ input::placeholder,textarea::placeholder{color:#b678a8}
   border:2px solid var(--magenta);border-radius:10px;color:var(--white);padding:12px;
   font:800 15px var(--body);cursor:pointer;margin-bottom:8px}
 .trackbtn:active{border-color:var(--cyan)}
+/* club chat */
+.chatbox{height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;
+  padding:6px 2px;margin-bottom:10px;overscroll-behavior:contain}
+.cmsg{display:flex;gap:8px;align-items:flex-start}
+.cmsg .av{flex:0 0 32px;width:32px;height:32px;border-radius:50%;background:var(--deep);
+  border:2px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:15px}
+.cmsg.judge .av{border-color:var(--yellow)}
+.cmsg .bub{background:rgba(255,255,255,.06);border-radius:4px 12px 12px 12px;padding:7px 10px;max-width:82%}
+.cmsg.mine{flex-direction:row-reverse}
+.cmsg.mine .bub{background:#3a0a2e;border-radius:12px 4px 12px 12px}
+.cmsg .cwho{font-weight:800;font-size:12px;color:var(--cyan)}
+.cmsg.judge .cwho{color:var(--yellow)}
+.cmsg .ctext{font-size:14px;word-break:break-word}
+.cmsg img{max-width:100%;border-radius:8px;border:2px solid var(--magenta);margin-top:4px;display:block}
+.cmsg .del{background:none;border:none;color:var(--pink);cursor:pointer;font-size:12px;padding:0 4px}
+.emojirow{display:flex;gap:6px;margin-bottom:8px;overflow-x:auto}
+.emojirow button{background:#1c0a1e;border:2px solid var(--magenta);border-radius:8px;
+  font-size:18px;padding:4px 9px;cursor:pointer}
+.chatrow{display:flex;gap:8px;align-items:center}
+.chatrow input[type=text],#chatIn{flex:1;margin-bottom:0}
+.camlbl{font-size:22px;cursor:pointer}
+.camlbl input{display:none}
+.act-send{background:var(--cyan);border:2px solid var(--white);border-radius:50%;width:44px;height:44px;
+  font-size:18px;color:var(--black);cursor:pointer;font-weight:800}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -186,7 +210,7 @@ input::placeholder,textarea::placeholder{color:#b678a8}
     <button data-v="feed" class="on" onclick="go('feed')"><span class="ni">🏠</span>Stage</button>
     <button data-v="shorts" onclick="go('shorts')"><span class="ni">⚡</span>Shorts</button>
     <button id="plusBtn" class="plus" onclick="showCreate()">＋</button>
-    <button data-v="studio" onclick="go('studio')"><span class="ni">🎤</span>Studio</button>
+    <button data-v="chat" onclick="go('chat')"><span class="ni">💬</span>Chat</button>
     <button data-v="me" onclick="go('me')"><span class="ni">⭐</span>My Star</button>
   </nav>
   <div id="createSheet" class="sheet hide" onclick="this.classList.add('hide')">
@@ -267,6 +291,22 @@ input::placeholder,textarea::placeholder{color:#b678a8}
     </div>
   </section>
 
+  <!-- CLUB CHAT -->
+  <section id="v-chat" class="hide">
+    <div class="sticker" style="transform:none">
+      <h2 class="scrawl">Club Chat 💬</h2>
+      <div id="chatBox" class="chatbox"></div>
+      <div class="emojirow">${['🎉','🔥','⭐','😂','💜','🎤','👏','⚡'].map(e=>`<button onclick="$('#chatIn').value+='${e}'">${e}</button>`).join('')}</div>
+      <div class="chatrow">
+        <label class="camlbl">📷<input id="chatImg" type="file" accept="image/*" onchange="sendChatImage()"></label>
+        <input id="chatIn" placeholder="message the club…" maxlength="500"
+          onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="act-send" onclick="sendChat()">➤</button>
+      </div>
+      <div class="errmsg" id="chatErr"></div>
+    </div>
+  </section>
+
   <!-- MY STAR -->
   <section id="v-me" class="hide"></section>
 </main>
@@ -295,7 +335,9 @@ function go(view){
   if(view!=='video')stopPoll();
   if(view!=='shorts')stopShorts();
   if(view!=='studio')stopStudio();
-  if(view==='feed')feed(); if(view==='me')meView(); if(view==='shorts')shorts(); if(view==='studio')studio();
+  if(view!=='chat')stopChat();
+  if(view==='feed')feed(); if(view==='me')meView(); if(view==='shorts')shorts();
+  if(view==='studio')studio(); if(view==='chat')chat();
 }
 // Stage auto-refresh: new videos/counts appear without reloading.
 setInterval(()=>{if(!document.hidden&&!$('#v-feed').classList.contains('hide')&&ME)feed()},30000);
@@ -363,8 +405,7 @@ async function boot(){
   ME=await api('/api/me').catch(()=>null);
   if(!ME){go('auth');return}
   $('#nav').classList.remove('hide');
-  if(ME.role==='member'){$('#plusBtn').classList.add('hide');
-    document.querySelector('[data-v=studio]').classList.add('hide')}
+  if(ME.role==='member')$('#plusBtn').classList.add('hide');
   go('feed');
 }
 async function login(){
@@ -740,6 +781,69 @@ async function postRecording(){
     go('shorts');
   }catch(e){$('#recErr').textContent=e.message}
   finally{$('#recPost').disabled=false;$('#recPost').textContent='Post as Short ⚡'}
+}
+
+// ---- CLUB CHAT ----
+let chatPoll=null,chatLastId=0;
+function stopChat(){if(chatPoll){clearInterval(chatPoll);chatPoll=null}}
+function chatMsgHtml(m){
+  const isCast=!!m.cast_name;
+  const judge=m.cast_tier==='judge';
+  const mine=!isCast&&m.user_name===ME.display_name;
+  const av=isCast?m.cast_emoji:(m.user_emoji||'⭐');
+  const who=isCast?`${esc(m.cast_name)}${judge?' · '+esc(m.specialty||''):''}`:esc(m.user_name);
+  return `<div class="cmsg ${judge?'judge':''} ${mine?'mine':''}" data-id="${m.id}">
+    <div class="av">${esc(av)}</div>
+    <div class="bub">
+      <div class="cwho">${who}${isCast?'':shim(m)}${pillHtml(m)}
+        ${ME.role==='admin'?`<button class="del" onclick="delChat(${m.id})">✕</button>`:''}</div>
+      ${m.body?`<div class="ctext">${esc(m.body)}</div>`:''}
+      ${m.has_image?`<img src="/api/chat/${m.id}/image" loading="lazy">`:''}
+    </div></div>`;
+}
+async function chat(){
+  stopChat();chatLastId=0;
+  const msgs=await api('/api/chat').catch(()=>[]);
+  const box=$('#chatBox');
+  box.innerHTML=msgs.map(chatMsgHtml).join('')||'<p style="color:#b678a8">Say hi — the club is listening! 👋</p>';
+  if(msgs.length)chatLastId=msgs[msgs.length-1].id;
+  box.scrollTop=box.scrollHeight;
+  chatPoll=setInterval(async()=>{
+    if(document.hidden)return;
+    const fresh=await api('/api/chat?after='+chatLastId).catch(()=>[]);
+    if(!fresh.length)return;
+    chatLastId=fresh[fresh.length-1].id;
+    const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<120;
+    box.insertAdjacentHTML('beforeend',fresh.map(chatMsgHtml).join(''));
+    if(nearBottom)box.scrollTop=box.scrollHeight;
+  },5000);
+}
+async function sendChat(){
+  const t=$('#chatIn').value.trim();if(!t)return;
+  $('#chatIn').value='';
+  try{await api('/api/chat',{method:'POST',body:{body:t}});
+    const fresh=await api('/api/chat?after='+chatLastId);
+    if(fresh.length){chatLastId=fresh[fresh.length-1].id;
+      $('#chatBox').insertAdjacentHTML('beforeend',fresh.map(chatMsgHtml).join(''));
+      $('#chatBox').scrollTop=$('#chatBox').scrollHeight}
+  }catch(e){$('#chatErr').textContent=e.message}
+}
+async function sendChatImage(){
+  const f=$('#chatImg').files[0];if(!f)return;
+  $('#chatErr').textContent='Sending photo… 📷';
+  try{
+    const p=await api('/api/chat/presign-image',{method:'POST'});
+    const r=await fetch(p.put_url,{method:'PUT',headers:{'content-type':f.type||'image/jpeg'},body:f});
+    if(!r.ok)throw new Error('Photo upload failed.');
+    await api('/api/chat',{method:'POST',body:{body:$('#chatIn').value.trim(),image_key:p.image_key}});
+    $('#chatIn').value='';$('#chatImg').value='';$('#chatErr').textContent='';
+    chat();
+  }catch(e){$('#chatErr').textContent=e.message}
+}
+async function delChat(id){
+  if(!confirm('Remove this message for everyone?'))return;
+  await api(`/api/admin/chat/${id}/remove`,{method:'POST',body:{}});
+  document.querySelector(`.cmsg[data-id="${id}"]`)?.remove();
 }
 
 boot();
