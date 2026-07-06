@@ -26,13 +26,16 @@
   --marker:'Permanent Marker',cursive; --block:'Anton',sans-serif; --body:'Nunito',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{overflow-x:hidden;width:100%;overscroll-behavior-x:none}
+body{overscroll-behavior-y:contain}
+main{overflow-x:clip}
 body{
   font-family:var(--body);color:var(--white);min-height:100vh;
   background:
     radial-gradient(circle at 20% 10%, rgba(255,255,255,.14) 0 1.5px, transparent 2px),
     radial-gradient(circle at 80% 30%, rgba(0,0,0,.35) 0 2px, transparent 2.5px),
     linear-gradient(160deg,#ff2ec4 0%,#c4108f 45%,#5a0645 100%);
-  background-size:22px 22px,28px 28px,cover;background-attachment:fixed;
+  background-size:22px 22px,28px 28px,cover;min-height:100dvh;
 }
 /* halftone overlay */
 body::before{content:'';position:fixed;inset:0;pointer-events:none;opacity:.5;
@@ -50,7 +53,8 @@ header{position:sticky;top:0;z-index:50;padding:12px 14px 10px;text-align:center
 .tag{font-family:var(--marker);color:var(--cyan);font-size:13px;margin-top:4px;letter-spacing:.04em}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;justify-content:space-around;
   align-items:center;padding:8px 6px calc(10px + env(safe-area-inset-bottom));
-  background:rgba(13,2,16,.96);border-top:3px solid var(--pink)}
+  background:rgba(13,2,16,.96);border-top:3px solid var(--pink);
+  transform:translateZ(0);will-change:transform}
 nav button{background:none;border:none;color:var(--white);font-family:var(--block);
   font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 8px;opacity:.75}
@@ -316,7 +320,8 @@ async function shorts(){
   }
   wrap.innerHTML=vids.map(v=>`
     <div class="short" data-vid="${v.id}">
-      <video src="/api/videos/${v.id}/stream" loop playsinline muted preload="metadata"
+      <video src="/api/videos/${v.id}/stream" playsinline muted preload="metadata"
+        onended="api('/api/videos/${v.id}/view',{method:'POST'}).catch(()=>{});this.currentTime=0;this.play()"
         onclick="this.paused?this.play():this.pause()"></video>
       <button class="closer" onclick="go('feed')">✕ Stage</button>
       <button class="muter" onclick="toggleMute(event)">🔇</button>
@@ -435,8 +440,12 @@ async function openVideo(id){
   $('#mainvid').addEventListener('play',async()=>{
     if(viewed)return;viewed=true;
     const r=await api(`/api/videos/${id}/view`,{method:'POST'}).catch(()=>null);
-    if(r){countUp('#viewN',lastViews,r.views);lastViews=r.views}
+    if(r){countUp('#viewN',lastViews,r.views);
+      for(const m of MILESTONES)if(lastViews<m&&r.views>=m)burst(r.views>=1000?'storm':'pop');
+      lastViews=r.views}
   });
+  // Every full rewatch counts as a fresh view — TikTok rules.
+  $('#mainvid').addEventListener('ended',()=>{viewed=false});
   liveVideoId=id;liveCount=cms.length;
   livePoll=setInterval(async()=>{
     if(document.hidden||liveVideoId!==id)return;
@@ -446,7 +455,7 @@ async function openVideo(id){
     if(vf){
       if(vf.views>lastViews){
         countUp('#viewN',lastViews,vf.views);
-        for(const m of [10,25,50,100,250,500])if(lastViews<m&&vf.views>=m)burst();
+        for(const m of MILESTONES)if(lastViews<m&&vf.views>=m)burst(m>=1000?'storm':'pop');
         lastViews=vf.views;
       }
       const hy=(vf.reactions||[]).reduce((s,r)=>s+r.n,0)+(fresh?fresh.length*2:lastHype);
@@ -461,19 +470,32 @@ async function openVideo(id){
     }
   },15000);
 }
+const MILESTONES=[10,25,50,100,250,500,1000,2500,5000];
 function countUp(sel,from,to){
   const el=$(sel);if(!el)return;
-  const steps=Math.min(20,to-from),dur=700;let i=0;
+  const steps=Math.min(20,to-from)||1,dur=700;let i=0;
   const t=setInterval(()=>{i++;el.textContent=Math.round(from+(to-from)*(i/steps));
     if(i>=steps){el.textContent=to;clearInterval(t)}},dur/steps);
 }
-function burst(){
-  for(let i=0;i<14;i++){
+function burst(mode='pop'){
+  const n=mode==='storm'?44:14;
+  if(mode==='storm'){
+    const flash=document.createElement('div');
+    flash.style.cssText='position:fixed;inset:0;z-index:80;pointer-events:none;background:#fff';
+    document.body.appendChild(flash);
+    flash.animate([{opacity:.9},{opacity:0}],{duration:500,easing:'ease-out'});
+    setTimeout(()=>flash.remove(),520);
+    if(navigator.vibrate)navigator.vibrate([60,40,60,40,120]);
+  }
+  for(let i=0;i<n;i++){
     const z=document.createElement('div');z.className='zap';
-    z.textContent=['⚡','⭐','🎉','💫'][i%4];
-    z.style.left=(10+Math.random()*80)+'vw';z.style.top=(20+Math.random()*50)+'vh';
-    z.style.position='fixed';document.body.appendChild(z);
-    setTimeout(()=>z.remove(),900);
+    z.textContent=mode==='storm'?'⚡':['⚡','⭐','🎉','💫'][i%4];
+    z.style.left=(5+Math.random()*90)+'vw';z.style.top=(5+Math.random()*70)+'vh';
+    z.style.position='fixed';z.style.zIndex=81;
+    z.style.fontSize=mode==='storm'?(28+Math.random()*34)+'px':'26px';
+    z.style.animationDelay=(Math.random()*(mode==='storm'?.8:.2))+'s';
+    document.body.appendChild(z);
+    setTimeout(()=>z.remove(),mode==='storm'?1800:900);
   }
 }
 const shim=u=>((u.joined_code||'').toUpperCase()==='ELIORA')?'<span class="shimstar">★</span>':'';
