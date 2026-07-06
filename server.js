@@ -584,6 +584,20 @@ app.get('/watch/:token', async (req, res) => {
 });
 
 // ---------- Arcade ----------
+app.get('/api/games/summary', requireUser, async (req, res) => {
+  const games = String(req.query.games || '').split(',').filter(Boolean).slice(0, 12);
+  const out = {};
+  for (const g of games) {
+    const { rows: [mine] } = await pool.query(
+      `SELECT COALESCE(MAX(score),0)::int AS best FROM game_scores WHERE user_id=$1 AND game=$2`, [req.user.id, g]);
+    const { rows: [top] } = await pool.query(
+      `SELECT u.display_name, MAX(gs.score)::int AS score FROM game_scores gs JOIN users u ON u.id=gs.user_id
+       WHERE gs.game=$1 AND u.status='active' GROUP BY u.id ORDER BY score DESC LIMIT 1`, [g]);
+    out[g] = { my_best: mine.best, top: top || null };
+  }
+  res.json(out);
+});
+
 app.post('/api/games/:game/score', requireUser, async (req, res) => {
   const score = Math.max(0, Math.min(1000000, parseInt(req.body?.score) || 0));
   const game = String(req.params.game).slice(0, 30);
