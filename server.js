@@ -200,7 +200,12 @@ app.get('/api/videos/:id', requireUser, async (req, res) => {
 app.get('/api/videos/:id/comments', requireUser, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cm.id, cm.body, cm.parent_id, cm.created_at, cm.status,
-       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.id AS user_id,
+       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.id AS user_id, u.role AS user_role,
+       CASE WHEN u.id IS NOT NULL THEN
+         (SELECT count(*)::int FROM comments c2 WHERE c2.user_id=u.id AND c2.status='visible')
+         + (SELECT count(*)::int FROM reactions r2 WHERE r2.user_id=u.id)
+         + 5*(SELECT count(*)::int FROM subscriptions s2 WHERE s2.user_id=u.id)
+       END AS activity_n,
        cs.name AS cast_name, cs.emoji AS cast_emoji, cs.tier AS cast_tier, cs.specialty, cs.id AS cast_id
      FROM comments cm LEFT JOIN users u ON u.id=cm.user_id LEFT JOIN cast_members cs ON cs.id=cm.cast_id
      WHERE cm.video_id=$1 AND (cm.status='visible' OR (cm.status='pending' AND cm.user_id=$2))
