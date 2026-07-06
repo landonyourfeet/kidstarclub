@@ -599,14 +599,44 @@ app.get('/api/games/summary', requireUser, async (req, res) => {
   res.json(out);
 });
 
+const GAME_TITLES = { starblast:'STAR BLAST', zaptap:'ZAP TAP', starmatch:'STAR MATCH',
+  racer:'STAR RACER', flappy:'FLAPPY STAR', beatstar:'BEAT STAR', simon:'SIMON STARS',
+  stacker:'SKY STACKER', puppy:'PUPPY PARK', hoops:'STREET HOOPS' };
 app.post('/api/games/:game/score', requireUser, async (req, res) => {
   const score = Math.max(0, Math.min(1000000, parseInt(req.body?.score) || 0));
   const game = String(req.params.game).slice(0, 30);
+  // who holds the crown right now?
+  const { rows: [prev] } = await pool.query(
+    `SELECT u.id AS user_id, u.display_name, MAX(gs.score)::int AS score
+     FROM game_scores gs JOIN users u ON u.id=gs.user_id
+     WHERE gs.game=$1 AND u.status='active' GROUP BY u.id ORDER BY score DESC LIMIT 1`, [game]);
   await pool.query(`INSERT INTO game_scores (user_id,game,score) VALUES ($1,$2,$3)`,
     [req.user.id, game, score]);
   const { rows: [best] } = await pool.query(
     `SELECT MAX(score)::int AS best FROM game_scores WHERE user_id=$1 AND game=$2`, [req.user.id, game]);
-  res.json({ ok: true, best: best.best });
+  let event = null;
+  if (score > 0 && (!prev || score > prev.score)) {
+    const payload = {
+      game, title: GAME_TITLES[game] || game.toUpperCase(),
+      new_name: req.user.display_name, new_score: score,
+      old_name: prev && prev.user_id !== req.user.id ? prev.display_name : null,
+      old_score: prev ? prev.score : null,
+      defended: !!prev && prev.user_id === req.user.id,
+    };
+    const { rows: [ev] } = await pool.query(
+      `INSERT INTO club_events (kind,payload) VALUES ('crown',$1) RETURNING id`, [payload]);
+    event = { id: ev.id, kind: 'crown', payload };
+  }
+  res.json({ ok: true, best: best.best, event });
+});
+// club-wide event feed (records etc). Clients poll with their last-seen id.
+app.get('/api/events', requireUser, async (req, res) => {
+  const after = parseInt(req.query.after) || 0;
+  const { rows } = await pool.query(
+    `SELECT id, kind, payload FROM club_events
+     WHERE id>$1 AND created_at > now() - interval '10 minutes'
+     ORDER BY id LIMIT 5`, [after]);
+  res.json(rows);
 });
 app.get('/api/games/:game/leaderboard', requireUser, async (req, res) => {
   const { rows } = await pool.query(
