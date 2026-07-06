@@ -68,8 +68,8 @@ app.post('/api/join', async (req, res) => {
   if (!inv) return res.status(400).json({ error: 'That invite code is not valid.' });
   try {
     const { rows: [u] } = await pool.query(
-      `INSERT INTO users (role,display_name,username,password_hash) VALUES ($1,$2,$3,$4) RETURNING id,role,display_name`,
-      [inv.role, display_name.trim().slice(0, 40), username.trim().toLowerCase().slice(0, 30), hashPw(password)]);
+      `INSERT INTO users (role,display_name,username,password_hash,joined_code) VALUES ($1,$2,$3,$4,$5) RETURNING id,role,display_name`,
+      [inv.role, display_name.trim().slice(0, 40), username.trim().toLowerCase().slice(0, 30), hashPw(password), inv.code.toUpperCase()]);
     await pool.query('UPDATE invite_codes SET uses=uses+1 WHERE code=$1', [inv.code]);
     if (inv.role === 'kid')
       await pool.query(`INSERT INTO channels (owner_id,name) VALUES ($1,$2)`, [u.id, `${u.display_name}'s Stage`]);
@@ -200,7 +200,7 @@ app.get('/api/videos/:id', requireUser, async (req, res) => {
 app.get('/api/videos/:id/comments', requireUser, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cm.id, cm.body, cm.parent_id, cm.created_at, cm.status,
-       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.id AS user_id, u.role AS user_role,
+       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.id AS user_id, u.role AS user_role, u.joined_code,
        CASE WHEN u.id IS NOT NULL THEN
          (SELECT count(*)::int FROM comments c2 WHERE c2.user_id=u.id AND c2.status='visible')
          + (SELECT count(*)::int FROM reactions r2 WHERE r2.user_id=u.id)
@@ -277,7 +277,7 @@ app.post('/api/channels/:id/unsubscribe', requireUser, async (req, res) => {
 });
 app.get('/api/channels/:id/subscribers', requireUser, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.display_name, u.avatar_emoji, s.created_at FROM subscriptions s
+    `SELECT u.display_name, u.avatar_emoji, u.joined_code, s.created_at FROM subscriptions s
      JOIN users u ON u.id=s.user_id WHERE s.channel_id=$1 AND u.status='active' ORDER BY s.created_at`,
     [req.params.id]);
   res.json(rows);
