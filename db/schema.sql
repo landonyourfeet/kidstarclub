@@ -169,3 +169,12 @@ CREATE INDEX IF NOT EXISTS idx_chat_recent ON chat_messages(id) WHERE status='vi
 
 -- v9: profile avatars
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_key TEXT;
+
+-- v10: judge scores -> Chart Score (views x rating^2)
+CREATE TABLE IF NOT EXISTS judge_scores (
+  id       SERIAL PRIMARY KEY,
+  video_id INT NOT NULL REFERENCES videos(id),
+  cast_id  INT NOT NULL REFERENCES cast_members(id),
+  score    INT NOT NULL CHECK (score BETWEEN 1 AND 10),
+  UNIQUE (video_id, cast_id)
+);
