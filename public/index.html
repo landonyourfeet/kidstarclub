@@ -489,6 +489,7 @@ body.theme-court .jbar .jfill{background:linear-gradient(90deg,#45d8ff,#ff8c1a 5
   <section id="v-me" class="hide"></section>
 </main>
 
+<script src="/pills.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -579,20 +580,7 @@ const avHtml=(c,cls='')=>{
   return `<div class="av ${cls}">${esc(c.user_emoji||'⭐')}</div>`;
 };
 const shim=u=>((u.joined_code||'').toUpperCase()==='ELIORA')?'<span class="shimstar">★</span>':'';
-function pillHtml(c){
-  if(c.cast_name){
-    if(c.cast_tier==='judge')return '<span class="aitag judgep">🤖 AI JUDGE</span>';
-    if(c.cast_tier==='regular')return '<span class="aitag crewp">🤖 AI CREW</span>';
-    return '<span class="aitag fanp">🤖 AI FAN</span>';
-  }
-  if(c.user_role==='admin')return '<span class="aitag hq">🛡️ HQ</span>';
-  if(c.user_role==='kid')return '<span class="aitag star">⭐ STAR</span>';
-  const n=c.activity_n||0;
-  if(n>=150)return '<span class="aitag plat">💎 PLATINUM</span>';
-  if(n>=50)return '<span class="aitag gold">🥇 GOLD</span>';
-  if(n>=10)return '<span class="aitag silver">🥈 SILVER</span>';
-  return '<span class="aitag bronze">🥉 BRONZE</span>';
-}
+// pillHtml lives in /pills.js (Cap's zone)
 function jbarHtml(avg){
   const a=avg||0;
   const cls=a>=9.5?'max':a>=8.5?'hot':a>=7?'warm':'';
@@ -1345,7 +1333,7 @@ function mentionHint(inp){
   const hits=MENTIONABLES.filter(x=>x.name.toLowerCase().startsWith(q)&&x.name!==ME.display_name).slice(0,6);
   if(!hits.length){drop.classList.add('hide');return}
   drop.innerHTML=hits.map(h=>`<button onclick="pickMention('${esc(h.name).replace(/'/g,"\\'")}')">
-    ${esc(h.emoji||'⭐')} ${esc(h.name)} ${h.kind==='cast'?'<span class="aitag fanp">🤖 AI</span>':''}</button>`).join('');
+    ${esc(h.emoji||'⭐')} ${esc(h.name)} ${h.kind==='cast'?mentionCastTag():''}</button>`).join('');
   drop.classList.remove('hide');
 }
 function pickMention(name){
