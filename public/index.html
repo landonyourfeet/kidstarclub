@@ -76,9 +76,10 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 90px}
 h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bottom:10px;transform:rotate(-1deg)}
 .vcard .vtitle{font-family:var(--block);font-size:19px;letter-spacing:.03em;color:var(--white)}
 .vcard .vmeta{color:var(--cyan);font-size:13px;font-weight:800;margin:2px 0 8px}
-.vcard video{width:100%;border-radius:10px;border:3px solid var(--pink);background:#000}
+.vcard video{width:100%;max-height:70vh;object-fit:contain;border-radius:10px;border:3px solid var(--pink);background:#000}
 .thumbwrap{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;
   border:3px solid var(--pink);background:#000;margin-bottom:10px}
+.thumbwrap.tall{aspect-ratio:9/16;max-width:240px;margin:0 auto 10px}
 .thumbwrap img,.thumbwrap video{width:100%;height:100%;object-fit:cover;display:block}
 .thumbwrap .playbtn{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;
   background:rgba(13,2,16,.65);border:3px solid var(--white);display:flex;align-items:center;
@@ -89,6 +90,18 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .chip{background:var(--magenta);border:2px solid var(--white);border-radius:999px;
   padding:4px 12px;font-weight:800;font-size:13px}
 .chip.cy{background:#0a4c63;border-color:var(--cyan);color:var(--cyan)}
+.chip.rxchip{padding:4px 9px;font-size:12px}
+/* live emoji rain over the player */
+.vidwrap{position:relative;overflow:visible}
+.flyemoji{position:absolute;bottom:0;font-size:28px;pointer-events:none;z-index:5;
+  animation:flyup var(--dur,3.2s) linear forwards;filter:drop-shadow(0 0 4px rgba(13,2,16,.6))}
+@keyframes flyup{
+  0%{transform:translateY(0) translateX(0) scale(.7);opacity:0}
+  8%{opacity:1}
+  50%{transform:translateY(-45vh) translateX(var(--sway,20px)) scale(1.05)}
+  100%{transform:translateY(-92vh) translateX(calc(var(--sway,20px)*-1)) scale(.9);opacity:0}
+}
+@media(prefers-reduced-motion:reduce){.flyemoji{display:none}}
 button.big{font-family:var(--block);font-size:16px;letter-spacing:.08em;text-transform:uppercase;
   background:var(--pink);color:var(--black);border:3px solid var(--white);border-radius:12px;
   padding:12px 18px;cursor:pointer;box-shadow:4px 4px 0 rgba(13,2,16,.6);width:100%}
@@ -427,8 +440,10 @@ async function feed(){
       <div class="thumbwrap">
         ${v.has_thumb
           ?`<img src="/api/videos/${v.id}/thumb" loading="lazy" alt=""
-              onerror="this.outerHTML='<video src=\\'/api/videos/${v.id}/stream#t=1\\' preload=\\'metadata\\' muted playsinline></video>'">`
-          :`<video src="/api/videos/${v.id}/stream#t=1" preload="metadata" muted playsinline></video>`}
+              onload="if(this.naturalHeight>this.naturalWidth)this.parentElement.classList.add('tall')"
+              onerror="this.outerHTML='<video src=\\'/api/videos/${v.id}/stream#t=1\\' preload=\\'metadata\\' muted playsinline onloadedmetadata=\\'if(this.videoHeight>this.videoWidth)this.parentElement.classList.add(&quot;tall&quot;)\\'></video>'">`
+          :`<video src="/api/videos/${v.id}/stream#t=1" preload="metadata" muted playsinline
+              onloadedmetadata="if(this.videoHeight>this.videoWidth)this.parentElement.classList.add('tall')"></video>`}
         <div class="playbtn">▶</div>
       </div>
       <div class="vtitle">${esc(v.title)}</div>
@@ -436,8 +451,8 @@ async function feed(){
       <div class="vmeta" style="color:#b678a8">${ago(v.created_at)} · ${fdate(v.created_at)}</div>
       <div class="statrow">
         <span class="chip" style="background:#3a2e08;border-color:var(--yellow);color:var(--yellow)">📈 ${v.chart_score||0}</span>
-        <span class="chip">⚡ ${v.reaction_count} cheers</span>
-        <span class="chip cy">💬 ${v.comment_count} comments</span>
+        ${['star','fire','clap','heart','wow'].map((k,i)=>`<span class="chip rxchip">${['⭐','🔥','👏','💜','🤩'][i]} ${(v.rx&&v.rx[k])||0}</span>`).join('')}
+        <span class="chip cy">💬 ${v.comment_count}</span>
       </div>
       ${jbarHtml(v.avg_score)}
     </div>`).join('')
@@ -445,8 +460,33 @@ async function feed(){
 }
 
 // ---- VIDEO ----
+const RX_EMOJI={star:'⭐',fire:'🔥',clap:'👏',heart:'💜',wow:'🤩'};
+let rainTimer=null;
+function spawnFly(emoji){
+  const wrap=document.querySelector('.vidwrap');if(!wrap)return;
+  const e=document.createElement('span');e.className='flyemoji';e.textContent=emoji;
+  e.style.left=(5+Math.random()*88)+'%';
+  e.style.setProperty('--dur',(2.4+Math.random()*2.2)+'s');
+  e.style.setProperty('--sway',(Math.random()<.5?-1:1)*(10+Math.random()*40)+'px');
+  e.style.fontSize=(22+Math.random()*16)+'px';
+  wrap.appendChild(e);
+  setTimeout(()=>e.remove(),5200);
+}
+function startRain(rxCounts){
+  stopRain();
+  const pool=[];
+  for(const [k,n] of Object.entries(rxCounts||{}))for(let i=0;i<(n||0);i++)pool.push(RX_EMOJI[k]||'⭐');
+  if(!pool.length)return;
+  const gap=Math.max(280,2400/Math.min(pool.length,30)); // more reactions = denser rain
+  rainTimer=setInterval(()=>{
+    const v=$('#mainvid');
+    if(!v||v.paused||document.hidden)return;
+    spawnFly(pool[Math.floor(Math.random()*pool.length)]);
+  },gap);
+}
+function stopRain(){if(rainTimer){clearInterval(rainTimer);rainTimer=null}}
 let livePoll=null,liveVideoId=null,liveCount=0;
-function stopPoll(){if(livePoll){clearInterval(livePoll);livePoll=null;liveVideoId=null}}
+function stopPoll(){if(livePoll){clearInterval(livePoll);livePoll=null;liveVideoId=null}stopRain()}
 async function openVideo(id){
   stopPoll();
   go('video');
@@ -466,9 +506,7 @@ async function openVideo(id){
       ${!v.is_own?`<button class="big ${v.i_subscribe?'cy':''}" style="margin:6px 0"
           onclick="event.stopPropagation();toggleSub(${v.channel_id},${v.i_subscribe},${id})">
           ${v.i_subscribe?'✓ Subscribed':'⭐ Subscribe'}</button>`:''}
-      <button class="reply" style="font-size:13px" onclick="event.stopPropagation();showFans(${v.channel_id},'${esc(v.channel_name).replace(/'/g,"\\'")}')">
-        👥 ${v.subscriber_count} fan${v.subscriber_count===1?'':'s'} subscribed — see who</button>
-      <video id="mainvid" controls playsinline src="/api/videos/${id}/stream"></video>
+      <div class="vidwrap"><video id="mainvid" controls playsinline src="/api/videos/${id}/stream"></video></div>
       ${v.description?`<p style="margin-top:8px">${esc(v.description)}</p>`:''}
       <div class="reacts">${rbtn('star','⭐')}${rbtn('fire','🔥')}${rbtn('clap','👏')}${rbtn('heart','💜')}${rbtn('wow','🤩')}</div>
     </div>
@@ -484,6 +522,8 @@ async function openVideo(id){
   const hype0=(v.reactions||[]).reduce((s,r)=>s+r.n,0)+cms.length*2;
   $('#hypeN').textContent=hype0;
   let viewed=false,lastHype=hype0,lastChart=v.chart_score||0;
+  let rxNow=Object.fromEntries((v.reactions||[]).map(r=>[r.kind,r.n]));
+  startRain(rxNow);
   // Plays are counted quietly as Chart Score fuel — no counter shown.
   $('#mainvid').addEventListener('play',()=>{
     if(viewed)return;viewed=true;
@@ -506,6 +546,15 @@ async function openVideo(id){
       const hy=(vf.reactions||[]).reduce((s,r)=>s+r.n,0)+(fresh?fresh.length*2:lastHype);
       if(hy>lastHype){countUp('#hypeN',lastHype,hy);lastHype=hy;
         $('#hypeChip')?.animate([{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],{duration:400})}
+      // new reactions since last poll fly up right away
+      const rxNew=Object.fromEntries((vf.reactions||[]).map(r=>[r.kind,r.n]));
+      let changed=false;
+      for(const [k,n] of Object.entries(rxNew)){
+        const delta=n-(rxNow[k]||0);
+        for(let i=0;i<delta;i++)setTimeout(()=>spawnFly(RX_EMOJI[k]||'⭐'),i*250);
+        if(delta>0)changed=true;
+      }
+      if(changed){rxNow=rxNew;startRain(rxNow)}
     }
     if(fresh&&fresh.length!==liveCount){
       liveCount=fresh.length;
@@ -539,21 +588,13 @@ async function postComment(videoId){
 }
 async function react(videoId,kind,ev){
   ev.stopPropagation();
-  const z=document.createElement('div');z.className='zap';z.textContent='⚡';
-  z.style.left=ev.pageX+'px';z.style.top=ev.pageY+'px';document.body.appendChild(z);
-  setTimeout(()=>z.remove(),900);
+  spawnFly(RX_EMOJI[kind]||'⭐');
   await api(`/api/videos/${videoId}/react`,{method:'POST',body:{kind}}).catch(()=>{});
   openVideo(videoId);
 }
 async function toggleSub(channelId,current,videoId){
   await api(`/api/channels/${channelId}/${current?'unsubscribe':'subscribe'}`,{method:'POST'}).catch(e=>alert(e.message));
   openVideo(videoId);
-}
-async function showFans(channelId,name){
-  const fans=await api(`/api/channels/${channelId}/subscribers`);
-  alert(fans.length
-    ?`⭐ ${name} Fan Club ⭐\n\n`+fans.map(f=>`${f.avatar_emoji||'⭐'} ${f.display_name}${(f.joined_code||'').toUpperCase()==='ELIORA'?' 🌟':''}`).join('\n')
-    :`No subscribers yet — invite the family to hit Subscribe!`);
 }
 
 
