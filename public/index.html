@@ -118,29 +118,79 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   padding:7px 9px;cursor:pointer;transition:transform .12s cubic-bezier(.34,2,.64,1)}
 .act-mini:active{transform:scale(.85) rotate(-6deg)}
 .act-mini.bad{border-color:#a33}
-/* STAR BLAST */
-.sbtop{font-family:var(--block);font-size:18px;letter-spacing:.08em;color:var(--yellow);margin-bottom:8px}
-.sbgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;background:#14061a;
-  border:3px solid var(--white);border-radius:12px;padding:6px;aspect-ratio:1;max-width:420px;margin:0 auto}
-.sbcell{background:#241028;border-radius:5px;cursor:pointer;transition:transform .08s}
-.sbcell.fill{box-shadow:inset 0 -3px 0 rgba(13,2,16,.35);animation:cellpop .18s cubic-bezier(.34,2,.64,1)}
-@keyframes cellpop{0%{transform:scale(.4)}100%{transform:scale(1)}}
+/* ---- ARCADE (high-voltage) ---- */
+.gametile{cursor:pointer;background:linear-gradient(135deg,#1a0620,#0d0210 60%);
+  border-color:var(--cyan);position:relative;overflow:hidden}
+.gametile::after{content:'';position:absolute;top:-60%;left:-30%;width:40%;height:220%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.16),transparent);
+  transform:rotate(18deg);animation:sheen 3.4s ease-in-out infinite}
+@keyframes sheen{0%,60%{translate:-120% 0}100%{translate:420% 0}}
+.gametile:active{transform:scale(.97) rotate(-.6deg)}
+.gametile .gt{font-family:var(--block);font-size:22px;letter-spacing:.05em;
+  background:linear-gradient(90deg,var(--cyan),var(--pink),var(--yellow));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.gametile .gb{font-weight:800;font-size:13px;color:#d9a8cc;margin:2px 0 8px}
+.gamestage{background:
+  radial-gradient(circle at 15% 15%, rgba(69,216,255,.14), transparent 40%),
+  radial-gradient(circle at 85% 80%, rgba(255,46,196,.16), transparent 45%), var(--black)}
+.gamehead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.sbtop{font-family:var(--block);font-size:20px;letter-spacing:.08em;color:var(--yellow);
+  margin-bottom:8px;text-shadow:0 0 12px rgba(255,225,77,.55)}
+.sbgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;
+  background:linear-gradient(160deg,#1c0a2e,#0a0616);
+  border:3px solid var(--cyan);box-shadow:0 0 18px rgba(69,216,255,.35), inset 0 0 24px rgba(13,2,16,.8);
+  border-radius:12px;padding:6px;aspect-ratio:1;max-width:420px;margin:0 auto}
+.sbcell{background:#241035;border-radius:5px;cursor:pointer;transition:transform .08s;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.sbcell.fill{box-shadow:inset 0 -3px 0 rgba(13,2,16,.4),0 0 8px currentColor;
+  animation:cellpop .2s cubic-bezier(.34,2.2,.64,1)}
+@keyframes cellpop{0%{transform:scale(.3) rotate(12deg)}70%{transform:scale(1.15)}100%{transform:scale(1) rotate(0)}}
 .sbtray{display:flex;justify-content:space-around;align-items:center;gap:10px;margin:12px 0;min-height:74px}
-.sbpiece{padding:7px;border:2px solid var(--magenta);border-radius:10px;cursor:pointer;background:#1c0a1e;
-  transition:transform .12s cubic-bezier(.34,2,.64,1)}
-.sbpiece.on{border-color:var(--yellow);box-shadow:0 0 12px rgba(255,225,77,.6);transform:scale(1.12)}
-.sbpiece.empty{border:none;background:none;min-width:40px}
+.sbpiece{padding:7px;border:2px solid var(--magenta);border-radius:10px;cursor:pointer;
+  background:linear-gradient(160deg,#2a1030,#160820);
+  transition:transform .12s cubic-bezier(.34,2,.64,1);animation:pieceidle 2.4s ease-in-out infinite}
+.sbpiece:nth-child(2){animation-delay:.4s}.sbpiece:nth-child(3){animation-delay:.8s}
+@keyframes pieceidle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.sbpiece.on{border-color:var(--yellow);box-shadow:0 0 16px rgba(255,225,77,.85);transform:scale(1.15) rotate(2deg);animation:none}
+.sbpiece.empty{border:none;background:none;min-width:40px;animation:none}
 .sbrow{display:flex;gap:2px}
-.sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0}
-.sbhint{font-size:12px;font-weight:700;color:#b678a8;margin:6px 0 10px;text-align:center}
+.sbmini{width:14px;height:14px;border-radius:3px;display:inline-block;margin:1px 0;
+  box-shadow:0 0 4px currentColor}
+.sbhint{font-size:12px;font-weight:700;color:#d9a8cc;margin:6px 0 10px;text-align:center}
+/* zap tap */
+.ztgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:360px;margin:0 auto;aspect-ratio:1}
+.ztcell{background:linear-gradient(160deg,#241035,#12061e);border:2px solid var(--magenta);
+  border-radius:14px;display:flex;align-items:center;justify-content:center;
+  box-shadow:inset 0 0 14px rgba(13,2,16,.7)}
+.ztstar{background:none;border:none;font-size:44px;cursor:pointer;
+  animation:starpop .18s cubic-bezier(.34,2.4,.64,1), starwig .6s ease-in-out .2s infinite;
+  filter:drop-shadow(0 0 10px rgba(255,225,77,.9))}
+@keyframes starpop{0%{transform:scale(0) rotate(-40deg)}100%{transform:scale(1)}}
+@keyframes starwig{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+/* star match */
+.smgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:380px;margin:0 auto}
+.smcard{aspect-ratio:1;border-radius:12px;border:2px solid var(--cyan);cursor:pointer;
+  background:linear-gradient(135deg,var(--pink),#7a0a5e);position:relative;
+  transition:transform .25s cubic-bezier(.34,1.6,.64,1);transform-style:preserve-3d;
+  box-shadow:0 3px 0 rgba(13,2,16,.5)}
+.smcard::before{content:'★';position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-size:26px;color:rgba(255,255,255,.55);backface-visibility:hidden}
+.smcard .smface{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:32px;transform:rotateY(180deg);backface-visibility:hidden}
+.smcard.up,.smcard.done{transform:rotateY(180deg);background:linear-gradient(135deg,#1c3a52,#0a1c33);border-color:var(--yellow)}
+.smcard.done{box-shadow:0 0 14px rgba(255,225,77,.8);animation:donebounce .45s cubic-bezier(.34,2.2,.64,1)}
+@keyframes donebounce{0%{transform:rotateY(180deg) scale(1)}50%{transform:rotateY(180deg) scale(1.18)}100%{transform:rotateY(180deg) scale(1)}}
+/* leaderboard */
 .lrow{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px dashed var(--magenta)}
 .lrow:last-child{border-bottom:none}
-.lrow.me{background:rgba(69,216,255,.1);border-radius:8px}
+.lrow.me{background:rgba(69,216,255,.12);border-radius:8px;box-shadow:0 0 10px rgba(69,216,255,.25)}
+.lrow:first-child .lscore{text-shadow:0 0 12px rgba(255,225,77,.8)}
 .lrank{font-size:18px;width:34px;text-align:center;font-weight:900}
 .av.lav{width:30px;height:30px;font-size:14px;flex:0 0 30px}
 .lname{flex:1;font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lscore{font-family:var(--block);color:var(--yellow);font-size:16px;letter-spacing:.05em}
 body.theme-court .sbpiece.on{border-color:#ff8c1a}
+body.theme-court .gametile{border-color:#ff8c1a}
 /* live emoji rain over the player */
 .vidwrap{position:relative;overflow:visible}
 .unmutepill{position:absolute;top:10px;left:10px;z-index:6;background:rgba(13,2,16,.8);
@@ -419,17 +469,19 @@ body.theme-court .jbar .jfill{background:linear-gradient(90deg,#45d8ff,#ff8c1a 5
 
   <!-- ARCADE -->
   <section id="v-arcade" class="hide">
-    <div class="sticker">
-      <h2 class="scrawl">⭐ STAR BLAST</h2>
-      <div class="sbtop">SCORE <span id="sbscore">0</span></div>
-      <div id="sbgrid" class="sbgrid"></div>
-      <div id="sbtray" class="sbtray"></div>
-      <p class="sbhint">Tap a piece, then tap the board. Fill a full row or column to BLAST it! 💥</p>
-      <button class="big cy" onclick="sbNew()">🔁 New game</button>
-    </div>
-    <div class="sticker">
-      <h2 class="scrawl">🏆 Club Leaderboard</h2>
-      <div id="sbboard"></div>
+    <div id="arcadeHub"></div>
+    <div id="gameHost" class="hide">
+      <div class="sticker gamestage">
+        <div class="gamehead">
+          <button class="act-mini" onclick="arcade()">← Arcade</button>
+          <h2 class="scrawl" id="gameTitle" style="margin:0"></h2>
+        </div>
+        <div id="gameArea"></div>
+      </div>
+      <div class="sticker">
+        <h2 class="scrawl">🏆 Club Leaderboard</h2>
+        <div id="gameBoard"></div>
+      </div>
     </div>
   </section>
 
@@ -1033,7 +1085,61 @@ async function removeVid(id){
 }
 
 
-// ---- ARCADE: STAR BLAST ----
+
+// ---- ARCADE HUB ----
+const GAMES={
+  starblast:{title:'⭐ STAR BLAST',blurb:'Fill rows & columns to BLAST them!',start:()=>sbNew()},
+  zaptap:{title:'⚡ ZAP TAP',blurb:'30 seconds. Tap the stars. Dodge the bombs!',start:()=>ztNew()},
+  starmatch:{title:'🃏 STAR MATCH',blurb:'Find all the pairs — fast fingers, big score!',start:()=>smNew()},
+};
+let currentGame=null;
+async function arcade(){
+  currentGame=null;
+  $('#gameHost').classList.add('hide');
+  const hub=$('#arcadeHub');hub.classList.remove('hide');
+  const sum=await api('/api/games/summary?games='+Object.keys(GAMES).join(',')).catch(()=>({}));
+  hub.innerHTML=Object.entries(GAMES).map(([id,g])=>{
+    const s=sum[id]||{};
+    return `<div class="sticker gametile" onclick="openGame('${id}')">
+      <div class="gt">${g.title}</div>
+      <div class="gb">${g.blurb}</div>
+      <div class="statrow">
+        <span class="chip cy">MY BEST ${s.my_best||0}</span>
+        ${s.top?`<span class="chip" style="background:#3a2e08;border-color:var(--yellow);color:var(--yellow)">👑 ${esc(s.top.display_name)} · ${s.top.score}</span>`:'<span class="chip">👑 unclaimed!</span>'}
+      </div></div>`;
+  }).join('');
+}
+function openGame(id){
+  currentGame=id;
+  $('#arcadeHub').classList.add('hide');
+  const host=$('#gameHost');host.classList.remove('hide');
+  $('#gameTitle').textContent=GAMES[id].title;
+  GAMES[id].start();
+  boardFor(id);
+}
+async function submitScore(game,score){
+  let extra='';
+  try{
+    const r=await api(`/api/games/${game}/score`,{method:'POST',body:{score}});
+    if(score>=r.best&&score>0){extra='\n🏆 NEW PERSONAL BEST!';burst('storm')}
+  }catch(e){}
+  boardFor(game);
+  return extra;
+}
+async function boardFor(game){
+  const rows=await api(`/api/games/${game}/leaderboard`).catch(()=>[]);
+  const medals=['🥇','🥈','🥉'];
+  $('#gameBoard').innerHTML=rows.length?rows.map((r,i)=>`
+    <div class="lrow${r.display_name===ME.display_name?' me':''}">
+      <span class="lrank">${medals[i]||'#'+(i+1)}</span>
+      ${avHtml({user_has_avatar:r.user_has_avatar,user_id:r.user_id,user_emoji:r.avatar_emoji},'lav')}
+      <span class="lname">${esc(r.display_name)}${shim(r)}</span>
+      <span class="lscore">${r.score}</span>
+    </div>`).join('')
+  :'<p style="color:#b678a8">No scores yet — be the first on the board! 🏆</p>';
+}
+
+// ---- GAME 1: STAR BLAST ----
 const SB_SHAPES=[
   [[1]],[[1,1]],[[1],[1]],[[1,1,1]],[[1],[1],[1]],[[1,1,1,1]],[[1],[1],[1],[1]],
   [[1,1],[1,1]],[[1,1,1],[1,1,1],[1,1,1]],
@@ -1041,8 +1147,14 @@ const SB_SHAPES=[
   [[1,1,1],[1,0,0]],[[1,0,0],[1,1,1]],[[1,1,1,1,1]],[[1],[1],[1],[1],[1]]
 ];
 const SB_COLORS=['#ff2ec4','#45d8ff','#ffe14d','#ff8c1a','#a78bfa','#4ade80'];
-let sb={grid:null,tray:[],sel:-1,score:0,over:false,best:0};
+let sb={grid:null,tray:[],sel:-1,score:0,over:false};
 function sbNew(){
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">SCORE <span id="sbscore">0</span></div>
+    <div id="sbgrid" class="sbgrid"></div>
+    <div id="sbtray" class="sbtray"></div>
+    <p class="sbhint">Tap a piece, then tap the board. Fill a full row or column to BLAST it! 💥</p>
+    <button class="big cy" onclick="sbNew()">🔁 New game</button>`;
   sb.grid=Array.from({length:8},()=>Array(8).fill(0));
   sb.score=0;sb.over=false;sbFill();sbRender();
 }
@@ -1060,63 +1172,122 @@ function sbAnyFit(){
   return sb.tray.some(p=>p&&[...Array(8)].some((_,r)=>[...Array(8)].some((_,c)=>sbCan(p.m,r,c))));
 }
 function sbPlace(r,c){
+  if(sb.over)return;
   const p=sb.tray[sb.sel];if(!p)return;
   if(!sbCan(p.m,r,c)){
-    document.getElementById('sbgrid').animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}],{duration:200});
+    $('#sbgrid').animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}],{duration:200});
     return;
   }
   let cells=0;
   for(let i=0;i<p.m.length;i++)for(let j=0;j<p.m[0].length;j++)
     if(p.m[i][j]){sb.grid[r+i][c+j]=p.c;cells++}
   sb.tray[sb.sel]=null;sb.sel=-1;
-  // clear full rows/cols
   const rows=[],cols=[];
   for(let i=0;i<8;i++){if(sb.grid[i].every(v=>v))rows.push(i)}
   for(let j=0;j<8;j++){if(sb.grid.every(row=>row[j]))cols.push(j)}
   const lines=rows.length+cols.length;
   rows.forEach(i=>sb.grid[i]=Array(8).fill(0));
   cols.forEach(j=>sb.grid.forEach(row=>row[j]=0));
-  const gained=cells+(lines?10*lines*lines:0);
-  sb.score+=gained;
-  if(lines){burst(lines>=3?'storm':'pop')}
+  sb.score+=cells+(lines?10*lines*lines:0);
+  if(lines)burst(lines>=3?'storm':'pop');
   if(sb.tray.every(x=>!x))sbFill();
-  if(!sbAnyFit()){sb.over=true;sbGameOver()}
+  if(!sbAnyFit()){sb.over=true;
+    submitScore('starblast',sb.score).then(x=>setTimeout(()=>alert('Game over! ⭐ '+sb.score+' points'+x),300))}
   sbRender();
 }
 function sbRender(){
-  const g=document.getElementById('sbgrid');if(!g)return;
+  const g=$('#sbgrid');if(!g)return;
   g.innerHTML=sb.grid.map((row,r)=>row.map((v,c)=>
     `<div class="sbcell${v?' fill':''}" style="${v?'background:'+SB_COLORS[v-1]:''}"
       onclick="sbPlace(${r},${c})"></div>`).join('')).join('');
-  document.getElementById('sbscore').textContent=sb.score;
-  document.getElementById('sbtray').innerHTML=sb.tray.map((p,i)=>{
+  $('#sbscore').textContent=sb.score;
+  $('#sbtray').innerHTML=sb.tray.map((p,i)=>{
     if(!p)return '<div class="sbpiece empty"></div>';
     const mini=p.m.map(row=>`<div class="sbrow">${row.map(v=>
       `<span class="sbmini" style="${v?'background:'+SB_COLORS[p.c-1]:'visibility:hidden'}"></span>`).join('')}</div>`).join('');
     return `<div class="sbpiece${sb.sel===i?' on':''}" onclick="sb.sel=${sb.sel===i?-1:i};sbRender()">${mini}</div>`;
   }).join('');
 }
-async function sbGameOver(){
-  let msg='Game over! ⭐ '+sb.score+' points';
-  try{
-    const r=await api('/api/games/starblast/score',{method:'POST',body:{score:sb.score}});
-    if(r.best<=sb.score){msg+='\n🏆 NEW PERSONAL BEST!';burst('storm')}
-  }catch(e){}
-  setTimeout(()=>{alert(msg);sbLeaders();sbNew()},350);
+
+// ---- GAME 2: ZAP TAP ----
+let zt={score:0,time:30,timer:null,spawner:null,over:true};
+function ztStop(){clearInterval(zt.timer);clearTimeout(zt.spawner);zt.over=true}
+function ztNew(){
+  ztStop();
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">SCORE <span id="ztscore">0</span> · ⏱ <span id="zttime">30</span>s</div>
+    <div id="ztgrid" class="ztgrid">${Array(9).fill('<div class="ztcell"></div>').join('')}</div>
+    <p class="sbhint">Tap ⭐ = +5 · Tap 💣 = −10 · 30 seconds on the clock!</p>
+    <button class="big cy" onclick="ztNew()">🔁 New game</button>`;
+  zt={score:0,time:30,timer:null,spawner:null,over:false};
+  zt.timer=setInterval(()=>{
+    zt.time--;$('#zttime').textContent=zt.time;
+    if(zt.time<=0){ztStop();
+      submitScore('zaptap',zt.score).then(x=>setTimeout(()=>alert('Time! ⚡ '+zt.score+' points'+x),300))}
+  },1000);
+  ztSpawn();
 }
-async function sbLeaders(){
-  const rows=await api('/api/games/starblast/leaderboard').catch(()=>[]);
-  const medals=['🥇','🥈','🥉'];
-  document.getElementById('sbboard').innerHTML=rows.length?rows.map((r,i)=>`
-    <div class="lrow${r.display_name===ME.display_name?' me':''}">
-      <span class="lrank">${medals[i]||'#'+(i+1)}</span>
-      ${avHtml({user_has_avatar:r.user_has_avatar,user_id:r.user_id,user_emoji:r.avatar_emoji},'lav')}
-      <span class="lname">${esc(r.display_name)}${shim(r)}</span>
-      <span class="lscore">${r.score}</span>
-    </div>`).join('')
-  :'<p style="color:#b678a8">No scores yet — be the first on the board! 🏆</p>';
+function ztSpawn(){
+  if(zt.over)return;
+  const cells=[...document.querySelectorAll('.ztcell')];
+  cells.forEach(c=>c.innerHTML='');
+  const i=Math.floor(Math.random()*9);
+  const bomb=Math.random()<0.22;
+  const life=Math.max(420,900-zt.score*6);
+  cells[i].innerHTML=`<button class="ztstar" onclick="ztHit(this,${bomb})">${bomb?'💣':'⭐'}</button>`;
+  zt.spawner=setTimeout(ztSpawn,life);
 }
-function arcade(){sbNew();sbLeaders()}
+function ztHit(btn,bomb){
+  if(zt.over)return;
+  zt.score+=bomb?-10:5;if(zt.score<0)zt.score=0;
+  $('#ztscore').textContent=zt.score;
+  btn.parentElement.animate([{transform:'scale(1.4)'},{transform:'scale(1)'}],{duration:150});
+  if(!bomb)spawnZapAt(btn);
+  btn.remove();
+}
+function spawnZapAt(el){
+  const r=el.getBoundingClientRect();
+  const z=document.createElement('div');z.className='zap';z.textContent='⚡';
+  z.style.position='fixed';z.style.left=r.left+'px';z.style.top=r.top+'px';
+  document.body.appendChild(z);setTimeout(()=>z.remove(),900);
+}
+
+// ---- GAME 3: STAR MATCH ----
+const SM_EMOJI=['🎤','⚡','⭐','🔥','💜','🎸','👑','🎪'];
+let sm={deck:[],open:[],found:0,moves:0,t0:0,lock:false};
+function smNew(){
+  const pairs=[...SM_EMOJI,...SM_EMOJI].sort(()=>Math.random()-.5);
+  sm={deck:pairs,open:[],found:0,moves:0,t0:Date.now(),lock:false};
+  $('#gameArea').innerHTML=`
+    <div class="sbtop">MOVES <span id="smmoves">0</span></div>
+    <div class="smgrid">${pairs.map((e,i)=>
+      `<button class="smcard" id="sm${i}" onclick="smFlip(${i})"><span class="smface">${e}</span></button>`).join('')}</div>
+    <p class="sbhint">Find all 8 pairs — fewer moves & faster time = bigger score!</p>
+    <button class="big cy" onclick="smNew()">🔁 New game</button>`;
+}
+function smFlip(i){
+  if(sm.lock)return;
+  const card=$('#sm'+i);
+  if(card.classList.contains('up')||card.classList.contains('done'))return;
+  card.classList.add('up');
+  sm.open.push(i);
+  if(sm.open.length===2){
+    sm.moves++;$('#smmoves').textContent=sm.moves;
+    const [a,b]=sm.open;sm.open=[];
+    if(sm.deck[a]===sm.deck[b]){
+      $('#sm'+a).classList.add('done');$('#sm'+b).classList.add('done');
+      sm.found++;burst('pop');
+      if(sm.found===8){
+        const secs=Math.round((Date.now()-sm.t0)/1000);
+        const score=Math.max(50,2000-secs*15-sm.moves*20);
+        submitScore('starmatch',score).then(x=>setTimeout(()=>alert('All pairs! 🃏 '+score+' points ('+secs+'s, '+sm.moves+' moves)'+x),300));
+      }
+    }else{
+      sm.lock=true;
+      setTimeout(()=>{$('#sm'+a).classList.remove('up');$('#sm'+b).classList.remove('up');sm.lock=false},700);
+    }
+  }
+}
 
 // ---- CLUB CHAT ----
 let chatPoll=null,chatLastId=0;
