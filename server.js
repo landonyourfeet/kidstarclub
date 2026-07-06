@@ -579,6 +579,7 @@ app.get('/watch/:token', async (req, res) => {
 <a class="cta" href="https://kidstarclub.com/">⭐ Join the club to cheer &amp; comment!<small>Ask your friend for their club invite code 🎟️</small></a>
 <div class="card" style="margin-top:14px"><h2>The club says…</h2><div id="cm"></div></div>
 </main>
+<script src="/pills.js"></script>
 <script src="/watch-page.js" data-token="${t}"></script>
 </body></html>`);
 });
