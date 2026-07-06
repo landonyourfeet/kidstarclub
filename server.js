@@ -319,6 +319,50 @@ app.post('/api/tracks/:id/remove', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Club Chat ----------
+app.get('/api/chat', requireUser, async (req, res) => {
+  const after = parseInt(req.query.after) || 0;
+  const { rows } = await pool.query(
+    `SELECT cm.id, cm.body, cm.created_at, (cm.image_key IS NOT NULL) AS has_image,
+       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.role AS user_role, u.joined_code,
+       cs.name AS cast_name, cs.emoji AS cast_emoji, cs.tier AS cast_tier, cs.specialty
+     FROM chat_messages cm LEFT JOIN users u ON u.id=cm.user_id LEFT JOIN cast_members cs ON cs.id=cm.cast_id
+     WHERE cm.status='visible' AND cm.id > $1
+     ORDER BY cm.id ${after ? 'ASC' : 'DESC'} LIMIT 60`, [after]);
+  res.json(after ? rows : rows.reverse());
+});
+
+app.post('/api/chat', requireUser, async (req, res) => {
+  const body = (req.body?.body || '').trim().slice(0, 500);
+  const imageKey = (req.body?.image_key || '').trim() || null;
+  if (!body && !imageKey) return res.status(400).json({ error: 'Say something or add a photo!' });
+  if (imageKey && !imageKey.startsWith('chat/')) return res.status(400).json({ error: 'Bad image.' });
+  const { rows: [m] } = await pool.query(
+    `INSERT INTO chat_messages (user_id,body,image_key) VALUES ($1,$2,$3) RETURNING id`,
+    [req.user.id, body, imageKey]);
+  castEngine.maybeChatReply(pool, { body, image_key: imageKey });
+  res.json({ ok: true, id: m.id });
+});
+
+app.post('/api/chat/presign-image', requireUser, async (req, res) => {
+  if (!process.env.BUCKET_NAME) return res.status(500).json({ error: 'Storage not configured.' });
+  const key = `chat/${Date.now()}-${crypto.randomBytes(4).toString('hex')}.jpg`;
+  res.json({ image_key: key, put_url: bucket.presignPut(key) });
+});
+
+app.get('/api/chat/:id/image', requireUser, async (req, res) => {
+  const { rows: [m] } = await pool.query(
+    `SELECT image_key FROM chat_messages WHERE id=$1 AND status='visible'`, [req.params.id]);
+  if (!m?.image_key) return res.status(404).json({ error: 'No image.' });
+  res.redirect(bucket.presignGet(m.image_key, 3600));
+});
+
+app.post('/api/admin/chat/:id/remove', requireAdmin, async (req, res) => {
+  await pool.query(`UPDATE chat_messages SET status='removed' WHERE id=$1`, [req.params.id]);
+  await modLog(req.user.id, 'remove_chat', `chat:${req.params.id}`, req.body?.note);
+  res.json({ ok: true });
+});
+
 // =====================================================================
 // ADMIN CONTROL PANEL API  (UI at /admin.html)
 // =====================================================================
