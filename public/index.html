@@ -197,6 +197,15 @@ input::placeholder,textarea::placeholder{color:#b678a8}
 .camlbl input{display:none}
 .act-send{background:var(--cyan);border:2px solid var(--white);border-radius:50%;width:44px;height:44px;
   font-size:18px;color:var(--black);cursor:pointer;font-weight:800}
+.mention{color:var(--cyan);font-weight:800}
+.mention.me{color:var(--yellow);background:rgba(255,225,77,.15);border-radius:4px;padding:0 3px}
+.mname{cursor:pointer}
+.mdrop{background:var(--black);border:2px solid var(--cyan);border-radius:10px;margin-bottom:8px;
+  display:flex;flex-direction:column;overflow:hidden}
+.mdrop button{background:none;border:none;color:var(--white);text-align:left;padding:9px 12px;
+  font:800 14px var(--body);cursor:pointer;border-bottom:1px solid var(--line,#1e2a45)}
+.mdrop button:active{background:#1c2740}
+.av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -297,10 +306,11 @@ input::placeholder,textarea::placeholder{color:#b678a8}
       <h2 class="scrawl">Club Chat 💬</h2>
       <div id="chatBox" class="chatbox"></div>
       <div class="emojirow">${['🎉','🔥','⭐','😂','💜','🎤','👏','⚡'].map(e=>`<button onclick="$('#chatIn').value+='${e}'">${e}</button>`).join('')}</div>
+      <div id="mentionDrop" class="mdrop hide"></div>
       <div class="chatrow">
         <label class="camlbl">📷<input id="chatImg" type="file" accept="image/*" onchange="sendChatImage()"></label>
-        <input id="chatIn" placeholder="message the club…" maxlength="500"
-          onkeydown="if(event.key==='Enter')sendChat()">
+        <input id="chatIn" placeholder="message the club… (@ to mention)" maxlength="500"
+          oninput="mentionHint(this)" onkeydown="if(event.key==='Enter')sendChat()">
         <button class="act-send" onclick="sendChat()">➤</button>
       </div>
       <div class="errmsg" id="chatErr"></div>
@@ -405,7 +415,6 @@ async function boot(){
   ME=await api('/api/me').catch(()=>null);
   if(!ME){go('auth');return}
   $('#nav').classList.remove('hide');
-  if(ME.role==='member')$('#plusBtn').classList.add('hide');
   go('feed');
 }
 async function login(){
@@ -539,6 +548,11 @@ function burst(mode='pop'){
     setTimeout(()=>z.remove(),mode==='storm'?1800:900);
   }
 }
+const avHtml=(c,cls='')=>{
+  if(c.cast_name)return `<div class="av ${cls}">${esc(c.cast_emoji)}</div>`;
+  if(c.user_has_avatar)return `<div class="av ${cls}"><img src="/api/users/${c.user_id}/avatar" loading="lazy" alt=""></div>`;
+  return `<div class="av ${cls}">${esc(c.user_emoji||'⭐')}</div>`;
+};
 const shim=u=>((u.joined_code||'').toUpperCase()==='ELIORA')?'<span class="shimstar">★</span>':'';
 function pillHtml(c){
   if(c.cast_name){
@@ -557,10 +571,9 @@ function pillHtml(c){
 function commentHtml(c){
   const isCast=!!c.cast_name;
   const judge=c.cast_tier==='judge';
-  const av=isCast?c.cast_emoji:(c.user_emoji||'⭐');
   const name=isCast?`${esc(c.cast_name)}${judge?' · '+esc(c.specialty||'judge'):''}`:esc(c.user_name);
   return `<div class="comment ${judge?'judge':''}" ${c.parent_id?'style="margin-left:18px"':''}>
-    <div class="av">${esc(av)}</div>
+    ${avHtml(c)}
     <div class="cbody">
       <span class="who">${name}</span>${isCast?'':shim(c)}${pillHtml(c)}
       ${c.status==='pending'?'<div class="pending">waiting for admin approval — only you can see this</div>':''}
@@ -663,8 +676,21 @@ async function upload(){
 async function meView(){
   const chans=await api('/api/channels');
   const mine=chans.filter(c=>c.owner_name===ME.display_name);
-  if(!mine.length){$('#v-me').innerHTML='<div class="sticker center"><h2 class="scrawl">You are a VIP fan 💜</h2><p>Cheer, comment, and vote for Fan Favorite of the Week!</p></div>';return}
-  let html='';
+  const profileCard=`<div class="sticker">
+    <h2 class="scrawl">My profile ✨</h2>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div class="av" style="width:64px;height:64px;font-size:30px;flex:0 0 64px">
+        ${ME.has_avatar?`<img src="/api/users/${ME.id}/avatar?t=${Date.now()}">`:'⭐'}</div>
+      <label class="big cy" style="width:auto;padding:10px 14px;font-size:13px;cursor:pointer">
+        📷 Change photo<input id="avFile" type="file" accept="image/*" style="display:none" onchange="saveAvatar()"></label>
+    </div>
+    <input id="pfName" value="${esc(ME.display_name)}" maxlength="40" placeholder="screen name">
+    <button class="big" onclick="saveName()">Save name ⭐</button>
+    <button class="big" style="margin-top:8px;background:#444;color:#fff" onclick="logout()">👋 Sign out</button>
+    <div class="errmsg" id="pfErr"></div>
+  </div>`;
+  if(!mine.length){$('#v-me').innerHTML=profileCard+'<div class="sticker center"><h2 class="scrawl">Your stage awaits 🎬</h2><p>Hit the ＋ button and post your first video!</p></div>';return}
+  let html=profileCard;
   for(const c of mine){
     const badges=await api(`/api/channels/${c.id}/badges`);
     const fans=await api(`/api/channels/${c.id}/subscribers`).catch(()=>[]);
@@ -783,26 +809,58 @@ async function postRecording(){
   finally{$('#recPost').disabled=false;$('#recPost').textContent='Post as Short ⚡'}
 }
 
+async function saveName(){
+  try{
+    const r=await api('/api/profile',{method:'POST',body:{display_name:$('#pfName').value}});
+    ME.display_name=r.display_name;$('#pfErr').textContent='Saved! ⭐';meView();
+  }catch(e){$('#pfErr').textContent=e.message}
+}
+async function saveAvatar(){
+  const f=$('#avFile').files[0];if(!f)return;
+  $('#pfErr').textContent='Uploading photo…';
+  try{
+    const p=await api('/api/profile/avatar-presign',{method:'POST'});
+    const r=await fetch(p.put_url,{method:'PUT',headers:{'content-type':f.type||'image/jpeg'},body:f});
+    if(!r.ok)throw new Error('Photo upload failed.');
+    await api('/api/profile/avatar-complete',{method:'POST',body:{image_key:p.image_key}});
+    ME.has_avatar=true;$('#pfErr').textContent='';meView();
+  }catch(e){$('#pfErr').textContent=e.message}
+}
+async function logout(){await api('/api/logout',{method:'POST'});location.reload()}
+
 // ---- CLUB CHAT ----
 let chatPoll=null,chatLastId=0;
 function stopChat(){if(chatPoll){clearInterval(chatPoll);chatPoll=null}}
+let MENTIONABLES=[];
+function renderMentions(text){
+  let html=esc(text);
+  // longest names first so "DJ Nova" wins over "DJ"
+  const names=[...MENTIONABLES].sort((a,b)=>b.name.length-a.name.length);
+  for(const m of names){
+    const pat=new RegExp('@'+m.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+    const self=m.name===ME.display_name;
+    html=html.replace(pat,`<span class="mention ${self?'me':''}">@${esc(m.name)}</span>`);
+  }
+  return html;
+}
 function chatMsgHtml(m){
   const isCast=!!m.cast_name;
   const judge=m.cast_tier==='judge';
   const mine=!isCast&&m.user_name===ME.display_name;
-  const av=isCast?m.cast_emoji:(m.user_emoji||'⭐');
   const who=isCast?`${esc(m.cast_name)}${judge?' · '+esc(m.specialty||''):''}`:esc(m.user_name);
   return `<div class="cmsg ${judge?'judge':''} ${mine?'mine':''}" data-id="${m.id}">
-    <div class="av">${esc(av)}</div>
+    ${avHtml(m)}
     <div class="bub">
-      <div class="cwho">${who}${isCast?'':shim(m)}${pillHtml(m)}
+      <div class="cwho"><span class="mname" onclick="tagUser('${esc(isCast?m.cast_name:m.user_name).replace(/'/g,"\\'")}')">${who}</span>${isCast?'':shim(m)}${pillHtml(m)}
         ${ME.role==='admin'?`<button class="del" onclick="delChat(${m.id})">✕</button>`:''}</div>
-      ${m.body?`<div class="ctext">${esc(m.body)}</div>`:''}
+      ${m.body?`<div class="ctext">${renderMentions(m.body)}</div>`:''}
       ${m.has_image?`<img src="/api/chat/${m.id}/image" loading="lazy">`:''}
     </div></div>`;
 }
+function tagUser(name){$('#chatIn').value=($('#chatIn').value+' @'+name+' ').replace(/^ /,'');$('#chatIn').focus()}
 async function chat(){
   stopChat();chatLastId=0;
+  MENTIONABLES=await api('/api/chat/mentionables').catch(()=>[]);
   const msgs=await api('/api/chat').catch(()=>[]);
   const box=$('#chatBox');
   box.innerHTML=msgs.map(chatMsgHtml).join('')||'<p style="color:#b678a8">Say hi — the club is listening! 👋</p>';
@@ -818,9 +876,25 @@ async function chat(){
     if(nearBottom)box.scrollTop=box.scrollHeight;
   },5000);
 }
+function mentionHint(inp){
+  const drop=$('#mentionDrop');
+  const m=inp.value.match(/@([\w ]{0,20})$/);
+  if(!m){drop.classList.add('hide');return}
+  const q=m[1].toLowerCase();
+  const hits=MENTIONABLES.filter(x=>x.name.toLowerCase().startsWith(q)&&x.name!==ME.display_name).slice(0,6);
+  if(!hits.length){drop.classList.add('hide');return}
+  drop.innerHTML=hits.map(h=>`<button onclick="pickMention('${esc(h.name).replace(/'/g,"\\'")}')">
+    ${esc(h.emoji||'⭐')} ${esc(h.name)} ${h.kind==='cast'?'<span class="aitag fanp">🤖 AI</span>':''}</button>`).join('');
+  drop.classList.remove('hide');
+}
+function pickMention(name){
+  const inp=$('#chatIn');
+  inp.value=inp.value.replace(/@[\w ]{0,20}$/,'@'+name+' ');
+  $('#mentionDrop').classList.add('hide');inp.focus();
+}
 async function sendChat(){
   const t=$('#chatIn').value.trim();if(!t)return;
-  $('#chatIn').value='';
+  $('#chatIn').value='';$('#mentionDrop').classList.add('hide');
   try{await api('/api/chat',{method:'POST',body:{body:t}});
     const fresh=await api('/api/chat?after='+chatLastId);
     if(fresh.length){chatLastId=fresh[fresh.length-1].id;
