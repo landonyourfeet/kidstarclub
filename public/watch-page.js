@@ -23,14 +23,7 @@
   document.getElementById('rx').innerHTML = Object.entries(RX)
     .map(([k, e]) => `<span class="chip">${e} ${counts[k] || 0}</span>`).join('');
 
-  const pill = c => {
-    if (c.cast_name) {
-      if (c.cast_tier === 'judge') return '<span class="pill pj">🤖 AI JUDGE</span>';
-      if (c.cast_tier === 'regular') return '<span class="pill pc">🤖 AI CREW</span>';
-      return '<span class="pill pf">🤖 AI FAN</span>';
-    }
-    return '';
-  };
+  const pill = c => (typeof watchPill === 'function' ? watchPill(c) : '');
   document.getElementById('cm').innerHTML = (d.comments || []).map(c => {
     const judge = c.cast_tier === 'judge';
     const av = c.cast_name ? c.cast_emoji : (c.user_emoji || '⭐');
