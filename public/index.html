@@ -206,6 +206,12 @@ input::placeholder,textarea::placeholder{color:#b678a8}
   font:800 14px var(--body);cursor:pointer;border-bottom:1px solid var(--line,#1e2a45)}
 .mdrop button:active{background:#1c2740}
 .av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.chartline{font-family:var(--block);font-size:17px;letter-spacing:.05em;color:var(--yellow);
+  margin:6px 0;text-shadow:2px 2px 0 rgba(13,2,16,.6)}
+.chartline .panel{display:block;font-family:var(--body);font-weight:800;font-size:12px;color:var(--cyan);letter-spacing:0}
+.navbadge{position:absolute;top:-4px;right:2px;background:#ff4040;color:#fff;border-radius:999px;
+  min-width:18px;height:18px;font:800 11px var(--body);display:flex;align-items:center;justify-content:center;padding:0 4px}
+nav button{position:relative}
 .center{text-align:center}
 .errmsg{color:var(--yellow);font-weight:800;font-size:13px;min-height:18px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -219,7 +225,7 @@ input::placeholder,textarea::placeholder{color:#b678a8}
     <button data-v="feed" class="on" onclick="go('feed')"><span class="ni">🏠</span>Stage</button>
     <button data-v="shorts" onclick="go('shorts')"><span class="ni">⚡</span>Shorts</button>
     <button id="plusBtn" class="plus" onclick="showCreate()">＋</button>
-    <button data-v="chat" onclick="go('chat')"><span class="ni">💬</span>Chat</button>
+    <button data-v="chat" onclick="go('chat')"><span class="ni">💬</span>Chat<span id="chatBadge" class="navbadge hide"></span></button>
     <button data-v="me" onclick="go('me')"><span class="ni">⭐</span>My Star</button>
   </nav>
   <div id="createSheet" class="sheet hide" onclick="this.classList.add('hide')">
@@ -442,6 +448,7 @@ async function feed(){
       <div class="vmeta">${esc(v.avatar_emoji)} ${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
       <div class="vmeta" style="color:#b678a8">👁 ${v.views} view${v.views===1?'':'s'} · ${ago(v.created_at)} · ${fdate(v.created_at)}</div>
       <div class="statrow">
+        <span class="chip" style="background:#3a2e08;border-color:var(--yellow);color:var(--yellow)">📈 ${v.chart_score||0}</span>
         <span class="chip">⚡ ${v.reaction_count} cheers</span>
         <span class="chip cy">💬 ${v.comment_count} comments</span>
       </div>
@@ -465,6 +472,8 @@ async function openVideo(id){
       <div class="vmeta">${esc(v.owner_name)} · ${esc(v.channel_name)}</div>
       <div class="vmeta" style="color:#b678a8">👁 <span id="viewN">${v.views||0}</span> views · posted ${fdate(v.created_at)}
         <span class="chip" id="hypeChip" style="margin-left:8px">⚡ HYPE <span id="hypeN">0</span></span></div>
+      <div class="chartline">📈 CHART SCORE <span id="chartN">${v.chart_score||0}</span>
+        ${v.judge_count?`<span class="panel">panel: ${v.avg_score.toFixed(1)}/10 · ×${Math.max(1,Math.round(v.avg_score*v.avg_score))} multiplier</span>`:'<span class="panel">judges are still voting…</span>'}</div>
       ${!v.is_own?`<button class="big ${v.i_subscribe?'cy':''}" style="margin:6px 0"
           onclick="event.stopPropagation();toggleSub(${v.channel_id},${v.i_subscribe},${id})">
           ${v.i_subscribe?'✓ Subscribed':'⭐ Subscribe'}</button>`:''}
@@ -507,6 +516,11 @@ async function openVideo(id){
         countUp('#viewN',lastViews,vf.views);
         for(const m of MILESTONES)if(lastViews<m&&vf.views>=m)burst(m>=1000?'storm':'pop');
         lastViews=vf.views;
+      }
+      const cEl=$('#chartN');
+      if(cEl&&vf.chart_score>parseInt(cEl.textContent||'0')){
+        countUp('#chartN',parseInt(cEl.textContent||'0'),vf.chart_score);
+        for(const m of MILESTONES)if(parseInt(cEl.textContent||'0')<m&&vf.chart_score>=m&&m>=1000)burst('storm');
       }
       const hy=(vf.reactions||[]).reduce((s,r)=>s+r.n,0)+(fresh?fresh.length*2:lastHype);
       if(hy>lastHype){countUp('#hypeN',lastHype,hy);lastHype=hy;
@@ -864,13 +878,13 @@ async function chat(){
   const msgs=await api('/api/chat').catch(()=>[]);
   const box=$('#chatBox');
   box.innerHTML=msgs.map(chatMsgHtml).join('')||'<p style="color:#b678a8">Say hi — the club is listening! 👋</p>';
-  if(msgs.length)chatLastId=msgs[msgs.length-1].id;
+  if(msgs.length){chatLastId=msgs[msgs.length-1].id;setChatSeen(chatLastId)}
   box.scrollTop=box.scrollHeight;
   chatPoll=setInterval(async()=>{
     if(document.hidden)return;
     const fresh=await api('/api/chat?after='+chatLastId).catch(()=>[]);
     if(!fresh.length)return;
-    chatLastId=fresh[fresh.length-1].id;
+    chatLastId=fresh[fresh.length-1].id;setChatSeen(chatLastId);
     const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<120;
     box.insertAdjacentHTML('beforeend',fresh.map(chatMsgHtml).join(''));
     if(nearBottom)box.scrollTop=box.scrollHeight;
@@ -919,6 +933,40 @@ async function delChat(id){
   await api(`/api/admin/chat/${id}/remove`,{method:'POST',body:{}});
   document.querySelector(`.cmsg[data-id="${id}"]`)?.remove();
 }
+
+// ---- Chat notifications: badge + bing! ----
+let audioCtx=null,chatSeenId=parseInt(localStorage.getItem('ksc_chat_seen')||'0'),chatUnread=0;
+addEventListener('pointerdown',()=>{if(!audioCtx)try{audioCtx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}},{once:true});
+function bing(){
+  if(!audioCtx)return;
+  try{
+    const t=audioCtx.currentTime;
+    [[880,0],[1318.5,.12]].forEach(([f,dt])=>{
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(0.001,t+dt);
+      g.gain.exponentialRampToValueAtTime(0.25,t+dt+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dt+0.5);
+      o.connect(g);g.connect(audioCtx.destination);
+      o.start(t+dt);o.stop(t+dt+0.55);
+    });
+  }catch(e){}
+}
+function setChatSeen(id){chatSeenId=Math.max(chatSeenId,id);localStorage.setItem('ksc_chat_seen',chatSeenId);
+  chatUnread=0;$('#chatBadge').classList.add('hide')}
+setInterval(async()=>{
+  if(!ME||document.hidden)return;
+  const inChat=!$('#v-chat').classList.contains('hide');
+  const r=await api('/api/chat/latest').catch(()=>null);
+  if(!r)return;
+  if(inChat){setChatSeen(r.id);return}
+  if(r.id>chatSeenId){
+    const fresh=r.id-chatSeenId;
+    if(fresh>chatUnread)bing();
+    chatUnread=fresh;
+    const b=$('#chatBadge');b.textContent=fresh>9?'9+':fresh;b.classList.remove('hide');
+  }
+},20000);
 
 boot();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
