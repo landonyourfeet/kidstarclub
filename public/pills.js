@@ -33,7 +33,7 @@ function watchPill(c){
   if(c.cast_name){
     if(c.cast_tier==='judge')return '<span class="pill pj"> JUDGE</span>';
     if(c.cast_tier==='regular')return '<span class="pill pc"> CREW</span>';
-    return '<span class="pill pf">🤖 FAN</span>';
+    return '<span class="pill pf"> FAN</span>';
   }
   return '';
 }
