@@ -1968,6 +1968,7 @@ function hpNew(){
   gReset();
   $('#gameArea').innerHTML=`
     <div class="sbtop">SCORE <span id="hpscore">0</span> · ⏱ <span id="hptime">60</span>s
+      <span id="hplvl" class="hpspotlbl" style="border-color:var(--cyan);color:var(--cyan)">LVL 1</span>
       <span id="hpspotlbl" class="hpspotlbl">2PT</span>
       <span id="hpfire" class="hide">🔥 BLAZING ×2</span></div>
     <div id="hpwrap" class="ppwrap"><div class="pphud">🏀 lacing up…</div>
@@ -2037,19 +2038,51 @@ function hpBoot(){
 
   // hoop
   const RIMY=3.05, RIMZ=-12, RIMR=0.55;
+  const hoopGrp=new THREE.Group();scene.add(hoopGrp);
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.14,.18,3.9,8),mat(0x555566));
-  pole.position.set(0,1.95,RIMZ-1.2);pole.castShadow=true;scene.add(pole);
+  pole.position.set(0,1.95,RIMZ-1.2);pole.castShadow=true;hoopGrp.add(pole);
   const board=new THREE.Mesh(new THREE.BoxGeometry(2.6,1.6,.08),
     new THREE.MeshLambertMaterial({color:0xe8ecf5,transparent:true,opacity:0.85}));
-  board.position.set(0,RIMY+0.75,RIMZ-0.62);scene.add(board);
+  board.position.set(0,RIMY+0.75,RIMZ-0.62);hoopGrp.add(board);
   const sq=new THREE.Mesh(new THREE.RingGeometry(0.32,0.38,4,1),paint(0xff2ec4));
-  sq.position.set(0,RIMY+0.35,RIMZ-0.57);sq.rotation.z=Math.PI/4;scene.add(sq);
+  sq.position.set(0,RIMY+0.35,RIMZ-0.57);sq.rotation.z=Math.PI/4;hoopGrp.add(sq);
   const rim=new THREE.Mesh(new THREE.TorusGeometry(RIMR,0.045,10,28),
     new THREE.MeshLambertMaterial({color:0xff8c1a,emissive:0x552200}));
-  rim.rotation.x=Math.PI/2;rim.position.set(0,RIMY,RIMZ);scene.add(rim);
+  rim.rotation.x=Math.PI/2;rim.position.set(0,RIMY,RIMZ);hoopGrp.add(rim);
   const net=new THREE.Mesh(new THREE.ConeGeometry(RIMR*0.95,0.75,10,4,true),
     new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.7}));
-  net.position.set(0,RIMY-0.42,RIMZ);net.rotation.x=Math.PI;scene.add(net);
+  net.position.set(0,RIMY-0.42,RIMZ);net.rotation.x=Math.PI;hoopGrp.add(net);
+
+  // defender (jumps to block on level 2+)
+  const defender=new THREE.Group();
+  const dj=new THREE.Mesh(new THREE.BoxGeometry(.9,1.1,.45),mat(0x223a6b));dj.position.y=1.15;
+  const dh=new THREE.Mesh(new THREE.SphereGeometry(.3,10,10),mat(0xc98a4b));dh.position.y=2.0;
+  const dArmL=new THREE.Mesh(new THREE.BoxGeometry(.2,1.1,.2),mat(0x223a6b));dArmL.position.set(-.62,1.7,0);
+  const dArmR=dArmL.clone();dArmR.position.x=.62;
+  const dLegs=new THREE.Mesh(new THREE.BoxGeometry(.75,.9,.4),mat(0x111a2e));dLegs.position.y=.45;
+  defender.add(dj,dh,dArmL,dArmR,dLegs);
+  defender.traverse(m=>m.castShadow=true);
+  defender.visible=false;scene.add(defender);
+
+  // wild animals (level 3+): raccoon runs the floor, pigeon buzzes the rim
+  function raccoonMesh(){
+    const g=new THREE.Group();
+    const b0=new THREE.Mesh(new THREE.BoxGeometry(.9,.45,.45),mat(0x777788));b0.position.y=.35;
+    const h0=new THREE.Mesh(new THREE.BoxGeometry(.4,.35,.35),mat(0x99a));h0.position.set(.6,.5,0);
+    const mask=new THREE.Mesh(new THREE.BoxGeometry(.42,.14,.37),mat(0x222));mask.position.set(.6,.55,0);
+    const tail=new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,.8,6),mat(0x555));
+    tail.position.set(-.65,.5,0);tail.rotation.z=1.1;
+    g.add(b0,h0,mask,tail);g.traverse(m=>m.castShadow=true);return g;
+  }
+  function pigeonMesh(){
+    const g=new THREE.Group();
+    const b0=new THREE.Mesh(new THREE.SphereGeometry(.28,8,8),mat(0x8892a8));
+    const h0=new THREE.Mesh(new THREE.SphereGeometry(.15,8,8),mat(0x5a6478));h0.position.set(.3,.18,0);
+    const wL=new THREE.Mesh(new THREE.BoxGeometry(.5,.05,.3),mat(0x6a7488));wL.position.set(0,.1,.3);
+    const wR=wL.clone();wR.position.z=-.3;
+    g.add(b0,h0,wL,wR);g.userData.wings=[wL,wR];return g;
+  }
+  let critters=[];
 
   // ball
   const ball=new THREE.Group();
@@ -2069,7 +2102,8 @@ function hpBoot(){
   spotRing.rotation.x=-Math.PI/2;spotRing.position.y=0.02;scene.add(spotRing);
 
   hp={score:0,time:60,over:false,streak:0,fire:false,flying:false,scored:false,
-    touched:false,pos:new THREE.Vector3(),vel:new THREE.Vector3(),drag:null,spot:new THREE.Vector3(),three:false};
+    touched:false,pos:new THREE.Vector3(),vel:new THREE.Vector3(),drag:null,spot:new THREE.Vector3(),three:false,
+    level:1,nextJump:2};
 
   gIval(()=>{ if(hp.over)return;
     hp.time--;const el=$('#hptime');if(el)el.textContent=hp.time;
@@ -2088,6 +2122,14 @@ function hpBoot(){
     spotRing.material.color.set(hp.three?0xff8c1a:0xffe14d);
     const l=$('#hpspotlbl');
     if(l){l.textContent=hp.three?'3PT':'2PT';l.classList.toggle('deep',hp.three)}
+    // defender guards the lane on level 2+
+    defender.visible=hp.level>=2;
+    if(defender.visible){
+      const toward=new THREE.Vector3(hoopGrp.position.x,0,RIMZ).sub(hp.spot).multiplyScalar(0.4);
+      defender.position.set(hp.spot.x+toward.x,0,hp.spot.z+toward.z);
+      defender.lookAt(hp.spot.x,1.5,hp.spot.z);
+      hp.nextJump=1+Math.random()*2;
+    }
   }
   newSpot();
 
@@ -2101,7 +2143,7 @@ function hpBoot(){
   const GRAV=0.0058;
   function calcShot(dx,dy){
     // gentler power curve: full power at a ~230px drag, hard cap 1.0
-    const toHoop=new THREE.Vector3(0,0,RIMZ).sub(hp.pos);toHoop.y=0;
+    const toHoop=new THREE.Vector3(hoopGrp.position.x,0,RIMZ).sub(hp.pos);toHoop.y=0;
     const d=toHoop.length();toHoop.normalize();
     const power=Math.min(1,Math.hypot(dx,dy)/230);
     const v=new THREE.Vector3();
@@ -2144,18 +2186,60 @@ function hpBoot(){
     if(!document.body.contains(el)){renderer.dispose();return}
     t+=0.06;
     spotRing.scale.setScalar(1+Math.sin(t*2)*0.08);
+    // level 2+: the hoop slides; level 3+: rim shifts colors
+    if(hp.level>=2){
+      const amp=Math.min(4.5,1.2+(hp.level-2)*0.9), spd=0.5+hp.level*0.12;
+      hoopGrp.position.x=Math.sin(t*spd)*amp;
+    }
+    if(hp.level>=3)rim.material.color.setHSL((t*0.11)%1,1,0.55);
+    const hoopX=hoopGrp.position.x;
+    // defender jumps
+    if(defender.visible){
+      hp.nextJump-=0.016;
+      if(hp.nextJump<=0)hp.nextJump=Math.max(0.7,2.4-hp.level*0.25)+Math.random();
+      const jphase=Math.max(0,1-Math.abs(hp.nextJump-0.5)*3);
+      defender.position.y=jphase*Math.min(2.2,0.9+hp.level*0.18);
+      dArmL.rotation.z=0.4+jphase*2.2;dArmR.rotation.z=-0.4-jphase*2.2;
+      if(hp.flying&&!hp.scored){
+        const dd=hp.pos.clone().sub(defender.position);
+        if(Math.abs(dd.x)<0.7&&Math.abs(dd.z)<0.5&&hp.pos.y>defender.position.y+0.3&&hp.pos.y<defender.position.y+3.4){
+          hp.vel.z*=-0.55;hp.vel.x+=(Math.random()-.5)*0.05;hp.vel.y*=0.4;hp.touched=true;
+          sndBad();defender.position.y+=0.1;
+        }
+      }
+    }
+    // wild animals invade on level 3+
+    if(hp.level>=3&&Math.random()<0.004&&critters.length<3){
+      const bird=hp.level>=4&&Math.random()<0.5;
+      const c=bird?pigeonMesh():raccoonMesh();
+      const dir=Math.random()<0.5?1:-1;
+      c.position.set(-dir*13, bird?2.6+Math.random()*0.8:0, RIMZ+3+Math.random()*8);
+      c.rotation.y=dir>0?0:Math.PI;
+      c.userData.vx=dir*(bird?0.11:0.06)*(1+hp.level*0.08);
+      scene.add(c);critters.push(c);
+    }
+    for(const c of [...critters]){
+      c.position.x+=c.userData.vx;
+      if(c.userData.wings){c.userData.wings.forEach((w,i)=>w.rotation.x=Math.sin(t*10)*(i?1:-1)*0.8)}
+      else c.rotation.z=Math.sin(t*8)*0.08;
+      if(hp.flying&&!hp.scored&&c.position.distanceTo(hp.pos)<0.75){
+        hp.vel.x+=Math.sign(c.userData.vx)*0.06;hp.vel.z*=-0.4;hp.touched=true;
+        sfxTone(500,0.1,'square',0.14);c.position.y+=0.15;
+      }
+      if(Math.abs(c.position.x)>13.5){scene.remove(c);critters=critters.filter(z=>z!==c)}
+    }
     if(hp.flying&&!hp.over){
       hp.vel.y-=0.0058;
       hp.pos.add(hp.vel);
       ball.rotation.x-=hp.vel.length()*1.6;
       // backboard
-      if(hp.pos.z<RIMZ-0.55&&hp.pos.z>RIMZ-0.75&&hp.pos.y>RIMY-0.2&&hp.pos.y<RIMY+1.6&&Math.abs(hp.pos.x)<1.3){
+      if(hp.pos.z<RIMZ-0.55&&hp.pos.z>RIMZ-0.75&&hp.pos.y>RIMY-0.2&&hp.pos.y<RIMY+1.6&&Math.abs(hp.pos.x-hoopX)<1.3){
         hp.vel.z*=-0.5;hp.pos.z=RIMZ-0.55;hp.touched=true;sfxTone(150,0.06,'square',0.12);
       }
       // rim edge
-      const flat=Math.hypot(hp.pos.x,hp.pos.z-RIMZ);
+      const flat=Math.hypot(hp.pos.x-hoopX,hp.pos.z-RIMZ);
       if(Math.abs(hp.pos.y-RIMY)<0.14&&Math.abs(flat-RIMR)<0.14&&!hp.scored){
-        const nx=hp.pos.x/flat, nz=(hp.pos.z-RIMZ)/flat;
+        const nx=(hp.pos.x-hoopX)/flat, nz=(hp.pos.z-RIMZ)/flat;
         const dot=hp.vel.x*nx+hp.vel.z*nz;
         hp.vel.x-=1.4*dot*nx;hp.vel.z-=1.4*dot*nz;hp.vel.y*=0.4;
         hp.touched=true;sfxTone(210,0.05,'square',0.14);
@@ -2166,6 +2250,9 @@ function hpBoot(){
         const pts=(hp.three?3:2)*(hp.fire?2:1)+(hp.touched?0:1);
         hp.score+=pts;hp.streak++;
         const se=$('#hpscore');if(se)se.textContent=hp.score;
+        const lvl=1+Math.floor(hp.score/15);
+        if(lvl>hp.level){hp.level=lvl;const le=$('#hplvl');if(le)le.textContent='LVL '+lvl;
+          burst('storm');sndWin()}
         net.scale.set(1.25,1.35,1.25);setTimeout(()=>net.scale.set(1,1,1),260);
         if(!hp.touched)sfxTone(720,0.24,'triangle',0.22,0,1350);
         sndBlast(1);burst('pop');
@@ -2190,7 +2277,7 @@ function hpBoot(){
     // camera: over the shoulder behind the ball spot, looking at the rim
     const back=new THREE.Vector3(hp.spot.x*1.18,2.6,hp.spot.z+((hp.spot.z-RIMZ)*0.32+2.4));
     cam.position.lerp(back,0.07);
-    cam.lookAt(0,RIMY-0.4,RIMZ);
+    cam.lookAt(hoopGrp.position.x*0.6,RIMY-0.4,RIMZ);
     renderer.render(scene,cam);
     __raf=requestAnimationFrame(loop);
   };
