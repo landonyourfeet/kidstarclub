@@ -1,0 +1,15 @@
+// lib/views.js — CAP'S ZONE.
+// This file is owned by Cap and is NEVER modified or regressed by Claude in any
+// future drop-in update. Edit the increment below however you want; every other
+// file can be replaced wholesale and this logic survives.
+//
+// Called once per real play event (video page play).
+
+async function countView(pool, videoId) {
+  const { rows: [v] } = await pool.query(
+    `UPDATE videos SET views = views + 1 WHERE id=$1 AND status='live' RETURNING views`,
+    [videoId]);
+  return v?.views ?? 0;
+}
+
+module.exports = { countView };
