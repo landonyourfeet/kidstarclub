@@ -2006,7 +2006,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Fetch bones 🦴 — but watch out for CHOMPY 👾! He eats your bones if he catches you. Hide in a clubhouse or hop in a car 🚗!</p>
+    <p class="sbhint">Play together — club friends in Starville appear in YOUR world! 🧑‍🤝‍🧑 Fetch bones 🦴, dodge the CHOMPY pack 👾 (they eat ALL your bones — and more keep coming!), hide in clubhouses or cars 🚗!</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2358,15 +2358,29 @@ function ppBoot(){
       g.userData.jaws={jawTop,jawBot};
       return g;
     }
-    const chomper=buildChomper();
-    chomper.position.set(B-14,0,-B+14);scene.add(chomper);
-    const chomp={mesh:chomper,cool:0,speed:0.145};
+    const chompers=[];
+    function spawnChomper(announce){
+      const m=buildChomper();
+      // spawn far from the hero
+      const px=player?player.position.x:0, pz=player?player.position.z:0;
+      m.position.set(px>0?-B+12:B-12,0,pz>0?-B+12:B-12);
+      scene.add(m);
+      chompers.push({mesh:m,cool:announce?2:0,speed:0.145});
+      if(announce){
+        sndBad();
+        const popEl=document.createElement('div');popEl.className='chomppop';
+        popEl.style.color='#b45cff';
+        popEl.textContent='ANOTHER CHOMPY APPEARED! 👾';
+        wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+      }
+    }
 
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
     const player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75))||ppBlocky(ppCfg());
     player.position.set(-20,0,10);scene.add(player);
     ppAnim(player,A_IDLE);
+    spawnChomper(false);
     let buddy=ppSpawn(assets,PP_MODELS.shiba,0.85);
     if(buddy){buddy.position.set(-18,0,12);scene.add(buddy);ppAnim(buddy,A_IDLE)}
     // wildlife: deer, fox, husky roam the park
@@ -2520,6 +2534,48 @@ function ppBoot(){
       }catch(e){}
     };
 
+    // ---- multiplayer presence: everyone in Starville sees each other ----
+    const others=new Map(); // id -> {root,label,tx,tz,try,seen,moving}
+    function nameSprite(txt){
+      const cv=document.createElement('canvas');cv.width=256;cv.height=64;
+      const g2=cv.getContext('2d');
+      g2.font='900 34px Baloo 2, sans-serif';g2.textAlign='center';
+      g2.lineWidth=8;g2.strokeStyle='rgba(13,2,16,.85)';
+      g2.strokeText(txt,128,44);g2.fillStyle='#fff';g2.fillText(txt,128,44);
+      const tex=new THREE.CanvasTexture(cv);tex.encoding=THREE.sRGBEncoding;
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false}));
+      sp.scale.set(2.6,.65,1);sp.position.y=2.6;
+      return sp;
+    }
+    function upsertOther(o){
+      let rec=others.get(o.id);
+      if(!rec){
+        const cfg={body:'girl',skin:PP_SKINS[0],hairstyle:'buns',hair:'#f5f0e8',top:'#fff0f4',bottom:'#f3c9d8',...(o.cfg||{})};
+        let root=null;
+        const h=PP_HEROES[o.hero];
+        if(h&&!h.blocky&&assets[h.file])root=ppSpawn(assets,h.file,h.file.includes('ShibaInu')?1.0:1.75);
+        if(!root)root=ppBlocky(cfg);
+        root.add(nameSprite(o.name||'Star'));
+        root.position.set(o.x,0,o.z);
+        scene.add(root);ppAnim(root,A_IDLE);
+        rec={root,tx:o.x,tz:o.z,try:o.ry,seen:Date.now(),moving:false};
+        others.set(o.id,rec);
+      }
+      rec.moving=Math.hypot(o.x-rec.tx,o.z-rec.tz)>0.05;
+      rec.tx=o.x;rec.tz=o.z;rec.try=o.ry;rec.seen=Date.now();
+    }
+    gIval(async()=>{
+      try{
+        const r=await api('/api/park/pos',{method:'POST',body:{
+          x:player.position.x,z:player.position.z,ry:player.rotation.y,
+          hero:ppHero(),cfg:ppCfg()}});
+        const alive=new Set();
+        for(const o of (r.others||[])){alive.add(o.id);upsertOther(o)}
+        for(const [id,rec] of others)
+          if(!alive.has(id)&&Date.now()-rec.seen>8000){scene.remove(rec.root);others.delete(id)}
+      }catch(e){}
+    },800);
+
     const clock=new THREE.Clock();
     let t=0;
     const loop=()=>{
@@ -2602,8 +2658,11 @@ function ppBoot(){
         }
         w.mesh.userData.mixer?.update(dt);
       }
-      // CHOMPY hunts your bones — hide in a clubhouse or hop in a car!
+      // the CHOMPY pack hunts your bones — hide in a clubhouse or hop in a car!
       if(!pp.over&&!pp.chatting){
+        pp.chompT=(pp.chompT||0)+dt;
+        if(pp.chompT>30&&chompers.length<4){pp.chompT=0;spawnChomper(true)}
+        for(const chomp of chompers){
         chomp.cool=Math.max(0,chomp.cool-dt);
         const cd=player.position.clone().sub(chomp.mesh.position);cd.y=0;
         const dist=cd.length();
@@ -2620,19 +2679,19 @@ function ppBoot(){
         chomp.mesh.position.y=hop;
         if(dist<1.9&&!pp.driving&&chomp.cool<=0){
           chomp.cool=4;
-          const loss=Math.min(30,pp.score);
-          pp.score-=loss;const se=$('#ppscore');if(se)se.textContent=pp.score;
+          const loss=pp.score; // he eats EVERYTHING
+          pp.score=0;const se=$('#ppscore');if(se)se.textContent=0;
           sndBad();
           const fl=document.createElement('div');fl.className='chompflash';
           wrap.appendChild(fl);setTimeout(()=>fl.remove(),650);
           const popEl=document.createElement('div');popEl.className='chomppop';
-          popEl.textContent='CHOMP! -'+loss+' 🦴';
+          popEl.textContent=loss>0?'CHOMP! ATE ALL '+loss+' BONES! 🦴':'CHOMP!! 👾';
           wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
-          // knock the hero clear + monster slinks off
           tryMove(player,-cd.x*4,-cd.z*4,.45);
           chomp.mesh.position.set(player.position.x+cd.x*-30,0,player.position.z+cd.z*-30);
           chomp.mesh.position.x=Math.max(-B+4,Math.min(B-4,chomp.mesh.position.x));
           chomp.mesh.position.z=Math.max(-B+4,Math.min(B-4,chomp.mesh.position.z));
+        }
         }
       }
       // clubhouse roofs lift when you're inside
@@ -2695,6 +2754,16 @@ function ppBoot(){
           pp.score+=10;const se=$('#ppscore');if(se)se.textContent=pp.score;
           sndDrop();burst('pop');placeBone(b);
         }
+      }
+      for(const rec of others.values()){
+        const r2=rec.root;
+        r2.position.x+=(rec.tx-r2.position.x)*Math.min(1,dt*6);
+        r2.position.z+=(rec.tz-r2.position.z)*Math.min(1,dt*6);
+        let da=((rec.try-r2.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;
+        r2.rotation.y+=da*Math.min(1,dt*8);
+        const mv=Math.hypot(rec.tx-r2.position.x,rec.tz-r2.position.z)>0.12;
+        ppAnim(r2,mv?A_WALK:A_IDLE);
+        r2.userData.mixer?.update(dt);ppBlockyUpdate(r2,dt);
       }
       player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
       buddy?.userData.mixer?.update(dt);
