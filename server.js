@@ -641,7 +641,8 @@ app.post('/api/park/pos', requireUser, (req, res) => {
     name:(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30),
     x:num(b.x), z:num(b.z), ry:Number(b.ry)||0,
     score:Math.max(0,Math.min(999999,parseInt(b.score,10)||0)),
-    fly:!!b.fly,
+    mode:['walk','car','heli','dino'].includes(b.mode)?b.mode:'walk',
+    y:Math.max(0,Math.min(80,parseFloat(b.y)||0)),
     hero:String(b.hero||'custom').slice(0,20), cfg:safeCfg, ts:Date.now(),
   });
   const now=Date.now(), others=[];
@@ -670,20 +671,55 @@ app.get('/api/chat/mymentions', requireUser, async (req, res) => {
 // ---------- Bone Shop: banked bones buy skins, pets, powers ----------
 const PARK_SHOP = {
   // skins (style the custom blocky kid)
-  skin_gold:   {kind:'skin', name:'Golden Kid',  emoji:'🏆', cost:300},
-  skin_galaxy: {kind:'skin', name:'Galaxy Kid',  emoji:'🌌', cost:400},
-  skin_neon:   {kind:'skin', name:'Neon Glow',   emoji:'💚', cost:350},
+  skin_gold:   {kind:'skin', name:'Golden Kid',   emoji:'🏆', cost:300},
+  skin_galaxy: {kind:'skin', name:'Galaxy Kid',   emoji:'🌌', cost:400},
+  skin_neon:   {kind:'skin', name:'Neon Glow',    emoji:'💚', cost:350},
+  skin_lava:   {kind:'skin', name:'Lava Kid',     emoji:'🌋', cost:380},
+  skin_ice:    {kind:'skin', name:'Ice Kid',      emoji:'🧊', cost:380},
+  skin_ninja:  {kind:'skin', name:'Shadow Ninja', emoji:'🥷', cost:450},
+  skin_bubble: {kind:'skin', name:'Bubblegum',    emoji:'🍬', cost:320},
+  skin_chrome: {kind:'skin', name:'Chrome Bot',   emoji:'🤖', cost:500},
+  skin_sunset: {kind:'skin', name:'Sunset Kid',   emoji:'🌇', cost:340},
+  skin_slime:  {kind:'skin', name:'Toxic Slime',  emoji:'🧪', cost:360},
   // pets (your sidekick — replaces the default Shiba)
-  pet_fox:     {kind:'pet',  name:'Fox Friend',  emoji:'🦊', cost:250},
-  pet_husky:   {kind:'pet',  name:'Husky Pal',   emoji:'🐕', cost:250},
-  pet_deer:    {kind:'pet',  name:'Deer Buddy',  emoji:'🦌', cost:300},
-  pet_wolf:    {kind:'pet',  name:'Wolf Pack',   emoji:'🐺', cost:400},
+  pet_fox:     {kind:'pet',  name:'Fox Friend',   emoji:'🦊', cost:250},
+  pet_husky:   {kind:'pet',  name:'Husky Pal',    emoji:'🐕', cost:250},
+  pet_deer:    {kind:'pet',  name:'Deer Buddy',   emoji:'🦌', cost:300},
+  pet_wolf:    {kind:'pet',  name:'Wolf Pack',    emoji:'🐺', cost:400},
+  pet_horse:   {kind:'pet',  name:'Pony Pal',     emoji:'🐴', cost:450},
+  pet_cow:     {kind:'pet',  name:'Moo Crew',     emoji:'🐮', cost:350},
+  pet_alpaca:  {kind:'pet',  name:'Alpaca Amigo', emoji:'🦙', cost:400},
+  pet_donkey:  {kind:'pet',  name:'Disco Donkey', emoji:'🫏', cost:320},
+  pet_stag:    {kind:'pet',  name:'Royal Stag',   emoji:'👑', cost:500},
   // powers (one equipped at a time)
-  pw_speed:    {kind:'power',name:'Speed Boost', emoji:'🏃', cost:400, blurb:'+25% run speed'},
-  pw_shield:   {kind:'power',name:'Star Shield', emoji:'🛡️', cost:500, blurb:'Chompy bites only take HALF your Star Bucks'},
-  pw_magnet:   {kind:'power',name:'Star Magnet', emoji:'🧲', cost:450, blurb:'Grab stars from twice as far'},
-  pw_boots:    {kind:'power',name:'Moon Boots',  emoji:'🌙', cost:350, blurb:'Super high jumps'},
+  pw_speed:    {kind:'power',name:'Speed Boost',  emoji:'🏃', cost:400, blurb:'+25% run speed'},
+  pw_shield:   {kind:'power',name:'Star Shield',  emoji:'🛡️', cost:500, blurb:'Chompy bites only take HALF your Star Bucks'},
+  pw_magnet:   {kind:'power',name:'Star Magnet',  emoji:'🧲', cost:450, blurb:'Grab stars from twice as far'},
+  pw_boots:    {kind:'power',name:'Moon Boots',   emoji:'🌙', cost:350, blurb:'Super high jumps'},
+  pw_star15:   {kind:'power',name:'Lucky Stars',  emoji:'🍀', cost:550, blurb:'Every star is worth 15 instead of 10'},
+  pw_slowjaws: {kind:'power',name:'Chompy Chill', emoji:'🧊', cost:480, blurb:'Chompies chase 20% slower'},
+  pw_megaluck: {kind:'power',name:'Mega Luck',    emoji:'💜', cost:420, blurb:'MEGA STARS appear twice as often'},
+  pw_cool:     {kind:'power',name:'Turbo Cooler', emoji:'❄️', cost:300, blurb:'Car engines heat up half as fast'},
 };
+// 🗓️ daily rotation: ~70% of the catalog is in stock, reshuffled every day
+function shopStock(dateStr){
+  let h=0;
+  for(const ch of dateStr)h=(h*31+ch.charCodeAt(0))>>>0;
+  const rnd=()=>{h=(h*1664525+1013904223)>>>0;return h/4294967296};
+  const ids=Object.keys(PARK_SHOP);
+  for(let i=ids.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[ids[i],ids[j]]=[ids[j],ids[i]]}
+  const take=Math.ceil(ids.length*0.7);
+  const stock=new Set(ids.slice(0,take));
+  // guarantee at least one of each kind on the shelf
+  for(const kind of ['skin','pet','power'])
+    if(![...stock].some(id=>PARK_SHOP[id].kind===kind))
+      stock.add(ids.find(id=>PARK_SHOP[id].kind===kind));
+  return stock;
+}
+function dayKey(offset=0){
+  const d=new Date(Date.now()+offset*86400000);
+  return d.toISOString().slice(0,10);
+}
 async function parkBalance(uid){
   const {rows:[e]} = await pool.query(
     `SELECT COALESCE(SUM(score),0)::int AS earned FROM game_scores WHERE user_id=$1 AND game='puppy'`,[uid]);
@@ -694,12 +730,21 @@ async function parkBalance(uid){
 app.get('/api/park/shop', requireUser, async (req, res) => {
   const balance = await parkBalance(req.user.id);
   const {rows} = await pool.query(`SELECT item FROM park_purchases WHERE user_id=$1`,[req.user.id]);
-  res.json({balance, owned: rows.map(r=>r.item), catalog: PARK_SHOP});
+  const owned = rows.map(r=>r.item);
+  const today=shopStock(dayKey()), yesterday=shopStock(dayKey(-1));
+  const catalog={};
+  for(const [id,def] of Object.entries(PARK_SHOP)){
+    if(!today.has(id)&&!owned.includes(id))continue; // out of stock today (owned items always show)
+    catalog[id]={...def, fresh: today.has(id)&&!yesterday.has(id), stocked: today.has(id)};
+  }
+  res.json({balance, owned, catalog});
 });
 app.post('/api/park/buy', requireUser, async (req, res) => {
   const item = String(req.body?.item||'');
   const def = PARK_SHOP[item];
   if(!def) return res.status(400).json({error:'No such item'});
+  if(!shopStock(dayKey()).has(item))
+    return res.status(400).json({error:'Not in stock today — check back tomorrow! 🗓️'});
   const {rows:owned} = await pool.query(
     `SELECT 1 FROM park_purchases WHERE user_id=$1 AND item=$2`,[req.user.id,item]);
   if(owned.length) return res.status(400).json({error:'Already owned'});
