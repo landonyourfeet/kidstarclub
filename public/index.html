@@ -2410,8 +2410,11 @@ function ppBoot(){
   scene.add(sun,new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9),new THREE.AmbientLight(0xffffff,0.1));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
   const B=100, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  const MTN={R:26,P:6,H:12}; // kingdom mountain: rim radius, plateau radius, plateau height
   function groundAt(x,z){
     let g=0;
+    const d=Math.hypot(x,z);
+    if(d<MTN.R)g=d<MTN.P?MTN.H:MTN.H*(1-(d-MTN.P)/(MTN.R-MTN.P));
     for(const r of ROOFS)
       if(Math.abs(x-r.x)<r.hw&&Math.abs(z-r.z)<r.hd&&r.h>g)g=r.h;
     return g;
@@ -2458,7 +2461,7 @@ function ppBoot(){
     const put=(key,x,z,h,ry=0,collide=0,blockH=999)=>{
       const o=ppSpawn(assets,PP_MODELS[key],h);
       if(!o)return null;
-      o.position.set(x,0,z);o.rotation.y=ry;scene.add(o);
+      o.position.set(x,groundAt(x,z),z);o.rotation.y=ry;scene.add(o);
       if(collide)COLL.push({x,z,hw:collide,hd:collide,h:blockH});
       return o;
     };
@@ -2515,6 +2518,77 @@ function ppBoot(){
     clubhouse(-34,58,1,0xa8d8ff,0x3a5a8a);
     clubhouse(4,60,-1,0xffe6a8,0x6a8a3a);
 
+    // ---- 👑 STARVILLE KINGDOM: mountain, castle, and the great star ----
+    {
+      const slope=new THREE.Mesh(
+        new THREE.CylinderGeometry(MTN.P,MTN.R,MTN.H,28,1,true),
+        new THREE.MeshLambertMaterial({map:grassTex}));
+      slope.position.y=MTN.H/2;scene.add(slope);slope.receiveShadow=true;
+      const cap=new THREE.Mesh(new THREE.CircleGeometry(MTN.P,24),mat(0x9a9aa8));
+      cap.rotation.x=-Math.PI/2;cap.position.y=MTN.H+.02;scene.add(cap);
+      const stone=new THREE.MeshLambertMaterial({color:new THREE.Color(0xc9c9d4)});
+      stone.color.convertSRGBToLinear();
+      const roofM=new THREE.MeshLambertMaterial({color:new THREE.Color(0xe20074)});
+      roofM.color.convertSRGBToLinear();
+      const bY=MTN.H;
+      const tower=(tx,tz,r,h)=>{
+        const tw=new THREE.Mesh(new THREE.CylinderGeometry(r,r*1.12,h,10),stone);
+        tw.position.set(tx,bY+h/2,tz);tw.castShadow=true;scene.add(tw);
+        const rf=new THREE.Mesh(new THREE.ConeGeometry(r*1.35,r*2,10),roofM);
+        rf.position.set(tx,bY+h+r,tz);rf.castShadow=true;scene.add(rf);
+        COLL.push({x:tx,z:tz,hw:r+.2,hd:r+.2,h:bY+h});
+      };
+      const wall=(wx,wz,w,d)=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,2.6,d),stone);
+        m.position.set(wx,bY+1.3,wz);m.castShadow=true;scene.add(m);
+        COLL.push({x:wx,z:wz,hw:w/2,hd:d/2,h:bY+2.6});
+      };
+      const W=4.4; // courtyard half-size
+      tower(-W,-W,1,4.2);tower(W,-W,1,4.2);tower(-W,W,1,4.2);tower(W,W,1,4.2);
+      wall(0,-W,W*2-1.4,.5);           // back wall
+      wall(-W,0,.5,W*2-1.4);wall(W,0,.5,W*2-1.4); // sides
+      wall(-2.7,W,2.2,.5);wall(2.7,W,2.2,.5);     // gate faces the road — walk right in
+      // the keep + banner
+      const keep=new THREE.Mesh(new THREE.CylinderGeometry(1.7,2,6.5,12),stone);
+      keep.position.set(0,bY+3.25,0);keep.castShadow=true;scene.add(keep);
+      const keepRoof=new THREE.Mesh(new THREE.ConeGeometry(2.3,2.6,12),roofM);
+      keepRoof.position.set(0,bY+7.7,0);keepRoof.castShadow=true;scene.add(keepRoof);
+      COLL.push({x:0,z:0,hw:2,hd:2,h:bY+6.5});
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2.4,6),stone);
+      pole.position.set(0,bY+10.1,0);scene.add(pole);
+      const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.8),
+        new THREE.MeshBasicMaterial({color:0xe20074,side:THREE.DoubleSide}));
+      flag.position.set(.75,bY+10.9,0);scene.add(flag);
+      // ⭐ THE GREAT STAR — golden beacon over the kingdom
+      const shape=new THREE.Shape();
+      for(let i=0;i<10;i++){
+        const r=i%2?0.42:1, an=i*Math.PI/5-Math.PI/2;
+        i?shape.lineTo(Math.cos(an)*r,Math.sin(an)*r):shape.moveTo(Math.cos(an)*r,Math.sin(an)*r);
+      }
+      shape.closePath();
+      const sgeo=new THREE.ExtrudeGeometry(shape,{depth:.3,bevelEnabled:false});
+      sgeo.center();
+      window.__svStar=new THREE.Mesh(sgeo,
+        new THREE.MeshPhongMaterial({color:0xffd24a,emissive:0xcc9900,emissiveIntensity:.9,shininess:100}));
+      __svStar.scale.setScalar(5.5);
+      __svStar.position.set(0,bY+18,0);
+      scene.add(__svStar);
+      const glow=new THREE.PointLight(0xffd24a,1.4,90);
+      glow.position.set(0,bY+18,0);scene.add(glow);
+      // "StarVille!" floats beneath the star, always facing you
+      const cv=document.createElement('canvas');cv.width=1024;cv.height=224;
+      const g2=cv.getContext('2d');
+      g2.font='900 150px Baloo 2, Arial Black, sans-serif';
+      g2.textAlign='center';g2.textBaseline='middle';
+      g2.lineWidth=22;g2.strokeStyle='#0d0210';g2.strokeText('StarVille!',512,112);
+      g2.fillStyle='#ff2ec4';g2.fillText('StarVille!',512,112);
+      const ttex=new THREE.CanvasTexture(cv);ttex.encoding=THREE.sRGBEncoding;
+      const label=new THREE.Sprite(new THREE.SpriteMaterial({map:ttex,depthTest:false}));
+      label.scale.set(20,4.4,1);
+      label.position.set(0,bY+13.6,0);
+      scene.add(label);
+    }
+
     // cars (drivable)
     const cars=[];
     function makeCar(x,z,c){
@@ -2537,7 +2611,7 @@ function ppBoot(){
 
     // 🦖 Ziggy the rideable raptor
     const dino=ppSpawn(assets,PP_MODELS.dino,2.1);
-    if(dino){dino.position.set(-8,0,-14);scene.add(dino);ppAnim(dino,A_IDLE)}
+    if(dino){dino.position.set(-32,0,-20);scene.add(dino);ppAnim(dino,A_IDLE)}
 
     // 🚁 helicopters with momentum flight
     const helis=[];
@@ -2664,7 +2738,8 @@ function ppBoot(){
         new THREE.MeshBasicMaterial({color:0x45d8ff}));
       ring.rotation.x=Math.PI/2;ring.position.y=.1;
       g.add(gun,ring);
-      g.position.set((Math.random()-.5)*B*1.7,0,(Math.random()-.5)*B*1.7);
+      const bx=(Math.random()-.5)*B*1.7,bz=(Math.random()-.5)*B*1.7;
+      g.position.set(bx,groundAt(bx,bz),bz);
       scene.add(g);blasters.push(g);
     }
     const bolts=[];
@@ -2711,7 +2786,8 @@ function ppBoot(){
       const g=boneMesh();g.scale.setScalar(1.7);
       const m=new THREE.MeshPhongMaterial({color:0xb45cff,emissive:0x5a0a8a,shininess:60});
       g.traverse(o=>{if(o.isMesh)o.material=m});
-      g.position.set((Math.random()-.5)*B*1.7,1.1,(Math.random()-.5)*B*1.7);
+      const mx2=(Math.random()-.5)*B*1.7,mz2=(Math.random()-.5)*B*1.7;
+      g.position.set(mx2,1.1+groundAt(mx2,mz2),mz2);
       scene.add(g);
       mega.mesh=g;mega.mat=m;mega.until=performance.now()+12000;
     }
@@ -2734,7 +2810,7 @@ function ppBoot(){
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
     const player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75))||ppBlocky(ppCfg());
-    player.position.set(-20,0,10);scene.add(player);
+    player.position.set(-36,0,16);scene.add(player);
     ppAnim(player,A_IDLE);
     spawnChomper(false);
     const petKey=PP_PETFILE[ppEquip().pet];
@@ -2777,7 +2853,7 @@ function ppBoot(){
       const g=new THREE.Group();g.add(m);
       return g;
     }
-    function placeBone(b){b.position.set((Math.random()-.5)*B*1.8,0.9,(Math.random()-.5)*B*1.8)}
+    function placeBone(b){const bx=(Math.random()-.5)*B*1.8,bz=(Math.random()-.5)*B*1.8;b.position.set(bx,0.9+groundAt(bx,bz),bz)}
     for(let i=0;i<26;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
 
     const POWER=ppEquip().power||null;
@@ -3081,6 +3157,7 @@ function ppBoot(){
       const dt=Math.min(0.05,clock.getDelta());
       t+=dt*4.8;
       for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>170)cl.position.x=-170}
+      if(window.__svStar)__svStar.rotation.y+=dt*0.5;
       let vx=pp.vel.x,vz=pp.vel.y;
       const look=keys.Shift; // Shift + arrows orbits the camera around the hero
       if(look){
@@ -3144,6 +3221,7 @@ function ppBoot(){
           const dz=Math.cos(car.mesh.rotation.y)*car.speed;
           if(!tryMove(car.mesh,dx,dz,1.3))car.speed*=-0.3;
           car.wheels.forEach(w=>w.rotation.x+=car.speed*0.9);
+          car.mesh.position.y=groundAt(car.mesh.position.x,car.mesh.position.z);
           }
         }
         if(pp.driving){player.position.copy(pp.driving.mesh.position);player.visible=false}
@@ -3232,6 +3310,7 @@ function ppBoot(){
         if(d>0.4){
           bd.normalize();
           buddy.position.x+=bd.x*Math.min(d,0.3);buddy.position.z+=bd.z*Math.min(d,0.3);
+          buddy.position.y=groundAt(buddy.position.x,buddy.position.z);
           buddy.rotation.y=Math.atan2(bd.x,bd.z);
           ppAnim(buddy,d>3?A_RUN:A_WALK);
         }else ppAnim(buddy,A_IDLE);
@@ -3252,6 +3331,7 @@ function ppBoot(){
         }else{
           d.normalize();
           if(!tryMove(w.mesh,d.x*0.09,d.z*0.09,.5))w.target.set(-B+10+Math.random()*80,0,(Math.random()-.5)*B*1.6);
+          w.mesh.position.y=groundAt(w.mesh.position.x,w.mesh.position.z);
           w.mesh.rotation.y=Math.atan2(d.x,d.z);
           ppAnim(w.mesh,w.shy&&near<8?A_RUN:A_WALK);
         }
@@ -3356,7 +3436,7 @@ function ppBoot(){
         const j=chomp.mesh.userData.jaws, bite=Math.max(0,Math.sin(t*4))*(dist<10?.5:.28);
         j.jawTop.rotation.x=-bite;j.jawBot.rotation.x=bite;
         const hop=Math.abs(Math.sin(t*2.2))*.18;
-        chomp.mesh.position.y=hop;
+        chomp.mesh.position.y=hop+groundAt(chomp.mesh.position.x,chomp.mesh.position.z);
         if(dist<1.9&&!pp.driving&&!pp.flying&&chomp.cool<=0&&(pp.airH||0)<1.1){
           chomp.cool=4;
           const shielded=POWER==='pw_shield';
@@ -3394,6 +3474,7 @@ function ppBoot(){
           }else{
             d.normalize();
             if(!tryMove(n.mesh,d.x*0.1,d.z*0.1,.45))n.target.set((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5);
+            n.mesh.position.y=groundAt(n.mesh.position.x,n.mesh.position.z);
             n.mesh.rotation.y=Math.atan2(d.x,d.z);
             ppAnim(n.mesh,A_WALK);
           }
@@ -3483,7 +3564,8 @@ function ppBoot(){
         }
       }
       for(const b of bones){
-        b.rotation.y+=dt*2.4;b.position.y=0.9+Math.sin(t+b.position.x)*0.15;
+        b.rotation.y+=dt*2.4;
+        b.position.y=0.9+groundAt(b.position.x,b.position.z)+Math.sin(t+b.position.x)*0.15;
         if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<((pp.flying?3.2:pp.driving?2.6:1.9)*(POWER==='pw_magnet'?2:1))){
           pp.score+=10;const se=$('#ppscore');if(se)se.textContent=pp.score;
           sndCoin();burst('pop');placeBone(b);
@@ -3496,6 +3578,7 @@ function ppBoot(){
           const k=Math.min(1,(now-rec.t0)/rec.dur); // constant-velocity glide across the segment
           r2.position.x=rec.fx+(rec.tx-rec.fx)*k;
           r2.position.z=rec.fz+(rec.tz-rec.fz)*k;
+          r2.position.y=groundAt(r2.position.x,r2.position.z);
           let da=((rec.try-rec.fry+Math.PI*3)%(Math.PI*2))-Math.PI;
           r2.rotation.y=rec.fry+da*k;
           const speed=rec.seg/(rec.dur/1000); // units per second over this segment
