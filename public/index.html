@@ -2381,7 +2381,7 @@ function ppBoot(){
       }
       g.traverse(m=>m.castShadow=true);
       g.position.set(x,0,z);g.rotation.y=Math.PI/2*(Math.random()<.5?1:-1);
-      scene.add(g);cars.push({mesh:g,wheels,speed:0});
+      scene.add(g);cars.push({mesh:g,wheels,speed:0,heat:0,smT:0,smoke:[]});
     }
     makeCar(37,-32,0xff2ec4);makeCar(47,8,0x45d8ff);makeCar(37,44,0xffe14d);
 
@@ -2721,6 +2721,16 @@ function ppBoot(){
       if(pp.driving){
         const car=pp.driving;
         if(!pp.chatting){
+          car.heat+=dt;
+          if(car.heat>=60){ // engine's done — everybody out!
+            pp.driving=null;
+            player.position.set(car.mesh.position.x+2,0,car.mesh.position.z);
+            player.visible=true;car.speed=0;
+            sndBad();
+            const popEl=document.createElement('div');popEl.className='chomppop';
+            popEl.style.color='#aab2bd';popEl.textContent='💨 ENGINE OVERHEATED! Let it cool!';
+            wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1400);
+          }else{
           car.speed+=(-vz)*0.02;car.speed*=0.965;
           car.speed=Math.max(-0.35,Math.min(0.85,car.speed));
           car.mesh.rotation.y-=vx*0.045*Math.sign(car.speed||1)*Math.min(1,Math.abs(car.speed)*4);
@@ -2728,9 +2738,9 @@ function ppBoot(){
           const dz=Math.cos(car.mesh.rotation.y)*car.speed;
           if(!tryMove(car.mesh,dx,dz,1.3))car.speed*=-0.3;
           car.wheels.forEach(w=>w.rotation.x+=car.speed*0.9);
+          }
         }
-        player.position.copy(car.mesh.position);
-        player.visible=false;
+        if(pp.driving){player.position.copy(pp.driving.mesh.position);player.visible=false}
       }else if(mag>0.05&&!pp.chatting&&!pp.over){
         const af=pp.camYaw+Math.PI; // camera's forward
         const mx=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
@@ -2816,6 +2826,30 @@ function ppBoot(){
           ppAnim(w.mesh,w.shy&&near<8?A_RUN:A_WALK);
         }
         w.mesh.userData.mixer?.update(dt);
+      }
+      // engines: cool when parked, smoke when hot
+      for(const c of cars){
+        if(c!==pp.driving)c.heat=Math.max(0,c.heat-dt*0.9);
+        if(c.heat>40){
+          c.smT-=dt;
+          if(c.smT<=0){
+            c.smT=c.heat>55?0.08:0.2;
+            const puff=new THREE.Mesh(new THREE.SphereGeometry(.16+Math.random()*.14,7,7),
+              new THREE.MeshBasicMaterial({color:0x9aa2ad,transparent:true,opacity:.75}));
+            const hood=new THREE.Vector3(Math.sin(c.mesh.rotation.y)*1.1,0.9,Math.cos(c.mesh.rotation.y)*1.1);
+            puff.position.copy(c.mesh.position).add(hood);
+            puff.userData={vy:1.4+Math.random()*.8,vx:(Math.random()-.5)*.5,vz:(Math.random()-.5)*.5,life:1.2};
+            scene.add(puff);c.smoke.push(puff);
+          }
+        }
+        for(let i=c.smoke.length-1;i>=0;i--){
+          const pf=c.smoke[i], u=pf.userData;
+          u.life-=dt;
+          if(u.life<=0){scene.remove(pf);c.smoke.splice(i,1);continue}
+          pf.position.y+=u.vy*dt;pf.position.x+=u.vx*dt;pf.position.z+=u.vz*dt;
+          pf.scale.multiplyScalar(1+dt*1.6);
+          pf.material.opacity=u.life*.6;
+        }
       }
       // the CHOMPY pack hunts your bones — hide in a clubhouse or hop in a car!
       if(!pp.over&&!pp.chatting){
@@ -2910,8 +2944,13 @@ function ppBoot(){
           let nc=null,ncd=1e9;
           for(const c of cars){const d=c.mesh.position.distanceTo(player.position);if(d<ncd){ncd=d;nc=c}}
           if(nc&&ncd<3.5&&!pp.chatting){
-            db.textContent='🚗 Drive!';db.classList.remove('hide');
-            db.onclick=()=>{pp.driving=nc;sndDrop()};
+            if(nc.heat>30){
+              db.textContent='🔥 ENGINE COOLING…';db.classList.remove('hide');
+              db.onclick=null;
+            }else{
+              db.textContent='🚗 Drive!';db.classList.remove('hide');
+              db.onclick=()=>{pp.driving=nc;sndDrop()};
+            }
           }else db.classList.add('hide');
         }
       }
