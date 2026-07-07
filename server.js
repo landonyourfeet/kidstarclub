@@ -650,6 +650,22 @@ app.post('/api/park/pos', requireUser, (req, res) => {
   }
   res.json({others});
 });
+app.get('/api/chat/mymentions', requireUser, async (req, res) => {
+  const me='@'+String(req.user.display_name||'').toLowerCase();
+  if(me.length<3)return res.json({mention:null});
+  const { rows } = await pool.query(
+    `SELECT cm.id, cm.body, cm.created_at,
+       COALESCE(u.display_name||COALESCE(' '||u.badge,''), cs.name||' 🤖') AS from_name
+     FROM chat_messages cm
+     LEFT JOIN users u ON u.id=cm.user_id
+     LEFT JOIN cast_members cs ON cs.id=cm.cast_id
+     WHERE cm.status='visible' AND cm.created_at > now() - interval '20 minutes'
+       AND (cm.user_id IS DISTINCT FROM $1)
+       AND position($2 in lower(cm.body)) > 0
+     ORDER BY cm.id DESC LIMIT 1`, [req.user.id, me]);
+  const m=rows[0];
+  res.json({mention:m?{id:m.id,from:m.from_name,text:String(m.body).slice(0,90)}:null});
+});
 app.get('/api/park/who', requireUser, (req, res) => {
   const now=Date.now(), names=[];let me=false;
   for(const [id,p2] of parkPresence){
