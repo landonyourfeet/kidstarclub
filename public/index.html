@@ -2202,7 +2202,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-27';
+const SV_BUILD='SV-28';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2253,7 +2253,7 @@ function ppNew(){
       <div id="ppAmmo" class="ppammo hide">⚡ <b>3</b></div>
       <div id="ppMist" class="ppmist"></div>
       <div class="pphpwrap"><div id="ppHp"><i style="width:100%"></i></div></div>
-      <canvas id="ppMap" class="ppmap" width="132" height="132"></canvas>
+      <!-- minimap canvas is created in JS with inline styles -->
       <button id="ppDropJump" class="ppdropjump hide">🪂 JUMP!</button>
       <div id="ppChat" class="ppchat hide">
         <div class="ppchead"><span id="ppcName"></span><button class="act-mini" onclick="ppCloseChat()">✕</button></div>
@@ -4040,6 +4040,24 @@ function ppBoot(){
     }
     el.addEventListener('pointerdown',sndBoot);
     if(pp.dropping)$('#ppDropJump')?.classList.remove('hide'); // world's ready — NOW you can jump
+    { // build the minimap canvas in JS — inline !important styles beat every stylesheet
+      const old=document.getElementById('ppMap');if(old)old.remove();
+      const mc=document.createElement('canvas');
+      mc.id='ppMap';mc.width=132;mc.height=132;
+      const st=mc.style;
+      st.setProperty('position','absolute','important');
+      st.setProperty('bottom','74px','important');
+      st.setProperty('right','10px','important');
+      st.setProperty('width','132px','important');
+      st.setProperty('height','132px','important');
+      st.setProperty('z-index','40','important');
+      st.setProperty('display','block','important');
+      st.setProperty('pointer-events','none','important');
+      st.setProperty('border-radius','12px','important');
+      st.setProperty('border','2px solid rgba(255,255,255,.35)','important');
+      st.setProperty('background','rgba(7,7,26,.55)','important');
+      wrap.appendChild(mc);
+    }
     setTimeout(()=>window.__drawMap&&__drawMap(),50); // map appears immediately
     addEventListener('keydown',sndBoot,{once:false});
     let biteTick=0;
@@ -4759,7 +4777,7 @@ function ppBoot(){
       const fx2=Math.sin(player.rotation.y), fz2=Math.cos(player.rotation.y);
       const px2=player.position.x, pz2=player.position.z;
       const slope=(groundAt(px2+fx2*3,pz2+fz2*3)-groundAt(px2-fx2*3,pz2-fz2*3)); // rise over 6 units
-      const zb=pp.dropping?1.15:Math.min(2.3,Math.max(0,slope)*0.58); // banana ride gets a wide shot
+      const zb=pp.dropping?1.15:Math.min(1.5,Math.max(0,slope)*0.42); // moderate pull-back; the lifted camera does the rest
       pp.zoomBoost=(pp.zoomBoost||0)+(zb-(pp.zoomBoost||0))*Math.min(1,dt*3);
       if(pp.dropping&&!keys.Shift){
         pp.camPitch+=(0.42-pp.camPitch)*Math.min(1,dt*2);
@@ -4779,9 +4797,20 @@ function ppBoot(){
         player.position.x+Math.sin(pp.camYaw)*hor,
         player.position.y+r*Math.sin(pp.camPitch),
         player.position.z+Math.cos(pp.camYaw)*hor);
-      // never sink the camera into a hillside
+      // never sink the camera into a hillside…
       const camG=groundAt(target.x,target.z);
       if(target.y<camG+2.2)target.y=camG+2.2;
+      // …and never let a slope crest block the view: lift over terrain along the sightline
+      {
+        const lookY2=player.position.y+1.3;
+        for(const t5 of [0.3,0.55,0.8]){
+          const sx=target.x+(player.position.x-target.x)*t5;
+          const sz=target.z+(player.position.z-target.z)*t5;
+          const gS=groundAt(sx,sz)+1.5;
+          const need=(gS-lookY2*t5)/(1-t5);
+          if(need>target.y)target.y=need;
+        }
+      }
       dropUpdate(dt,vx,vz,mag);
       sun.position.set(player.position.x+30,52,player.position.z+18);
       sun.target.position.set(player.position.x,0,player.position.z);
@@ -4852,7 +4881,7 @@ function ppBoot(){
       worldEvents(dt);
       sndFrame(dt);
       cam.position.lerp(target,Math.min(1,dt*9)); // fast follow, framerate-independent
-      cam.lookAt(player.position.x,(pp.flying||pp.dropping||pp.skyfall)?player.position.y+1:1.3*z,player.position.z);
+      cam.lookAt(player.position.x,player.position.y+(pp.flying?1:1.3*z),player.position.z); // always track HIS height
       renderer.render(scene,cam);
       __raf=requestAnimationFrame(loop);
     };
