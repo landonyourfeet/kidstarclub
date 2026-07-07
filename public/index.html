@@ -224,6 +224,10 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   font-size:24px;cursor:pointer;border:3px solid #fff;box-shadow:0 4px 0 rgba(13,2,16,.5)}
 .ppjump{bottom:14px;left:12px;background:var(--cyan)}
 .ppbonk{bottom:14px;left:76px;background:#ff8c1a;animation:pillnudge 1s ease-in-out infinite}
+.ppshoot{bottom:14px;left:140px;background:var(--yellow)}
+.ppammo{position:absolute;top:62px;left:10px;z-index:6;font:900 13px var(--body);
+  color:#062030;background:var(--yellow);border:2px solid #fff;border-radius:999px;
+  padding:5px 12px;box-shadow:0 3px 10px rgba(255,225,77,.5)}
 .svscores{position:absolute;top:62px;right:10px;z-index:6;display:flex;flex-direction:column;
   gap:3px;pointer-events:none;max-width:46%}
 .svrow{font:800 11px var(--body);color:#fff;background:rgba(13,2,16,.62);
@@ -2084,6 +2088,8 @@ function ppNew(){
       <button id="ppDrive" class="pptalk ppdrive hide"></button>
       <button id="ppJump" class="ppact ppjump">🦘</button>
       <button id="ppBonk" class="ppact ppbonk hide">👊</button>
+      <button id="ppShoot" class="ppact ppshoot hide">⚡</button>
+      <div id="ppAmmo" class="ppammo hide">⚡ <b>3</b></div>
       <div id="ppChat" class="ppchat hide">
         <div class="ppchead"><span id="ppcName"></span><button class="act-mini" onclick="ppCloseChat()">✕</button></div>
         <div id="ppcMsgs" class="ppcmsgs"></div>
@@ -2091,7 +2097,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Fetch bones 🦴 & grab flashing 💜 MEGA BONES (+50)! Dodge or 👊 BONK the CHOMPY pack (Space = jump 🦘, B = bonk on desktop). Club friends appear in your world! 🧑‍🤝‍🧑</p>
+    <p class="sbhint">Fetch bones 🦴, grab 💜 MEGA BONES (+50) & find ⚡ STAR BLASTERS — 3 shots, zap a Chompy off the map for 2 minutes! Jump 🦘 (Space), Bonk 👊 (B), Shoot ⚡ (F). Friends appear in your world! 🧑‍🤝‍🧑</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2227,14 +2233,17 @@ function ppBlockyUpdate(ent,dt){
     return;
   }
   const speed=b.state==='run'?11:b.state==='walk'?7:0;
+  const armed=ent.userData.armed;
   if(speed){
     b.phase+=dt*speed;
     const sw2=Math.sin(b.phase)*(b.state==='run'?.95:.6);
     b.legL.rotation.x=sw2;b.legR.rotation.x=-sw2;
-    b.armL.rotation.x=-sw2*.9;b.armR.rotation.x=sw2*.9;
+    b.armL.rotation.x=-sw2*.9;
+    b.armR.rotation.x=armed?-1.35:sw2*.9; // blaster arm stays up
     b.body.position.y=Math.abs(Math.sin(b.phase))*.06;
   }else{
-    for(const l of [b.legL,b.legR,b.armL,b.armR])l.rotation.x*=.82;
+    for(const l of [b.legL,b.legR,b.armL])l.rotation.x*=.82;
+    b.armR.rotation.x=armed?-1.35:b.armR.rotation.x*.82;
     b.armL.rotation.z=.06+Math.sin(b.phase+=dt*1.6)*.03; // idle breathe
     b.armR.rotation.z=-.06-Math.sin(b.phase)*.03;
     b.body.position.y*=.8;
@@ -2450,10 +2459,64 @@ function ppBoot(){
       return g;
     }
     const chompers=[];
+    // ⚡ STAR BLASTER: neon toy raygun pickup — 3 star bolts, only works on Chompies
+    function blasterMesh(sc=1){
+      const g=new THREE.Group();
+      const body=new THREE.Mesh(new THREE.BoxGeometry(.5,.28,.16),
+        new THREE.MeshPhongMaterial({color:0x45d8ff,shininess:90}));
+      const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,.5,10),
+        new THREE.MeshPhongMaterial({color:0xff2ec4,shininess:90}));
+      barrel.rotation.z=Math.PI/2;barrel.position.x=.45;
+      const tip=new THREE.Mesh(new THREE.SphereGeometry(.1,8,8),
+        new THREE.MeshBasicMaterial({color:0xffe14d}));
+      tip.position.x=.72;
+      const grip=new THREE.Mesh(new THREE.BoxGeometry(.12,.3,.14),
+        new THREE.MeshPhongMaterial({color:0x0d0210}));
+      grip.position.set(-.12,-.26,0);
+      const fin=new THREE.Mesh(new THREE.ConeGeometry(.1,.2,4),
+        new THREE.MeshPhongMaterial({color:0xffe14d}));
+      fin.position.set(0,.22,0);
+      g.add(body,barrel,tip,grip,fin);
+      g.scale.setScalar(sc);
+      g.traverse(m=>m.castShadow=true);
+      return g;
+    }
+    const blasters=[]; // pickups on the map
+    function spawnBlaster(){
+      const g=new THREE.Group();
+      const gun=blasterMesh(1.4);gun.position.y=1.2;
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(.9,.06,8,24),
+        new THREE.MeshBasicMaterial({color:0x45d8ff}));
+      ring.rotation.x=Math.PI/2;ring.position.y=.1;
+      g.add(gun,ring);
+      g.position.set((Math.random()-.5)*B*1.7,0,(Math.random()-.5)*B*1.7);
+      scene.add(g);blasters.push(g);
+    }
+    const bolts=[];
+    const ammoUI=()=>{
+      const pill=$('#ppAmmo'),sb=$('#ppShoot');
+      if(pill){pill.classList.toggle('hide',pp.ammo<=0);pill.querySelector('b').textContent=pp.ammo}
+      if(sb)sb.classList.toggle('hide',pp.ammo<=0);
+    };
+    window.ppShoot=()=>{
+      if(pp.ammo<=0||pp.driving||pp.chatting||pp.over)return;
+      pp.ammo--;ammoUI();
+      sndBlast&&sndBlast();
+      ppAnim(player,['Gun_Shoot','Idle_Shoot','Run_Shoot','Punch']);
+      setTimeout(()=>ppAnim(player,A_IDLE),300);
+      const bolt=new THREE.Mesh(new THREE.SphereGeometry(.22,8,8),
+        new THREE.MeshBasicMaterial({color:0xffe14d}));
+      const halo=new THREE.Mesh(new THREE.SphereGeometry(.34,8,8),
+        new THREE.MeshBasicMaterial({color:0x45d8ff,transparent:true,opacity:.4}));
+      bolt.add(halo);
+      bolt.position.copy(player.position);bolt.position.y=1.3;
+      scene.add(bolt);
+      bolts.push({mesh:bolt,dx:Math.sin(player.rotation.y),dz:Math.cos(player.rotation.y),life:1.3});
+    };
     window.ppBonk=()=>{
       if(pp.driving||pp.chatting||pp.over)return;
       let nc=null,nd2=1e9;
-      for(const c of chompers){const d=c.mesh.position.distanceTo(player.position);if(d<nd2){nd2=d;nc=c}}
+      for(const c of chompers){if(c.dead)continue;const d=c.mesh.position.distanceTo(player.position);if(d<nd2){nd2=d;nc=c}}
       if(!nc||nd2>4.2)return;
       const dir=nc.mesh.position.clone().sub(player.position).setY(0).normalize();
       nc.stun=5;nc.cool=Math.max(nc.cool,1);
@@ -2536,7 +2599,7 @@ function ppBoot(){
 
     pp={score:0,time:120,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
-      jumpY:0,vy:0,megaT:0};
+      jumpY:0,vy:0,megaT:0,ammo:0,blsT:12};
     gIval(()=>{ if(pp.over||pp.chatting)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
@@ -2559,6 +2622,7 @@ function ppBoot(){
     el.style.touchAction='none';
     const jb=$('#ppJump');if(jb)jb.onclick=()=>doJump();
     const kb=$('#ppBonk');if(kb)kb.onclick=()=>ppBonk();
+    const shb=$('#ppShoot');if(shb)shb.onclick=()=>ppShoot();
     pp.zoom=parseFloat(localStorage.getItem('ksc_zoom')||'1');
     const ptrs=new Map();let pinch0=0,zoom0=1;
     el.addEventListener('pointerdown',e=>{
@@ -2599,6 +2663,7 @@ function ppBoot(){
       if(e.key.startsWith('Arrow')&&!inField&&document.body.contains(el))e.preventDefault();
       if(e.key===' '&&!inField&&document.body.contains(el)){e.preventDefault();doJump()}
       if((e.key==='b'||e.key==='B')&&!inField)window.ppBonk&&ppBonk();
+      if((e.key==='f'||e.key==='F')&&!inField)window.ppShoot&&ppShoot();
     },ku=e=>{keys[e.key]=false};
     addEventListener('keydown',kd);addEventListener('keyup',ku);
     pp.camYaw=0;pp.camPitch=0.58; // default: behind the hero, slightly above
@@ -2781,7 +2846,9 @@ function ppBoot(){
       if(!pp.driving){
         player.visible=true;
         const moving=mag>0.05&&!pp.chatting;
+        player.userData.armed=pp.ammo>0;
         if(pp.jumpY>0)ppAnim(player,['Jump','Jump_Idle','Gallop_Jump']);
+        else if(pp.ammo>0)ppAnim(player,moving?(mag>0.75?['Run_Gun','Run','Gallop']:['Walk_Gun','Walk','Walking']):['Idle_Gun','Idle','Idle_Neutral']);
         else ppAnim(player,moving?(mag>0.75?A_RUN:A_WALK):A_IDLE);
         player.position.y=pp.jumpY+((pp.jumpY===0&&moving)?Math.abs(Math.sin(t*3))*0.05:0);
       }
@@ -2814,7 +2881,7 @@ function ppBoot(){
         if(bb){
           let close=false;
           if(!pp.driving&&!pp.chatting)for(const c of chompers)
-            if(!c.stun&&c.mesh.position.distanceTo(player.position)<4.2){close=true;break}
+            if(!c.dead&&!c.stun&&c.mesh.position.distanceTo(player.position)<4.2){close=true;break}
           bb.classList.toggle('hide',!close);
         }
       }
@@ -2851,6 +2918,45 @@ function ppBoot(){
         }
         w.mesh.userData.mixer?.update(dt);
       }
+      // ⚡ blasters: spawn, spin, pick up
+      if(!pp.over&&!pp.chatting){
+        pp.blsT+=dt;
+        if(pp.blsT>25&&blasters.length<2){pp.blsT=0;spawnBlaster()}
+        for(let i=blasters.length-1;i>=0;i--){
+          const g=blasters[i];
+          g.children[0].rotation.y+=dt*2.5;
+          g.children[0].position.y=1.2+Math.sin(t*1.5+i)*.15;
+          if(!pp.driving&&g.position.distanceTo(player.position)<1.8){
+            pp.ammo=3;ammoUI();sndWin();
+            const popEl=document.createElement('div');popEl.className='chomppop';
+            popEl.style.color='#45d8ff';popEl.textContent='⚡ STAR BLASTER! 3 shots!';
+            wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+            scene.remove(g);blasters.splice(i,1);
+          }
+        }
+        // bolts fly + zap Chompies (and nothing else)
+        for(let i=bolts.length-1;i>=0;i--){
+          const bl=bolts[i];
+          bl.life-=dt;
+          bl.mesh.position.x+=bl.dx*38*dt;
+          bl.mesh.position.z+=bl.dz*38*dt;
+          let hit=false;
+          for(const c of chompers){
+            if(c.dead)continue;
+            if(c.mesh.position.distanceTo(bl.mesh.position)<1.9){
+              hit=true;
+              c.dead=performance.now()+120000; // gone for 2 minutes
+              scene.remove(c.mesh);
+              sndBad();burst('storm');
+              const popEl=document.createElement('div');popEl.className='chomppop';
+              popEl.style.color='#ffe14d';popEl.textContent='ZAPPED! 💥 gone for 2 min!';
+              wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+              break;
+            }
+          }
+          if(hit||bl.life<=0){scene.remove(bl.mesh);bolts.splice(i,1)}
+        }
+      }
       // engines: cool when parked, smoke when hot
       for(const c of cars){
         if(c!==pp.driving)c.heat=Math.max(0,c.heat-dt*0.9);
@@ -2880,6 +2986,16 @@ function ppBoot(){
         pp.chompT=(pp.chompT||0)+dt;
         if(pp.chompT>30&&chompers.length<4){pp.chompT=0;spawnChomper(true)}
         for(const chomp of chompers){
+        if(chomp.dead){
+          if(performance.now()>chomp.dead){
+            chomp.dead=0;chomp.stun=0;chomp.cool=2;
+            chomp.mesh.position.set(player.position.x>0?-B+12:B-12,0,player.position.z>0?-B+12:B-12);
+            scene.add(chomp.mesh);
+            const popEl=document.createElement('div');popEl.className='chomppop';
+            popEl.style.color='#b45cff';popEl.textContent='CHOMPY IS BACK! 👾';
+            wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1200);
+          }else continue;
+        }
         chomp.cool=Math.max(0,chomp.cool-dt);
         if(chomp.stun>0){ // bonked silly: spin dizzy, jaws shut, no hunting
           chomp.stun-=dt;
