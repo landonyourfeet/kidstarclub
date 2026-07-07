@@ -635,7 +635,7 @@ app.post('/api/park/pos', requireUser, (req, res) => {
   let cfg={};
   try{cfg=typeof b.cfg==='object'&&b.cfg?b.cfg:{}}catch(e){}
   const safeCfg={};
-  for(const k of ['body','skin','hairstyle','hair','top','bottom'])
+  for(const k of ['body','skin','hairstyle','hair','top','bottom','glow'])
     if(typeof cfg[k]==='string')safeCfg[k]=String(cfg[k]).slice(0,24);
   parkPresence.set(req.user.id,{
     name:(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30),
@@ -666,6 +666,48 @@ app.get('/api/chat/mymentions', requireUser, async (req, res) => {
   const m=rows[0];
   res.json({mention:m?{id:m.id,from:m.from_name,text:String(m.body).slice(0,90)}:null});
 });
+// ---------- Bone Shop: banked bones buy skins, pets, powers ----------
+const PARK_SHOP = {
+  // skins (style the custom blocky kid)
+  skin_gold:   {kind:'skin', name:'Golden Kid',  emoji:'🏆', cost:300},
+  skin_galaxy: {kind:'skin', name:'Galaxy Kid',  emoji:'🌌', cost:400},
+  skin_neon:   {kind:'skin', name:'Neon Glow',   emoji:'💚', cost:350},
+  // pets (your sidekick — replaces the default Shiba)
+  pet_fox:     {kind:'pet',  name:'Fox Friend',  emoji:'🦊', cost:250},
+  pet_husky:   {kind:'pet',  name:'Husky Pal',   emoji:'🐕', cost:250},
+  pet_deer:    {kind:'pet',  name:'Deer Buddy',  emoji:'🦌', cost:300},
+  pet_wolf:    {kind:'pet',  name:'Wolf Pack',   emoji:'🐺', cost:400},
+  // powers (one equipped at a time)
+  pw_speed:    {kind:'power',name:'Speed Boost', emoji:'🏃', cost:400, blurb:'+25% run speed'},
+  pw_shield:   {kind:'power',name:'Star Shield', emoji:'🛡️', cost:500, blurb:'Chompy bites only take HALF your Star Bucks'},
+  pw_magnet:   {kind:'power',name:'Star Magnet', emoji:'🧲', cost:450, blurb:'Grab stars from twice as far'},
+  pw_boots:    {kind:'power',name:'Moon Boots',  emoji:'🌙', cost:350, blurb:'Super high jumps'},
+};
+async function parkBalance(uid){
+  const {rows:[e]} = await pool.query(
+    `SELECT COALESCE(SUM(score),0)::int AS earned FROM game_scores WHERE user_id=$1 AND game='puppy'`,[uid]);
+  const {rows:[sp]} = await pool.query(
+    `SELECT COALESCE(SUM(cost),0)::int AS spent FROM park_purchases WHERE user_id=$1`,[uid]);
+  return e.earned - sp.spent;
+}
+app.get('/api/park/shop', requireUser, async (req, res) => {
+  const balance = await parkBalance(req.user.id);
+  const {rows} = await pool.query(`SELECT item FROM park_purchases WHERE user_id=$1`,[req.user.id]);
+  res.json({balance, owned: rows.map(r=>r.item), catalog: PARK_SHOP});
+});
+app.post('/api/park/buy', requireUser, async (req, res) => {
+  const item = String(req.body?.item||'');
+  const def = PARK_SHOP[item];
+  if(!def) return res.status(400).json({error:'No such item'});
+  const {rows:owned} = await pool.query(
+    `SELECT 1 FROM park_purchases WHERE user_id=$1 AND item=$2`,[req.user.id,item]);
+  if(owned.length) return res.status(400).json({error:'Already owned'});
+  const balance = await parkBalance(req.user.id);
+  if(balance < def.cost) return res.status(400).json({error:`Not enough Star Bucks! You need ${def.cost-balance} more ⭐`});
+  await pool.query(`INSERT INTO park_purchases (user_id,item,cost) VALUES ($1,$2,$3)`,[req.user.id,item,def.cost]);
+  res.json({ok:true, balance: balance-def.cost});
+});
+
 app.get('/api/park/who', requireUser, (req, res) => {
   const now=Date.now(), names=[];let me=false;
   for(const [id,p2] of parkPresence){
