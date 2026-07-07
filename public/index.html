@@ -2557,7 +2557,7 @@ function ppBoot(){
     }
     const el=renderer.domElement;
     el.style.touchAction='none';
-    const jb=$('#ppJump');if(jb)jb.onclick=doJump;
+    const jb=$('#ppJump');if(jb)jb.onclick=()=>doJump();
     const kb=$('#ppBonk');if(kb)kb.onclick=()=>ppBonk();
     pp.zoom=parseFloat(localStorage.getItem('ksc_zoom')||'1');
     const ptrs=new Map();let pinch0=0,zoom0=1;
