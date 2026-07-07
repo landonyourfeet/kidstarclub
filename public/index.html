@@ -226,6 +226,23 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .ppbonk{bottom:14px;left:76px;background:#ff8c1a;animation:pillnudge 1s ease-in-out infinite}
 .ppshoot{bottom:14px;left:140px;background:var(--yellow)}
 .ppdown{bottom:14px;left:76px;background:#a78bfa}
+.ppshop{background:#160826;border:2px solid var(--yellow);border-radius:14px;
+  margin:0 0 10px;max-height:60vh;overflow-y:auto;overscroll-behavior:contain;position:relative}
+.shhead{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 4px;
+  position:sticky;top:0;background:#160826;z-index:2}
+.shbal{font:900 16px var(--body);color:var(--yellow)}
+.shsec{padding:4px 12px 10px}
+.shtitle{font:900 13px var(--body);letter-spacing:.1em;color:var(--cyan);margin:6px 0}
+.shnote{font:700 11px var(--body);color:#b678a8;margin-bottom:6px}
+.shgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.shitem{background:#1c0a1e;border:2px solid #4a2a52;border-radius:12px;padding:8px 6px;
+  cursor:pointer;color:#fff;text-align:center}
+.shitem.owned{border-color:var(--cyan)}
+.shitem.on{border-color:var(--yellow);box-shadow:0 0 12px rgba(255,225,77,.5)}
+.shemoji{font-size:26px}
+.shname{font:900 12px var(--body);margin:3px 0 1px}
+.shblurb{font:700 9px var(--body);color:#b678a8;line-height:1.2}
+.shcost{font:900 11px var(--body);color:var(--yellow);margin-top:3px}
 .ppride{bottom:74px}
 .ppfly{bottom:134px}
 .ppammo{position:absolute;top:62px;left:10px;z-index:6;font:900 13px var(--body);
@@ -2015,14 +2032,30 @@ const PP_HAIRSTYLES=['buns','pony','short','long'];
 function ppCfg(){
   let c={};
   try{c=JSON.parse(localStorage.getItem('ksc_avatar')||'{}')}catch(e){}
-  return {body:'girl',skin:PP_SKINS[0],hairstyle:'buns',hair:'#f5f0e8',top:'#fff0f4',bottom:'#f3c9d8',...c};
+  const base={body:'girl',skin:PP_SKINS[0],hairstyle:'buns',hair:'#f5f0e8',top:'#fff0f4',bottom:'#f3c9d8',...c};
+  const fx=PP_SKINFX[ppEquip().skin];
+  return fx?{...base,...fx}:base;
 }
 function ppSetAv(k,v){
   const c=ppCfg();c[k]=v;localStorage.setItem('ksc_avatar',JSON.stringify(c));ppNew();
 }
+function ppEquip(){
+  try{return JSON.parse(localStorage.getItem('ksc_equip')||'{}')}catch(e){return {}}
+}
+function ppSetEquip(kind,item){
+  const e=ppEquip();
+  e[kind]=e[kind]===item?null:item; // tap again to unequip
+  localStorage.setItem('ksc_equip',JSON.stringify(e));
+}
+const PP_SKINFX={
+  skin_gold:  {skin:'#ffd24a',hair:'#ffe89a',top:'#f5b71e',bottom:'#c98a0a',glow:'#ffcf3f'},
+  skin_galaxy:{skin:'#8a6ad8',hair:'#2a1a5e',top:'#4a2a9e',bottom:'#1a0a3e',glow:'#b45cff'},
+  skin_neon:  {skin:'#baf7c9',hair:'#0d2f16',top:'#19f56a',bottom:'#0a6b2e',glow:'#2bff7a'},
+};
+const PP_PETFILE={pet_fox:'fox',pet_husky:'husky',pet_deer:'deer',pet_wolf:'wolf'};
 const PP_MODELS={
   kid:'hero_kid.glb',knight:'hero_knight.glb',
-  dino:'Velociraptor.glb',
+  dino:'Velociraptor.glb',wolf:'Wolf.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
@@ -2034,6 +2067,55 @@ const PP_MODELS={
   bed:'Bed_Single.glb',couch:'Couch_Medium1.glb',table:'Table_RoundSmall.glb',chair:'Chair_1.glb',
 };
 function ppHero(){const h=localStorage.getItem('ksc_hero');return PP_HEROES[h]?h:'custom'}
+async function ppShop(){
+  let panel=document.getElementById('ppShopPanel');
+  if(panel){panel.remove();return}
+  panel=document.createElement('div');
+  panel.id='ppShopPanel';panel.className='ppshop';
+  panel.innerHTML='<div class="pphud">🛍️ opening the shop…</div>';
+  $('#gameArea').prepend(panel);
+  let data;
+  try{data=await api('/api/park/shop')}
+  catch(e){panel.innerHTML='<p style="padding:14px">Could not reach the shop — try again! 🛰️</p>';return}
+  const eq=ppEquip();
+  const section=(kind,title,note)=>{
+    const items=Object.entries(data.catalog).filter(([,d])=>d.kind===kind);
+    return `<div class="shsec"><div class="shtitle">${title}</div>${note?`<div class="shnote">${note}</div>`:''}
+      <div class="shgrid">${items.map(([id,d])=>{
+        const owned=data.owned.includes(id), on=eq[kind]===id;
+        return `<button class="shitem${owned?' owned':''}${on?' on':''}" onclick="ppShopTap('${id}','${kind}',${d.cost},${owned})">
+          <div class="shemoji">${d.emoji}</div>
+          <div class="shname">${d.name}</div>
+          ${d.blurb?`<div class="shblurb">${d.blurb}</div>`:''}
+          <div class="shcost">${on?'✅ EQUIPPED':owned?'tap to equip':d.cost+' ⭐'}</div>
+        </button>`}).join('')}</div></div>`;
+  };
+  panel.innerHTML=`
+    <div class="shhead">
+      <div class="shbal">⭐ <b>${data.balance}</b> Star Bucks</div>
+      <button class="act-mini" onclick="document.getElementById('ppShopPanel').remove()">✕</button>
+    </div>
+    <div class="shnote" style="margin:0 12px 8px">Finish rounds in Starville to earn more Star Bucks!</div>
+    ${section('skin','✨ SKINS','Style your custom My Kid hero')}
+    ${section('pet','🐾 PETS','Your new sidekick follows you everywhere')}
+    ${section('power','⚡ POWERS','One equipped at a time')}`;
+}
+window.ppShopTap=async(id,kind,cost,owned)=>{
+  if(owned){
+    ppSetEquip(kind,id);
+    document.getElementById('ppShopPanel')?.remove();
+    ppNew();
+    return;
+  }
+  if(!confirm(`Buy for ${cost} Star Bucks? ⭐`))return;
+  try{
+    await api('/api/park/buy',{method:'POST',body:{item:id}});
+    sndWin&&sndWin();burst&&burst('storm');
+    ppSetEquip(kind,id); // auto-equip your new stuff
+    document.getElementById('ppShopPanel')?.remove();
+    ppNew();
+  }catch(e){alert(e.message||'Could not buy that!')}
+};
 function loadWorldLibs(cb,failEl){
   const seq=['/vendor/GLTFLoader.js','/vendor/DRACOLoader.js','/vendor/SkeletonUtils.js'];
   loadThree(()=>{
@@ -2063,9 +2145,13 @@ function ppNew(){
   const opt=(kind,vals,cur,labels)=>vals.map((v,i)=>
     `<button class="ppbody sm${v===cur?' on':''}" onclick="ppSetAv('${kind}','${v}')">${labels[i]}</button>`).join('');
   $('#gameArea').innerHTML=`
-    <div class="sbtop">🦴 <span id="ppscore">0</span> · ⏱ <span id="pptime">120</span>s</div>
+    <div class="sbtop">⭐ <span id="ppscore">0</span> · ⏱ <span id="pptime">120</span>s</div>
     <div class="ppstyle">
-      <div class="pplbl" style="width:auto;margin-bottom:4px">PICK YOUR HERO</div>
+      <div class="pprow" style="justify-content:space-between;align-items:center">
+        <span class="pplbl" style="width:auto">PICK YOUR HERO</span>
+        <button class="ppbody sm" style="flex:0 0 auto;min-width:0;opacity:1;border-color:var(--yellow);color:var(--yellow)"
+          onclick="ppShop()">🛍️ STAR SHOP</button>
+      </div>
       <div class="pprow" style="flex-wrap:wrap">
         ${Object.entries(PP_HEROES).map(([k,h])=>
           `<button class="ppbody sm${k===hero?' on':''}" style="min-width:30%"
@@ -2104,7 +2190,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Ride 🦖 Ziggy the raptor, fly the 🚁 helicopters (hold 🦘 to climb, ⬇️ to descend — Space/C on desktop), zap Chompies with ⚡ STAR BLASTERS, grab 💜 MEGA BONES! Friends appear in your world 🧑‍🤝‍🧑</p>
+    <p class="sbhint">Collect ⭐ STARS to earn Star Bucks, then hit the 🛍️ STAR SHOP for skins, pets & powers! Ride 🦖 Ziggy, fly 🚁 helis, zap Chompies ⚡, grab 💜 MEGA STARS. Friends appear in your world 🧑‍🤝‍🧑</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2188,7 +2274,9 @@ function ppFaceTex(skin){
 function ppBlocky(cfg){
   const g=new THREE.Group();
   const mm=c=>{const m=new THREE.MeshLambertMaterial({color:new THREE.Color(c)});m.color.convertSRGBToLinear();return m};
-  const skinM=mm(cfg.skin),hairM=mm(cfg.hair),topM=mm(cfg.top),botM=mm(cfg.bottom);
+  const glow=cfg.glow?new THREE.Color(cfg.glow):null;
+  const mk=c=>{const m=mm(c);if(glow){m.emissive=glow.clone();m.emissiveIntensity=.28}return m};
+  const skinM=mk(cfg.skin),hairM=mk(cfg.hair),topM=mk(cfg.top),botM=mk(cfg.bottom);
   // classic blocky build: torso block, block limbs pivoted at the joint, face-decal head
   const torso=new THREE.Mesh(new THREE.BoxGeometry(.62,.72,.34),topM);torso.position.y=1.06;g.add(torso);
   const mkLimb=(w,h,d,mtl,px,py,capM)=>{
@@ -2640,7 +2728,9 @@ function ppBoot(){
     player.position.set(-20,0,10);scene.add(player);
     ppAnim(player,A_IDLE);
     spawnChomper(false);
-    let buddy=ppSpawn(assets,PP_MODELS.shiba,0.85);
+    const petKey=PP_PETFILE[ppEquip().pet];
+    const petScale=petKey==='deer'?1.35:petKey==='wolf'?1.05:0.85;
+    let buddy=ppSpawn(assets,PP_MODELS[petKey||'shiba'],petScale);
     if(buddy){buddy.position.set(-18,0,12);scene.add(buddy);ppAnim(buddy,A_IDLE)}
     // wildlife: deer, fox, husky roam the park
     const wilds=[['deer',1.6],['fox',0.8],['husky',0.95]].map(([k,h],i)=>{
@@ -2662,26 +2752,33 @@ function ppBoot(){
     });
     // bones
     const bones=[];
-    function boneMesh(){
-      const g=new THREE.Group();
-      const bar=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,1.1,8),mat(0xfff6e0));
-      bar.rotation.z=Math.PI/2;
-      for(const sx of [-.55,.55])for(const sy of [-.16,.16]){
-        const k=new THREE.Mesh(new THREE.SphereGeometry(.22,8,8),mat(0xfff6e0));
-        k.position.set(sx,sy,0);g.add(k);
+    function boneMesh(){ // now a spinning gold STAR
+      const shape=new THREE.Shape();
+      for(let i=0;i<10;i++){
+        const r=i%2?0.32:0.75, an=i*Math.PI/5-Math.PI/2;
+        const px=Math.cos(an)*r, py=Math.sin(an)*r;
+        i?shape.lineTo(px,py):shape.moveTo(px,py);
       }
-      g.add(bar);g.traverse(m=>m.castShadow=true);return g;
+      shape.closePath();
+      const geo=new THREE.ExtrudeGeometry(shape,{depth:.18,bevelEnabled:false});
+      geo.center();
+      const m=new THREE.Mesh(geo,
+        new THREE.MeshPhongMaterial({color:0xffd24a,emissive:0x7a5a00,shininess:80}));
+      m.castShadow=true;
+      const g=new THREE.Group();g.add(m);
+      return g;
     }
     function placeBone(b){b.position.set((Math.random()-.5)*B*1.8,0.9,(Math.random()-.5)*B*1.8)}
     for(let i=0;i<26;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
 
+    const POWER=ppEquip().power||null;
     pp={score:0,time:120,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
       jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0};
     gIval(()=>{ if(pp.over||pp.chatting)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
-        submitScore('puppy',pp.score).then(x=>setTimeout(()=>alert('Good round!! 🌟 '+pp.score+' points'+x),300))}
+        submitScore('puppy',pp.score).then(x=>setTimeout(()=>alert('Good round!! ⭐ +'+pp.score+' Star Bucks banked!'+x),300))}
     },1000);
 
     function hitC(x,z,r,y){
@@ -2748,7 +2845,7 @@ function ppBoot(){
       pp.zoom=Math.max(0.5,Math.min(2.6,pp.zoom*(1+e.deltaY*0.001)));
       localStorage.setItem('ksc_zoom',pp.zoom)},{passive:false});
     const keys={};
-    const doJump=()=>{if((pp.airH||0)<=0.05&&!pp.driving&&!pp.flying&&!pp.chatting&&!pp.over){pp.vy=pp.riding?10.5:8.2;if(pp.riding)ppAnim(pp.riding,['Jump']);sndPick()}};
+    const doJump=()=>{if((pp.airH||0)<=0.05&&!pp.driving&&!pp.flying&&!pp.chatting&&!pp.over){pp.vy=(pp.riding?10.5:8.2)*(POWER==='pw_boots'?1.35:1);if(pp.riding)ppAnim(pp.riding,['Jump']);sndPick()}};
     const kd=e=>{
       keys[e.key]=true;
       const inField=/INPUT|TEXTAREA/.test(e.target?.tagName||'');
@@ -2872,7 +2969,7 @@ function ppBoot(){
         ...[...others.values()].map(r2=>({name:r2.name||'Star',score:r2.score||0}))]
         .sort((a2,b2)=>b2.score-a2.score);
       el2.innerHTML=rows.map((r2,i)=>
-        `<div class="svrow${r2.me?' me':''}">${i===0&&r2.score>0?'👑 ':''}${esc(r2.name)} <b>${r2.score}</b> 🦴</div>`).join('');
+        `<div class="svrow${r2.me?' me':''}">${i===0&&r2.score>0?'👑 ':''}${esc(r2.name)} <b>${r2.score}</b> ⭐</div>`).join('');
     }
 
     const clock=new THREE.Clock();
@@ -2970,7 +3067,8 @@ function ppBoot(){
         const af=pp.camYaw+Math.PI; // camera's forward
         const mx=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
         const mz=Math.cos(af)*(-vz)+Math.cos(af-Math.PI/2)*vx;
-        tryMove(player,mx*0.32,mz*0.32,.45);
+        const spd=POWER==='pw_speed'?0.40:0.32;
+        tryMove(player,mx*spd,mz*spd,.45);
         player.rotation.y=Math.atan2(mx,mz);
       }
       // vertical physics: pp.jumpY is absolute height; gravity pulls to whatever is underfoot
@@ -3010,7 +3108,7 @@ function ppBoot(){
               pp.score+=50;const se=$('#ppscore');if(se)se.textContent=pp.score;
               sndWin();burst('storm');
               const popEl=document.createElement('div');popEl.className='chomppop';
-              popEl.style.color='#b45cff';popEl.textContent='+50 MEGA BONE! 💜';
+              popEl.style.color='#b45cff';popEl.textContent='+50 MEGA STAR! 💜';
               wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
               scene.remove(mega.mesh);mega.mesh=null;
             }
@@ -3162,13 +3260,14 @@ function ppBoot(){
         chomp.mesh.position.y=hop;
         if(dist<1.9&&!pp.driving&&!pp.flying&&chomp.cool<=0&&(pp.airH||0)<1.1){
           chomp.cool=4;
-          const loss=pp.score; // he eats EVERYTHING
-          pp.score=0;const se=$('#ppscore');if(se)se.textContent=0;
+          const shielded=POWER==='pw_shield';
+          const loss=shielded?Math.ceil(pp.score/2):pp.score;
+          pp.score-=loss;const se=$('#ppscore');if(se)se.textContent=pp.score;
           sndBad();
           const fl=document.createElement('div');fl.className='chompflash';
           wrap.appendChild(fl);setTimeout(()=>fl.remove(),650);
           const popEl=document.createElement('div');popEl.className='chomppop';
-          popEl.textContent=loss>0?'CHOMP! ATE ALL '+loss+' BONES! 🦴':'CHOMP!! 👾';
+          popEl.textContent=loss>0?(shielded?'🛡️ SHIELD! only -'+loss+' Star Bucks!':'CHOMP! ATE ALL '+loss+' STARS! ⭐'):'CHOMP!! 👾';
           wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
           tryMove(player,-cd.x*4,-cd.z*4,.45);
           chomp.mesh.position.set(player.position.x+cd.x*-30,0,player.position.z+cd.z*-30);
@@ -3286,7 +3385,7 @@ function ppBoot(){
       }
       for(const b of bones){
         b.rotation.y+=dt*2.4;b.position.y=0.9+Math.sin(t+b.position.x)*0.15;
-        if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<(pp.flying?3.2:pp.driving?2.6:1.9)){
+        if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<((pp.flying?3.2:pp.driving?2.6:1.9)*(POWER==='pw_magnet'?2:1))){
           pp.score+=10;const se=$('#ppscore');if(se)se.textContent=pp.score;
           sndDrop();burst('pop');placeBone(b);
         }
