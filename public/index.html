@@ -220,6 +220,19 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   background:radial-gradient(circle,transparent 30%,rgba(226,0,60,.55));
   animation:chompfl .65s ease-out forwards}
 @keyframes chompfl{0%{opacity:1}100%{opacity:0}}
+.svbanner{position:fixed;top:0;left:0;right:0;z-index:150;border:none;cursor:pointer;
+  font:900 14px var(--body);color:#fff;padding:10px 14px;text-align:center;
+  background:linear-gradient(90deg,#c4108f,var(--magenta),#ff5fb0,var(--magenta),#c4108f);
+  background-size:300% 100%;animation:svbmove 3s linear infinite;
+  box-shadow:0 3px 14px rgba(255,46,196,.55)}
+.svbanner b{color:#ffe14d}
+@keyframes svbmove{0%{background-position:0 0}100%{background-position:300% 0}}
+.gametile.live{border-color:var(--magenta);animation:livepulse 1.1s ease-in-out infinite}
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(255,46,196,.0)}
+  50%{box-shadow:0 0 22px 4px rgba(255,46,196,.75)}}
+.livechip{display:inline-block;font:900 10px var(--body);letter-spacing:.12em;
+  color:#fff;background:var(--magenta);border-radius:999px;padding:4px 10px;margin-bottom:6px;
+  animation:livepulse 1.1s ease-in-out infinite}
 .chomppop{position:absolute;top:34%;left:50%;transform:translateX(-50%);z-index:7;
   font:900 26px var(--display),cursive;color:#ff3355;-webkit-text-stroke:1.5px #fff;
   pointer-events:none;animation:chompop 1.3s ease-out forwards}
@@ -1298,6 +1311,7 @@ async function removeVid(id){
 
 // ---- ARCADE HUB ----
 const GAMES={
+  puppy:{title:'🌟 STARVILLE',blurb:'A real 3D world! Animated heroes, a puppy, wildlife, houses, cars & AI friends!',start:()=>ppNew()},
   starblast:{title:'⭐ STAR BLAST',blurb:'Fill rows & columns to BLAST them!',start:()=>sbNew()},
   zaptap:{title:'⚡ ZAP TAP',blurb:'30 seconds. Tap the stars. Dodge the bombs!',start:()=>ztNew()},
   starmatch:{title:'🃏 STAR MATCH',blurb:'Find all the pairs — fast fingers, big score!',start:()=>smNew()},
@@ -1306,10 +1320,41 @@ const GAMES={
   beatstar:{title:'🎵 BEAT STAR',blurb:'Hit the notes on the beat — build the combo!',start:()=>btNew()},
   simon:{title:'🧠 SIMON STARS',blurb:'Watch the light pattern… can you repeat it?',start:()=>siNew()},
   stacker:{title:'🏗️ SKY STACKER',blurb:'Stack the tower to the stars — perfect drops grow it back!',start:()=>stNew()},
-  puppy:{title:'🌟 STARVILLE',blurb:'A real 3D world! Animated heroes, a puppy, wildlife, houses, cars & AI friends!',start:()=>ppNew()},
   hoops:{title:'🏀 STREET HOOPS 3D',blurb:'Night court under the lights — flick to shoot in full 3D!',start:()=>hpNew()},
 };
 let currentGame=null;
+// ---- who's in Starville: top banner + live tile flash ----
+window.__svWho={count:0,names:[]};
+function svApplyWho(){
+  const w=window.__svWho;
+  let bn=$('#svBanner');
+  if(!bn){
+    bn=document.createElement('button');bn.id='svBanner';bn.className='svbanner hide';
+    bn.onclick=()=>{go('arcade');setTimeout(()=>openGame('puppy'),60)};
+    document.body.appendChild(bn);
+  }
+  if(w.count>0&&currentGame!=='puppy'){
+    const who=w.names.slice(0,3).join(', ')+(w.count>3?` +${w.count-3}`:'');
+    bn.innerHTML=`🌟 <b>${esc(who)}</b> ${w.count===1?'is':'are'} in STARVILLE — tap to join!`;
+    bn.classList.remove('hide');
+  }else bn.classList.add('hide');
+  const tile=document.querySelector('[data-game="puppy"]');
+  if(tile){
+    tile.classList.toggle('live',w.count>0);
+    let chip=tile.querySelector('.livechip');
+    if(w.count>0){
+      if(!chip){chip=document.createElement('div');chip.className='livechip';tile.prepend(chip)}
+      chip.textContent=`👥 ${w.count} PLAYING NOW`;
+    }else chip?.remove();
+  }
+}
+setInterval(async()=>{
+  try{
+    const r=await api('/api/park/who');
+    window.__svWho={count:r.count||0,names:r.names||[]};
+  }catch(e){window.__svWho={count:0,names:[]}}
+  svApplyWho();
+},12000);
 // ---- arcade chat dock ----
 let dockPoll=null,dockLast=0,dockOpen=false;
 function stopDock(){if(dockPoll){clearInterval(dockPoll);dockPoll=null}dockOpen=false;
@@ -1364,7 +1409,9 @@ async function arcade(){
   const sum=await api('/api/games/summary?games='+Object.keys(GAMES).join(',')).catch(()=>({}));
   hub.innerHTML=Object.entries(GAMES).map(([id,g])=>{
     const s=sum[id]||{};
-    return `<div class="sticker gametile" onclick="openGame('${id}')">
+    const live=id==='puppy'&&(window.__svWho?.count>0);
+    return `<div class="sticker gametile${live?' live':''}" data-game="${id}" onclick="openGame('${id}')">
+      ${live?`<div class="livechip">👥 ${window.__svWho.count} PLAYING NOW</div>`:''}
       <div class="gt">${g.title}</div>
       <div class="gb">${g.blurb}</div>
       <div class="statrow">
