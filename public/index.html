@@ -243,6 +243,7 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .shname{font:900 12px var(--body);margin:3px 0 1px}
 .shblurb{font:700 9px var(--body);color:#b678a8;line-height:1.2}
 .shcost{font:900 11px var(--body);color:var(--yellow);margin-top:3px}
+.ppbody.lockd{opacity:.55;border-style:dashed}
 .shnew{font:900 8px var(--body);letter-spacing:.08em;color:#062030;background:var(--cyan);
   border-radius:999px;padding:2px 7px;display:inline-block;margin-bottom:3px;
   animation:pillnudge 1.2s ease-in-out infinite}
@@ -2043,9 +2044,18 @@ const PP_HEROES={
   custom:{blocky:1,name:'My Kid',emoji:'✨'},
   kid:{file:'hero_kid.glb',name:'Adventure Kid',emoji:'🧢'},
   knight:{file:'hero_knight.glb',name:'Sir Knight',emoji:'⚔️'},
-  shiba:{file:'animals_pack_ShibaInu.glb',name:'Shiba Pup',emoji:'🐶'},
+  shiba:{file:'animals_pack_ShibaInu.glb',name:'Shiba Pup',emoji:'🐶',scale:1.0},
   redpanda:{file:'hero_redpanda.glb',name:'Rae',emoji:'🦊'},
+  // 🛍️ shop heroes — fully animated, unlocked with Star Bucks
+  frog:{file:'hero_frog.glb',name:'Astro Finn',emoji:'🐸',shop:'hero_frog'},
+  bee:{file:'hero_bee.glb',name:'Astro Barbara',emoji:'🐝',shop:'hero_bee'},
+  flamingo:{file:'hero_flamingo.glb',name:'Astro Fernando',emoji:'🦩',shop:'hero_flamingo'},
+  ranger:{file:'hero_ranger.glb',name:'Star Ranger',emoji:'🪖',shop:'hero_ranger'},
+  cyber:{file:'hero_cyber.glb',name:'Cyber Runner',emoji:'🌆',shop:'hero_cyber'},
+  mechrae:{file:'hero_mech_rae.glb',name:'Mech Rae',emoji:'🤖',shop:'hero_mech_rae',scale:2.15},
+  mechfinn:{file:'hero_mech_finn.glb',name:'Mech Finn',emoji:'🦾',shop:'hero_mech_finn',scale:2.15},
 };
+function ppOwned(){try{return JSON.parse(localStorage.getItem('ksc_owned')||'[]')}catch(e){return []}}
 const PP_SKINS=['#f0cfae','#e8b98a','#c98a5b','#8d5a3b'];
 const PP_SWATCH={
   hair:['#f5f0e8','#2a1a0f','#6b3f1f','#e8d44d','#ff5fb0','#45d8ff'],
@@ -2090,6 +2100,7 @@ const PP_MODELS={
   dino:'Velociraptor.glb',wolf:'Wolf.glb',
   horse:'Horse.glb',cow:'Cow.glb',alpaca:'Alpaca.glb',donkey:'Donkey.glb',stag:'Stag.glb',
   cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
+  ranger:'hero_ranger.glb',cyber:'hero_cyber.glb',mechrae:'hero_mech_rae.glb',mechfinn:'hero_mech_finn.glb',
   spDome:'space_GeodesicDome.glb',spBase:'space_Base_Large.glb',spHouse:'space_House_Cylinder.glb',spRover:'space_Rover_Round.glb',spShip:'space_Ship.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
@@ -2113,11 +2124,16 @@ async function ppShop(){
   try{data=await api('/api/park/shop')}
   catch(e){panel.innerHTML='<p style="padding:14px">Could not reach the shop — try again! 🛰️</p>';return}
   const eq=ppEquip();
+  localStorage.setItem('ksc_owned',JSON.stringify(data.owned||[]));
+  const PP_SHOP_HERO={hero_frog:'frog',hero_bee:'bee',hero_flamingo:'flamingo',
+    hero_ranger:'ranger',hero_cyber:'cyber',hero_mech_rae:'mechrae',hero_mech_finn:'mechfinn'};
+  window.__shopHero=PP_SHOP_HERO;
   const section=(kind,title,note)=>{
     const items=Object.entries(data.catalog).filter(([,d])=>d.kind===kind);
     return `<div class="shsec"><div class="shtitle">${title}</div>${note?`<div class="shnote">${note}</div>`:''}
       <div class="shgrid">${items.map(([id,d])=>{
-        const owned=data.owned.includes(id), on=eq[kind]===id;
+        const owned=data.owned.includes(id);
+        const on=kind==='hero'?(PP_SHOP_HERO[id]===ppHero()):eq[kind]===id;
         return `<button class="shitem${owned?' owned':''}${on?' on':''}" onclick="ppShopTap('${id}','${kind}',${d.cost},${owned})">
           ${d.fresh?'<div class="shnew">🆕 NEW TODAY</div>':''}
           <div class="shemoji">${d.emoji}</div>
@@ -2132,13 +2148,18 @@ async function ppShop(){
       <button class="act-mini" onclick="document.getElementById('ppShopPanel').remove()">✕</button>
     </div>
     <div class="shnote" style="margin:0 12px 8px">🗓️ New stock every day — today's shelf below. Finish rounds to earn Star Bucks!</div>
+    ${section('hero','🦸 HEROES','Fully-animated legends — yours forever')}
     ${section('skin','✨ SKINS','Style your custom My Kid hero')}
     ${section('pet','🐾 PETS','Your new sidekick follows you everywhere')}
     ${section('power','⚡ POWERS','One equipped at a time')}`;
 }
 window.ppShopTap=async(id,kind,cost,owned)=>{
+  const equipIt=()=>{
+    if(kind==='hero'&&window.__shopHero?.[id])localStorage.setItem('ksc_hero',__shopHero[id]);
+    else ppSetEquip(kind,id);
+  };
   if(owned){
-    ppSetEquip(kind,id);
+    equipIt();
     document.getElementById('ppShopPanel')?.remove();
     ppNew();
     return;
@@ -2147,7 +2168,8 @@ window.ppShopTap=async(id,kind,cost,owned)=>{
   try{
     await api('/api/park/buy',{method:'POST',body:{item:id}});
     sndWin&&sndWin();burst&&burst('storm');
-    ppSetEquip(kind,id); // auto-equip your new stuff
+    try{const o2=ppOwned();o2.push(id);localStorage.setItem('ksc_owned',JSON.stringify(o2))}catch(e){}
+    equipIt(); // auto-equip your new stuff
     document.getElementById('ppShopPanel')?.remove();
     ppNew();
   }catch(e){alert(e.message||'Could not buy that!')}
@@ -2172,6 +2194,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
+const SV_BUILD='SV-20';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2189,9 +2212,10 @@ function ppNew(){
           onclick="ppShop()">🛍️ STAR SHOP</button>
       </div>
       <div class="pprow" style="flex-wrap:wrap">
-        ${Object.entries(PP_HEROES).map(([k,h])=>
-          `<button class="ppbody sm${k===hero?' on':''}" style="min-width:30%"
-            onclick="localStorage.setItem('ksc_hero','${k}');ppNew()">${h.emoji} ${h.name.split(' ')[0]}</button>`).join('')}
+        ${Object.entries(PP_HEROES).map(([k,h])=>{
+          const locked=h.shop&&!ppOwned().includes(h.shop);
+          return `<button class="ppbody sm${k===hero?' on':''}${locked?' lockd':''}" style="min-width:30%"
+            onclick="${locked?'ppShop()':`localStorage.setItem('ksc_hero','${k}');ppNew()`}">${locked?'🔒':h.emoji} ${h.name.split(' ')[0]}</button>`}).join('')}
       </div>
       ${hero==='custom'?`
       <div class="pprow">${opt('body',['girl','boy'],cfg.body,['👧 Girl','👦 Boy'])}</div>
@@ -2229,7 +2253,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">HUGE world: mesa, hills & dune desert 🏜️! Grab ⭐ before they fade, dodge 💣 bombs, and BONK the 🪂 Star Bandits before they pickpocket you! Waves of Chompies 👾, day & night 🌙, traffic & air patrol. Friends join your world 🧑‍🤝‍🧑</p>
+    <p class="sbhint">HUGE world: mesa, hills & dune desert 🏜️! Grab ⭐ before they fade, dodge 💣 bombs, and BONK the 🪂 Star Bandits before they pickpocket you! Waves of Chompies 👾, day & night 🌙, traffic & air patrol. Friends join your world 🧑‍🤝‍🧑 <span style="opacity:.4">${SV_BUILD}</span></p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2481,7 +2505,27 @@ function ppBoot(){
     {x:-52,z:-18,R:11,P:1.5,H:4.5}, // foothill
     {x:-120,z:-130,R:38,P:10,H:11}, // northwest mesa
     {x:-24,z:150,R:26,P:4,H:6},     // south grass hill
-    {x:-150,z:70,R:24,P:3,H:5}      // west knoll
+    {x:-150,z:70,R:24,P:3,H:5},     // west knoll
+    // the western sentinels — a real range
+    {x:-300,z:-100,R:46,P:9,H:20},
+    {x:-250,z:-150,R:34,P:6,H:14},
+    {x:-350,z:-20,R:38,P:7,H:16},
+    {x:-260,z:140,R:34,P:6,H:12},
+    {x:-360,z:220,R:30,P:5,H:10},
+    // northern highlands (between the city and the moon base)
+    {x:-80,z:-180,R:32,P:6,H:13},
+    {x:-8,z:-195,R:24,P:4,H:10},
+    // desert buttes rising from the dunes
+    {x:160,z:-120,R:30,P:8,H:13},
+    {x:230,z:60,R:36,P:9,H:15},
+    {x:150,z:170,R:26,P:6,H:11},
+    {x:330,z:-60,R:32,P:8,H:12},
+    // moon mountains
+    {x:-260,z:-330,R:36,P:7,H:14},
+    {x:250,z:-340,R:40,P:8,H:16},
+    // far-south sierra beyond the canyons
+    {x:-120,z:330,R:34,P:6,H:12},
+    {x:120,z:360,R:38,P:7,H:14}
   ];
   function groundAt(x,z){
     let g=Math.max(duneAt(x,z),canyonAt(x,z));
@@ -2692,11 +2736,27 @@ function ppBoot(){
     // ---- 👑 STARVILLE KINGDOM: mountain massif, castle, and the great star ----
     {
       // one grassy cone per peak = a natural multi-summit silhouette
+      const zoneMat=m=>{
+        if(m.z<SPACE_Z+20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0x3a3454)}); // moon rock
+        if(m.x>110)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xd9bd7e)});        // desert butte
+        if(m.z>CANYON_Z-20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xb5502e)});// red rock
+        return new THREE.MeshLambertMaterial({map:grassTex});
+      };
       for(const m of MTNS){
+        const sm=zoneMat(m);if(sm.color)sm.color.convertSRGBToLinear();
         const slope=new THREE.Mesh(
-          new THREE.CylinderGeometry(Math.max(.6,m.P),m.R,m.H,26,1,true),
-          new THREE.MeshLambertMaterial({map:grassTex}));
+          new THREE.CylinderGeometry(Math.max(.6,m.P),m.R,m.H,26,1,true),sm);
         slope.position.set(m.x,m.H/2,m.z);slope.receiveShadow=true;scene.add(slope);
+        if(m.H>=14&&m.z>SPACE_Z+20){ // snow caps on the big peaks
+          const cap2=new THREE.Mesh(new THREE.CylinderGeometry(Math.max(.6,m.P),m.P+ (m.R-m.P)*0.22,m.H*0.22,20,1,true),
+            new THREE.MeshLambertMaterial({color:0xf4f8ff}));
+          cap2.position.set(m.x,m.H*0.89,m.z);scene.add(cap2);
+        }
+        if(m.P>1.2){ // little summit cap so plateaus read solid
+          const pc=new THREE.Mesh(new THREE.CircleGeometry(m.P,20),
+            m.H>=14&&m.z>SPACE_Z+20?mat(0xf4f8ff):sm.map?mat(0x8a9a6a):sm.clone());
+          pc.rotation.x=-Math.PI/2;pc.position.set(m.x,m.H+.02,m.z);scene.add(pc);
+        }
       }
       const MC=MTNS[0], MX=MC.x, MZ=MC.z, bY=MC.H;
       const cap=new THREE.Mesh(new THREE.CircleGeometry(MC.P,24),mat(0x9a9aa8));
@@ -2886,7 +2946,7 @@ function ppBoot(){
     // player chute (hidden until the dive)
     const chuteMesh=new THREE.Mesh(new THREE.SphereGeometry(1.9,12,8,0,Math.PI*2,0,Math.PI/2),
       new THREE.MeshLambertMaterial({color:0xffe14d,side:THREE.DoubleSide}));
-    chuteMesh.visible=false;player.add(chuteMesh);
+    chuteMesh.visible=false; // attached to the player when the chute pops
     function dropJump(){
       if(!pp.dropping)return;
       pp.dropping=false;pp.skyfall=true;pp.vy=0;
@@ -2922,7 +2982,9 @@ function ppBoot(){
         }
         const gY3=groundAt(player.position.x,player.position.z);
         if(!pp.canopy&&pp.jumpY-gY3<14){ // pop the chute!
-          pp.canopy=true;chuteMesh.visible=true;chuteMesh.position.y=2.6;
+          pp.canopy=true;
+          if(chuteMesh.parent!==player)player.add(chuteMesh);
+          chuteMesh.visible=true;chuteMesh.position.y=2.6;
           sfxTone(180,0.25,'sine',0.25,0,90);sfxNoise(0.2,0.15);
         }
         if(pp.canopy)pp.vy=Math.max(pp.vy,-3.4);
@@ -3088,11 +3150,10 @@ function ppBoot(){
       scene.add(g);
       __ambHeli.push({mesh:g,rotor,speed:7+i*2});
     }
-    pp.bombT=14;pp.banditT=30;
     function worldEvents(dt3){
       if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       // bombs
-      pp.bombT-=dt3;
+      pp.bombT=(pp.bombT??14)-dt3;
       if(pp.bombT<=0&&bombs.length<3){pp.bombT=13+Math.random()*8;spawnBomb()}
       for(let i=bombs.length-1;i>=0;i--){
         const bm=bombs[i];
@@ -3105,7 +3166,7 @@ function ppBoot(){
         if(bm.fuse<=0){boom(bm);bombs.splice(i,1)}
       }
       // bandits
-      pp.banditT-=dt3;
+      pp.banditT=(pp.banditT??30)-dt3;
       if(pp.banditT<=0&&bandits.length<3){pp.banditT=26+Math.random()*14;spawnBanditWave()}
       for(let i=bandits.length-1;i>=0;i--){
         const bd=bandits[i];
@@ -3338,7 +3399,7 @@ function ppBoot(){
 
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
-    const player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75))||ppBlocky(ppCfg());
+    const player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.scale||1.75))||ppBlocky(ppCfg());
     player.position.set(-36,0,16);scene.add(player);
     ppAnim(player,A_IDLE);
     spawnChomper(false);
@@ -3552,7 +3613,7 @@ function ppBoot(){
         const cfg={body:'girl',skin:PP_SKINS[0],hairstyle:'buns',hair:'#f5f0e8',top:'#fff0f4',bottom:'#f3c9d8',...(o.cfg||{})};
         let root=null;
         const h=PP_HEROES[o.hero];
-        if(h&&!h.blocky&&assets[h.file])root=ppSpawn(assets,h.file,h.file.includes('ShibaInu')?1.0:1.75);
+        if(h&&!h.blocky&&assets[h.file])root=ppSpawn(assets,h.file,h.scale||1.75);
         if(!root)root=ppBlocky(cfg);
         const cont=new THREE.Group();
         cont.add(root);
@@ -4501,7 +4562,7 @@ function ppBoot(){
     console.error('[starville build]',err);
     const d=document.createElement('div');d.className='pphud';
     d.style.cssText='z-index:9;background:#87d8ff;color:#7a1a1a;font-size:13px';
-    d.textContent='🌟 Starville hit a snag: '+(err?.message||err)+' — screenshot this for HQ!';
+    d.textContent='🌟 Starville hit a snag ('+SV_BUILD+'): '+(err?.message||err)+' — screenshot this for HQ!';
     wrap.appendChild(d);
   }});
 }
