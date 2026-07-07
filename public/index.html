@@ -209,7 +209,7 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .ppwrap{position:relative;aspect-ratio:3/4;max-width:420px;margin:0 auto;overflow:hidden;
   border:3px solid var(--cyan);border-radius:14px;background:#87d8ff;
   box-shadow:0 0 18px rgba(69,216,255,.3)}
-.ppwrap canvas{display:block;width:100%!important;height:100%!important;border-radius:11px}
+.ppwrap canvas:not(.ppmap){display:block;width:100%!important;height:100%!important;border-radius:11px}
 .pphud{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
   font-weight:800;color:#0d0210;text-align:center;padding:20px;background:#87d8ff}
 .ldbar{width:min(240px,70%);height:14px;margin:0 auto;background:rgba(13,2,16,.25);
@@ -220,7 +220,7 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   background:radial-gradient(circle,transparent 30%,rgba(226,0,60,.55));
   animation:chompfl .65s ease-out forwards}
 @keyframes chompfl{0%{opacity:1}100%{opacity:0}}
-.ppact{position:absolute;z-index:8;width:54px;height:54px;border-radius:50%;
+.ppact{z-index:7;position:absolute;z-index:8;width:54px;height:54px;border-radius:50%;
   font-size:24px;cursor:pointer;border:3px solid #fff;box-shadow:0 4px 0 rgba(13,2,16,.5)}
 .ppjump{bottom:14px;left:12px;background:var(--cyan)}
 .ppbonk{bottom:14px;left:76px;background:#ff8c1a;animation:pillnudge 1s ease-in-out infinite}
@@ -2195,7 +2195,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-24';
+const SV_BUILD='SV-25';
 function ppNew(){
   gReset();
   const hero=ppHero();
