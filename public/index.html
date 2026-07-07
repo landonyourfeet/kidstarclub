@@ -1942,9 +1942,14 @@ function loadWorldLibs(cb,failEl){
     const next=()=>{
       if(i>=seq.length)return cb();
       if((seq[i].includes('GLTF')&&THREE.GLTFLoader)||(seq[i].includes('DRACO')&&THREE.DRACOLoader)||(seq[i].includes('Skeleton')&&THREE.SkeletonUtils)){i++;return next()}
-      const sc=document.createElement('script');sc.src=seq[i];i++;
-      sc.onload=next;
-      sc.onerror=()=>{if(failEl)failEl.innerHTML='<div class="pphud">Could not load the 3D engine — check the connection and retry! 🌟</div>'};
+      const want=seq[i];
+      const sc=document.createElement('script');sc.src=want;i++;
+      sc.onload=()=>{ // verify the script actually delivered its library (catch-all 404s serve HTML)
+        const ok=(want.includes('GLTF')&&THREE.GLTFLoader)||(want.includes('DRACO')&&THREE.DRACOLoader)||(want.includes('Skeleton')&&THREE.SkeletonUtils);
+        if(ok)next();
+        else if(failEl)failEl.innerHTML='<div class="pphud" style="color:#7a1a1a">Missing file on the server: '+want+' — the public/vendor folder needs to be uploaded to the repo! 📦</div>';
+      };
+      sc.onerror=()=>{if(failEl)failEl.innerHTML='<div class="pphud" style="color:#7a1a1a">Missing file on the server: '+want+' — the public/vendor folder needs to be uploaded! 📦</div>'};
       document.head.appendChild(sc);
     };
     next();
@@ -2004,13 +2009,15 @@ async function ppLoadAssets(onProgress){
   draco.setDecoderPath('/vendor/draco/');
   loader.setDRACOLoader(draco);
   const names=[...new Set([...Object.values(PP_MODELS),...Object.values(PP_HEROES).map(h=>h.file)])];
-  const out={};let done=0;
+  const out={};out.__failed=[];let done=0;
   await Promise.all(names.map(f=>new Promise(res=>{
+    if(!f){done++;onProgress(done,names.length);return res()}
     loader.load('/assets/'+f,g=>{
       g.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=false}});
       out[f]={scene:g.scene,animations:g.animations||[]};
       done++;onProgress(done,names.length);res();
-    },undefined,()=>{done++;onProgress(done,names.length);res()});
+    },undefined,err=>{out.__failed.push(f);console.error('[starville asset]',f,err);
+      done++;onProgress(done,names.length);res()});
   })));
   PP_CACHE=out;return out;
 }
@@ -2136,7 +2143,7 @@ function ppBlockyUpdate(ent,dt){
 function ppBoot(){
   const wrap=$('#ppwrap');if(!wrap)return;
   wrap.querySelector('canvas')?.remove();
-  const renderer=new THREE.WebGLRenderer({antialias:true});
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
   renderer.setPixelRatio(Math.min(2,devicePixelRatio));
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -2219,7 +2226,9 @@ function ppBoot(){
     const p=$('#ppPct');if(p)p.textContent=pct+'%';
     const bar=$('#ppBar');if(bar)bar.style.width=pct+'%';
   })
-  .then(assets=>{
+  .then(assets=>{try{
+    if(assets.__failed?.length)
+      console.warn('[starville] failed assets:',assets.__failed.join(', '));
     $('#ppLoad')?.remove();
     const put=(key,x,z,h,ry=0,collide=0)=>{
       const o=ppSpawn(assets,PP_MODELS[key],h);
@@ -2302,18 +2311,18 @@ function ppBoot(){
 
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
-    const player=hero.blocky?ppBlocky(ppCfg())
-      :ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75);
+    const player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75))||ppBlocky(ppCfg());
     player.position.set(-20,0,10);scene.add(player);
     ppAnim(player,A_IDLE);
     let buddy=ppSpawn(assets,PP_MODELS.shiba,0.85);
-    buddy.position.set(-18,0,12);scene.add(buddy);ppAnim(buddy,A_IDLE);
+    if(buddy){buddy.position.set(-18,0,12);scene.add(buddy);ppAnim(buddy,A_IDLE)}
     // wildlife: deer, fox, husky roam the park
     const wilds=[['deer',1.6],['fox',0.8],['husky',0.95]].map(([k,h],i)=>{
       const m=ppSpawn(assets,PP_MODELS[k],h);
+      if(!m)return null;
       m.position.set(-30-i*15,0,(Math.random()-.5)*60);scene.add(m);ppAnim(m,A_IDLE);
       return {mesh:m,target:new THREE.Vector3(-30,0,0),wait:Math.random()*4,shy:k!=='husky'};
-    });
+    }).filter(Boolean);
     wilds.forEach(w=>w.target.set(-B+10+Math.random()*70,0,(Math.random()-.5)*B*1.6));
     // AI friends on hero models
     const npcs=PP_NPCS.map((name,i)=>{
@@ -2505,7 +2514,7 @@ function ppBoot(){
         ppAnim(player,moving?(mag>0.75?A_RUN:A_WALK):A_IDLE);
       }
       // buddy
-      {
+      if(buddy){
         const behind=player.position.clone().add(new THREE.Vector3(Math.sin(player.rotation.y+2.5)*1.8,0,Math.cos(player.rotation.y+2.5)*1.8));
         const bd=behind.clone().sub(buddy.position);bd.y=0;
         const d=bd.length();
@@ -2599,7 +2608,7 @@ function ppBoot(){
         }
       }
       player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
-      buddy.userData.mixer?.update(dt);
+      buddy?.userData.mixer?.update(dt);
       const z=pp.zoom||1;
       const r=(pp.driving?11.5:6.2)*z;
       const hor=r*Math.cos(pp.camPitch);
@@ -2613,7 +2622,13 @@ function ppBoot(){
       __raf=requestAnimationFrame(loop);
     };
     __raf=requestAnimationFrame(loop);
-  });
+  }catch(err){
+    console.error('[starville build]',err);
+    const d=document.createElement('div');d.className='pphud';
+    d.style.cssText='z-index:9;background:#87d8ff;color:#7a1a1a;font-size:13px';
+    d.textContent='🌟 Starville hit a snag: '+(err?.message||err)+' — screenshot this for HQ!';
+    wrap.appendChild(d);
+  }});
 }
 
 // ---- GAME 10: STREET HOOPS 🏀 (full 3D) ----
