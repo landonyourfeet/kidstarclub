@@ -2068,6 +2068,7 @@ const PP_PETFILE={pet_fox:'fox',pet_husky:'husky',pet_deer:'deer',pet_wolf:'wolf
 const PP_MODELS={
   kid:'hero_kid.glb',knight:'hero_knight.glb',
   dino:'Velociraptor.glb',wolf:'Wolf.glb',
+  cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
@@ -2203,7 +2204,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Collect ⭐ STARS to earn Star Bucks, then hit the 🛍️ STAR SHOP for skins, pets & powers! Ride 🦖 Ziggy, fly 🚁 helis, zap Chompies ⚡, grab 💜 MEGA STARS. Friends appear in your world 🧑‍🤝‍🧑</p>
+    <p class="sbhint">The world DOUBLED — explore the 🏜️ dune desert past the city! Collect ⭐ STARS for Star Bucks, hit the 🛍️ STAR SHOP, ride 🦖 Ziggy, fly 🚁 helis, zap Chompy waves ⚡. Friends appear in your world 🧑‍🤝‍🧑</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2376,7 +2377,7 @@ function ppBoot(){
   renderer.setClearColor(0x87d8ff,1); // sky, not black, while the world loads
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
-  scene.fog=new THREE.Fog(0xbfe3ff,70,220);
+  scene.fog=new THREE.Fog(0xbfe3ff,90,310);
   const cam=new THREE.PerspectiveCamera(55,1,0.1,600);
   function fit(){const W=wrap.clientWidth,H=wrap.clientHeight;
     renderer.setSize(W,H);cam.aspect=W/H;cam.updateProjectionMatrix()}
@@ -2416,20 +2417,27 @@ function ppBoot(){
     }
     // most clouds fly-through height, a few high for depth
     const cy=i<6?(20+Math.random()*16):(44+Math.random()*16);
-    cl.position.set((Math.random()-.5)*(i<6?190:320),cy,(Math.random()-.5)*(i<6?190:320));
+    cl.position.set((Math.random()-.5)*(i<6?280:440),cy,(Math.random()-.5)*(i<6?280:440));
     cl.userData.v=0.008+Math.random()*0.014;
     scene.add(cl);clouds.push(cl);
   }
   const sun=new THREE.DirectionalLight(0xffedc0,1.4);
   sun.position.set(30,52,18);sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);
-  sun.shadow.camera.left=-110;sun.shadow.camera.right=110;
-  sun.shadow.camera.top=110;sun.shadow.camera.bottom=-110;
+  sun.shadow.camera.left=-160;sun.shadow.camera.right=160;
+  sun.shadow.camera.top=160;sun.shadow.camera.bottom=-160;
   sun.shadow.bias=-0.0004;
   const hemi=new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9);
   scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.1));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
-  const B=100, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  const B=150, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  // 🏜️ rolling dunes east of the city (x > 72), blended in from the grass
+  function duneAt(x,z){
+    if(x<72)return 0;
+    const e=Math.min(1,(x-72)/22);
+    const h=(Math.sin(x*0.075)+Math.sin(z*0.09+x*0.028)+Math.sin((x+z)*0.045))/3;
+    return Math.max(0,h*0.5+0.5)*4.6*e;
+  }
   // kingdom massif: main peak + shoulder + foothill = natural silhouette, far from the road
   const MTNS=[
     {x:-40,z:-42,R:30,P:7,H:15},   // main peak (castle plateau)
@@ -2437,7 +2445,7 @@ function ppBoot(){
     {x:-52,z:-18,R:11,P:1.5,H:4.5} // foothill
   ];
   function groundAt(x,z){
-    let g=0;
+    let g=duneAt(x,z);
     for(const m of MTNS){
       const d=Math.hypot(x-m.x,z-m.z);
       if(d<m.R){
@@ -2459,7 +2467,7 @@ function ppBoot(){
     }
     grassTex=new THREE.CanvasTexture(cv);
     grassTex.encoding=THREE.sRGBEncoding;
-    grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping;grassTex.repeat.set(26,26);
+    grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping;grassTex.repeat.set(38,38);
   }
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(B*2+12,B*2+12),
     new THREE.MeshLambertMaterial({map:grassTex}));
@@ -2476,6 +2484,28 @@ function ppBoot(){
   for(const sx of [32.5,51.5]){
     const walk=new THREE.Mesh(new THREE.PlaneGeometry(3,B*2),mat(0xb8b8c0));
     walk.rotation.x=-Math.PI/2;walk.position.set(sx,.014,0);scene.add(walk);
+  }
+  // 🏜️ the dune sea: displaced sand mesh matching the walkable heightfield
+  {
+    const cv2=document.createElement('canvas');cv2.width=256;cv2.height=256;
+    const g3=cv2.getContext('2d');
+    g3.fillStyle='#e3c98e';g3.fillRect(0,0,256,256);
+    for(let i=0;i<2200;i++){
+      g3.fillStyle=['#d9bd7e','#eed7a2','#cfb272','#f0dcac'][i%4];
+      g3.fillRect(Math.random()*256,Math.random()*256,2,2+Math.random()*2);
+    }
+    const sandTex=new THREE.CanvasTexture(cv2);
+    sandTex.encoding=THREE.sRGBEncoding;
+    sandTex.wrapS=sandTex.wrapT=THREE.RepeatWrapping;sandTex.repeat.set(14,40);
+    const DW=B-70, cx2=72+DW/2;
+    const sgeo2=new THREE.PlaneGeometry(DW,B*2,44,120);
+    sgeo2.rotateX(-Math.PI/2);
+    const pos2=sgeo2.attributes.position;
+    for(let i=0;i<pos2.count;i++)
+      pos2.setY(i,duneAt(cx2+pos2.getX(i),pos2.getZ(i))+0.05);
+    sgeo2.computeVertexNormals();
+    const sand=new THREE.Mesh(sgeo2,new THREE.MeshLambertMaterial({map:sandTex}));
+    sand.position.x=cx2;sand.receiveShadow=true;scene.add(sand);
   }
 
   // load everything with a progress readout, then build the world
@@ -2497,14 +2527,24 @@ function ppBoot(){
     };
     // forest + park dressing (real trees)
     const TREES=['tree1','tree2','tree3','pine1','pine2','willow','birch'];
-    for(let i=0;i<46;i++){
+    for(let i=0;i<72;i++){
       const x=-B+8+Math.random()*(B-14), z=(Math.random()-.5)*B*1.9;
       if(Math.hypot(x-(-64),z-30)<14)continue;
       put(TREES[i%TREES.length],x,z,6+Math.random()*4,Math.random()*6.3,.7,9);
     }
-    for(let i=0;i<40;i++)put(i%2?'flowers':'grass',(Math.random()-.5)*B*1.9,(Math.random()-.5)*B*1.9,.7+Math.random()*.4,Math.random()*6.3);
-    for(let i=0;i<14;i++)put('bush',(Math.random()-.5)*B*1.8,(Math.random()-.5)*B*1.8,1.1,Math.random()*6.3,.6,2);
-    for(let i=0;i<10;i++)put('rock',(Math.random()-.5)*B*1.8,(Math.random()-.5)*B*1.8,.8,Math.random()*6.3,.5,1.4);
+    for(let i=0;i<60;i++)put(i%2?'flowers':'grass',-B+6+Math.random()*(B-14+64),(Math.random()-.5)*B*1.9,.7+Math.random()*.4,Math.random()*6.3);
+    for(let i=0;i<20;i++)put('bush',-B+6+Math.random()*(B+50),(Math.random()-.5)*B*1.8,1.1,Math.random()*6.3,.6,2);
+    for(let i=0;i<16;i++)put('rock',-B+8+Math.random()*(B-16),(Math.random()-.5)*B*1.8,.8,Math.random()*6.3,.5,1.4);
+    // 🌵 the desert: cacti, flowering cacti, sun-baked rocks
+    const CACTI=['cactus1','cactus2','cactus3'];
+    for(let i=0;i<26;i++){
+      const dx2=80+Math.random()*(B-88), dz2=(Math.random()-.5)*B*1.85;
+      put(CACTI[i%3],dx2,dz2,2.4+Math.random()*1.6,Math.random()*6.3,.5,4);
+    }
+    for(let i=0;i<8;i++)
+      put('cactusF',80+Math.random()*(B-88),(Math.random()-.5)*B*1.8,1.4,Math.random()*6.3,.4,2);
+    for(let i=0;i<12;i++)
+      put('rockD',78+Math.random()*(B-86),(Math.random()-.5)*B*1.8,1.0+Math.random(),Math.random()*6.3,.6,2);
     // city street: real houses (fancy fronts) + props
     const HOUSES=['house1','house2','house3','house4','house5','house6'];
     for(let i=0;i<6;i++){
@@ -2695,17 +2735,19 @@ function ppBoot(){
       tilt.add(body,glass,boom,finV,rotor,mast,tail);
       g.traverse(m=>m.castShadow=true);
       // helipad
+      const gy2=groundAt(x,z);
       const pad=new THREE.Mesh(new THREE.CircleGeometry(3.4,24),
         new THREE.MeshLambertMaterial({color:0x2a2a33}));
-      pad.rotation.x=-Math.PI/2;pad.position.set(x,.018,z);scene.add(pad);
+      pad.rotation.x=-Math.PI/2;pad.position.set(x,gy2+.06,z);scene.add(pad);
       const hmk=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.6),
         new THREE.MeshBasicMaterial({color:0xffe14d,transparent:true,opacity:.9}));
-      hmk.rotation.x=-Math.PI/2;hmk.position.set(x,.02,z);scene.add(hmk);
-      g.position.set(x,0,z);scene.add(g);
+      hmk.rotation.x=-Math.PI/2;hmk.position.set(x,gy2+.062,z);scene.add(hmk);
+      g.position.set(x,gy2,z);scene.add(g);
       helis.push({mesh:g,tilt,rotor,vel:new THREE.Vector3(),rpm:0});
     }
     makeHeli(0,-72,0xff2ec4);
     makeHeli(-62,42,0x45d8ff);
+    makeHeli(112,-36,0xff8c1a); // desert bird
 
     // ---- CHOMPY the bone monster: big chomping jaws, wants YOUR bones ----
     function buildChomper(){
@@ -2903,7 +2945,7 @@ function ppBoot(){
       return g;
     }
     function placeBone(b){const bx=(Math.random()-.5)*B*1.8,bz=(Math.random()-.5)*B*1.8;b.position.set(bx,0.9+groundAt(bx,bz),bz)}
-    for(let i=0;i<26;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
+    for(let i=0;i<34;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
 
     const POWER=ppEquip().power||null;
     pp={score:0,time:120,over:false,vel:new THREE.Vector2(0,0),joy:null,
@@ -3224,7 +3266,7 @@ function ppBoot(){
       }
       const dt=Math.min(0.05,clock.getDelta());
       t+=dt*4.8;
-      for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>170)cl.position.x=-170}
+      for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>230)cl.position.x=-230}
       if(window.__svStar)__svStar.rotation.y+=dt*0.5;
       // ---- 🌙 day/night cycle: day → dusk → starry night → sunrise ----
       {
