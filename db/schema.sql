@@ -211,3 +211,13 @@ UPDATE invite_codes SET badge='🔥🏀' WHERE lower(code)='elikai' AND badge IS
 -- retroactive: anyone who already joined on a badged code gets the badge
 UPDATE users u SET badge=ic.badge FROM invite_codes ic
   WHERE upper(u.joined_code)=upper(ic.code) AND ic.badge IS NOT NULL AND u.badge IS NULL;
+
+-- v16: Starville Bone Shop (banked bones -> skins, pets, powers)
+CREATE TABLE IF NOT EXISTS park_purchases (
+  id         SERIAL PRIMARY KEY,
+  user_id    INT NOT NULL REFERENCES users(id),
+  item       TEXT NOT NULL,
+  cost       INT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, item)
+);
