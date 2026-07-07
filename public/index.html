@@ -257,6 +257,12 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .ppmap{position:absolute;bottom:74px;right:10px;z-index:6;pointer-events:none;
   width:132px!important;height:132px!important;border-radius:12px;border:2px solid rgba(255,255,255,.35);
   background:rgba(7,7,26,.55);box-shadow:0 3px 12px rgba(0,0,0,.4)}
+.pphpwrap{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;
+  width:190px;height:15px;border:2px solid rgba(255,255,255,.8);border-radius:999px;
+  background:rgba(7,7,26,.65);overflow:hidden;pointer-events:none}
+#ppHp i{display:block;height:100%;border-radius:999px;transition:width .25s,background .25s;
+  background:linear-gradient(90deg,#4ade80,#a3e635)}
+#ppHp i.low{background:linear-gradient(90deg,#ff5f5f,#ff8c1a);animation:pillnudge .5s ease-in-out infinite}
 .ppmist{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;
   background:radial-gradient(circle,rgba(255,255,255,.85) 0%,rgba(240,248,255,.95) 100%);
   transition:opacity .12s linear}
@@ -2195,7 +2201,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-25';
+const SV_BUILD='SV-26';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2245,6 +2251,7 @@ function ppNew(){
       <button id="ppShoot" class="ppact ppshoot hide">⚡</button>
       <div id="ppAmmo" class="ppammo hide">⚡ <b>3</b></div>
       <div id="ppMist" class="ppmist"></div>
+      <div class="pphpwrap"><div id="ppHp"><i style="width:100%"></i></div></div>
       <canvas id="ppMap" class="ppmap" width="132" height="132"></canvas>
       <button id="ppDropJump" class="ppdropjump hide">🪂 JUMP!</button>
       <div id="ppChat" class="ppchat hide">
@@ -2690,7 +2697,7 @@ function ppBoot(){
     put('spHouse',-120,SPACE_Z-140,6,Math.PI/5,4,6);
     put('spHouse',130,SPACE_Z-60,6,-Math.PI/4,4,6);
     put('spRover',10,SPACE_Z-40,2.4,Math.PI/2,1.4,3);
-    put('spShip',-200,SPACE_Z-100,7,Math.PI/6,4,7);
+    // (the starfighter is built as a flyable vehicle below)
     // city street: real houses (fancy fronts) + props
     const HOUSES=['house1','house2','house3','house4','house5','house6'];
     for(let i=0;i<6;i++){
@@ -2910,6 +2917,22 @@ function ppBoot(){
     makeHeli(0,-72,0xff2ec4);
     makeHeli(-62,42,0x45d8ff);
     makeHeli(112,-36,0xff8c1a); // desert bird
+    { // 🛸 THE STARFIGHTER: parked at the moon base — fastest thing in Starville
+      const shipM=ppSpawn(assets,PP_MODELS.spShip,7);
+      if(shipM){
+        const tilt=new THREE.Group();
+        shipM.position.y=0.5;tilt.add(shipM);
+        const glow=new THREE.PointLight(0xff8c1a,0,20);
+        glow.position.set(0,1.2,-3);tilt.add(glow);
+        const g=new THREE.Group();g.add(tilt);
+        const sy=groundAt(-200,SPACE_Z-100);
+        const pad=new THREE.Mesh(new THREE.CircleGeometry(6,24),mat(0x1c1830));
+        pad.rotation.x=-Math.PI/2;pad.position.set(-200,sy+.05,SPACE_Z-100);scene.add(pad);
+        g.position.set(-200,sy,SPACE_Z-100);
+        scene.add(g);
+        helis.push({mesh:g,tilt,rotor:new THREE.Group(),vel:new THREE.Vector3(),rpm:0,ship:true,glow});
+      }
+    }
 
     // ---- 🍌 THE GREAT BANANA: everyone rides in on the drop ship ----
     const drop={t:0,dur:75,live:true}; // slow scenic cruise
@@ -3061,6 +3084,7 @@ function ppBoot(){
         wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
         const away=player.position.clone().sub(p3).setY(0).normalize();
         tryMove(player,away.x*5,away.z*5,.45);
+        damage(30);
       }
       // Chompies in the blast get launched off the map for a minute — bait them in!
       for(const c of chompers){
@@ -3115,6 +3139,53 @@ function ppBoot(){
       banditGone(nb,'👊 BANDIT BONKED! +'+back+' ⭐','#45d8ff');
       return true;
     };
+    // ❤️ health: damage, regen, and the KO
+    function updateHp(){
+      const bar=document.querySelector('#ppHp i');
+      if(!bar)return;
+      bar.style.width=Math.max(0,pp.hp)+'%';
+      bar.classList.toggle('low',pp.hp<=30);
+    }
+    function damage(n){
+      const now2=performance.now();
+      if(pp.inv>now2||pp.over||pp.dropping||pp.skyfall)return;
+      pp.hp=Math.max(0,pp.hp-n);pp.lastHit=now2;updateHp();
+      if(pp.hp<=0){
+        pp.inv=now2+4500;
+        sndBad();
+        const fl=document.createElement('div');fl.className='chompflash';
+        wrap.appendChild(fl);setTimeout(()=>fl.remove(),650);
+        const popEl=document.createElement('div');popEl.className='chomppop';
+        popEl.textContent='💫 KNOCKED OUT! back to base…';
+        wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1600);
+        setTimeout(()=>{
+          player.position.set(-36,groundAt(-36,16),16);
+          pp.jumpY=player.position.y;pp.vy=0;
+          pp.hp=60;updateHp();
+        },1200);
+      }
+    }
+    window.__svDamage=damage;
+    // 🎁 SUPPLY DROPS: ammo crates parachute in near the action
+    const crates=[];
+    function spawnCrate(){
+      const g=new THREE.Group();
+      const box=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.3,1.3),mat(0x8a5a2b));
+      box.position.y=.65;
+      const star=new THREE.Mesh(new THREE.CircleGeometry(.42,5),
+        new THREE.MeshBasicMaterial({color:0xffd24a}));
+      star.position.set(0,.65,.66);
+      const chute=new THREE.Mesh(new THREE.SphereGeometry(1.7,12,8,0,Math.PI*2,0,Math.PI/2),
+        new THREE.MeshLambertMaterial({color:0xffe14d,side:THREE.DoubleSide}));
+      chute.position.y=2.9;
+      g.add(box,star,chute);
+      g.traverse(m=>m.castShadow=true);
+      const cx3=Math.max(-B+8,Math.min(B-8,player.position.x+(Math.random()-.5)*50));
+      const cz3=Math.max(-B+8,Math.min(B-8,player.position.z+(Math.random()-.5)*50));
+      g.position.set(cx3,38,cz3);
+      scene.add(g);
+      crates.push({mesh:g,chute,landed:0});
+    }
     // 🕷️ GLOOM PATROL: creepy critters worth big points — destroy them!
     const GLOOM={
       gSpider:{name:'Gloom Spider',emoji:'🕷️',hp:1,pts:15,sc:1.7,speed:0.08},
@@ -3298,6 +3369,36 @@ function ppBoot(){
         }
         ppBlockyUpdate(bd.mesh,dt3);
       }
+      // 🎁 supply crates drift down, then wait 30s for a pickup
+      pp.crateT=(pp.crateT??15)-dt3;
+      if(pp.crateT<=0&&crates.length<2){pp.crateT=24+Math.random()*10;spawnCrate()}
+      for(let i=crates.length-1;i>=0;i--){
+        const cr=crates[i];
+        if(!cr.landed){
+          cr.mesh.position.y-=dt3*5;
+          cr.mesh.position.x+=Math.sin(performance.now()/600+i)*dt3*1.2;
+          cr.chute.rotation.y+=dt3;
+          const gY4=groundAt(cr.mesh.position.x,cr.mesh.position.z);
+          if(cr.mesh.position.y<=gY4){cr.mesh.position.y=gY4;cr.landed=performance.now();cr.chute.visible=false}
+        }else if(performance.now()-cr.landed>30000){
+          scene.remove(cr.mesh);crates.splice(i,1);continue;
+        }
+        if(cr.mesh.position.distanceTo(player.position)<(pp.flying?3.4:2)){
+          const W4=WEAPONS[pp.wtype]||WEAPONS.blaster;
+          pp.ammo=W4.shots;ammoUI();sndWin();burst('pop');
+          const popEl=document.createElement('div');popEl.className='chomppop';
+          popEl.style.color='#ffd24a';
+          popEl.textContent='🎁 RESUPPLY! '+W4.emoji+' '+W4.shots+' shots!';
+          wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+          scene.remove(cr.mesh);crates.splice(i,1);
+        }
+      }
+      // ❤️ regen: 6 quiet seconds heals you up
+      if(pp.hp<100&&performance.now()-pp.lastHit>6000){
+        pp.hp=Math.min(100,pp.hp+4*dt3);
+        pp.hpUi=(pp.hpUi||0)-dt3;
+        if(pp.hpUi<=0){pp.hpUi=0.25;updateHp()}
+      }
       // gloom patrol stalks, wasps orbit — 60s lifespan if ignored
       pp.gloomT=(pp.gloomT??18)-dt3;
       if(pp.gloomT<=0&&gloomies.length<6){pp.gloomT=30+Math.random()*15;spawnGloomWave()}
@@ -3320,6 +3421,7 @@ function ppBoot(){
         // a nip if they reach you (ground crawlers only)
         if(!gl.def.fly&&gl.cool<=0&&dist5<1.5&&!pp.driving&&!pp.flying&&(pp.airH||0)<1){
           gl.cool=3;
+          damage(10);
           const nip=Math.min(pp.score,5);
           pp.score-=nip;const se6=$('#ppscore');if(se6)se6.textContent=pp.score;
           sndBad();ppAnim(gl.mesh,['Attack']);
@@ -3603,7 +3705,7 @@ function ppBoot(){
     pp={score:0,time:600,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
       jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0,
-      dropping:true,skyfall:false,canopy:false,wtype:'blaster'};
+      dropping:true,skyfall:false,canopy:false,wtype:'blaster',hp:100,lastHit:0,inv:0};
     gIval(()=>{ if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
@@ -3964,9 +4066,15 @@ function ppBoot(){
         // own heli: rpm drives volume + blade chop rate
         const h=pp.flying;
         if(h){
-          snd.heliMe.out.gain.value=0.03+h.rpm*0.09; // much quieter
-          snd.heliMe.lfo.frequency.value=4.5+h.rpm*3.5+Math.abs(h.vel.y)*0.3; // slow heavy wop
-          snd.heliMe.bp.frequency.value=180+h.rpm*90;
+          if(h.ship){ // 🛸 smooth ion hum
+            snd.heliMe.out.gain.value=0.025+h.rpm*0.07;
+            snd.heliMe.lfo.frequency.value=1.1;
+            snd.heliMe.bp.frequency.value=520+h.rpm*380+Math.hypot(h.vel.x,h.vel.z)*8;
+          }else{
+            snd.heliMe.out.gain.value=0.03+h.rpm*0.09; // much quieter
+            snd.heliMe.lfo.frequency.value=4.5+h.rpm*3.5+Math.abs(h.vel.y)*0.3; // slow heavy wop
+            snd.heliMe.bp.frequency.value=180+h.rpm*90;
+          }
         }else{
           // parked rotors winding down are audible nearby
           let g2=0;
@@ -4105,15 +4213,17 @@ function ppBoot(){
           const ax=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
           const az=Math.cos(af)*(-vz)+Math.cos(af-Math.PI/2)*vx;
           // momentum: thrust + drag, collective for lift, gravity when idle
-          h.vel.x+=ax*13*dt*h.rpm; h.vel.z+=az*13*dt*h.rpm;
-          h.vel.x*=1-1.6*dt; h.vel.z*=1-1.6*dt;
+          const TH=h.ship?27:13, DRG=h.ship?0.9:1.6;
+          h.vel.x+=ax*TH*dt*h.rpm; h.vel.z+=az*TH*dt*h.rpm;
+          h.vel.x*=1-DRG*dt; h.vel.z*=1-DRG*dt;
           const liftIn=pp.lift||(keys[' ']?1:(keys.c||keys.C)?-1:0);
-          h.vel.y+= (liftIn>0?10:liftIn<0?-9:-5.5)*dt*h.rpm;
-          h.vel.y=Math.max(-7,Math.min(6,h.vel.y));h.vel.y*=1-0.8*dt;
+          h.vel.y+= (liftIn>0?(h.ship?14:10):liftIn<0?(h.ship?-12:-9):(h.ship?-4:-5.5))*dt*h.rpm;
+          h.vel.y=Math.max(-8,Math.min(h.ship?9:6,h.vel.y));h.vel.y*=1-0.8*dt;
+          if(h.glow)h.glow.intensity=h.rpm*2.2;
           const m=h.mesh;
           if(!tryMove(m,h.vel.x*dt,h.vel.z*dt,1.6)){h.vel.x*=-.25;h.vel.z*=-.25}
           const floor=groundAt(m.position.x,m.position.z);
-          m.position.y=Math.max(floor,Math.min(42,m.position.y+h.vel.y*dt));
+          m.position.y=Math.max(floor,Math.min(h.ship?62:42,m.position.y+h.vel.y*dt));
           if(m.position.y===floor&&h.vel.y<0)h.vel.y=0; // touched down (ground OR rooftop)
           const sp=Math.hypot(h.vel.x,h.vel.z);
           if(sp>0.6)m.rotation.y+=(((Math.atan2(h.vel.x,h.vel.z)-m.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*3);
@@ -4459,6 +4569,7 @@ function ppBoot(){
         chomp.mesh.position.y=hop+groundAt(chomp.mesh.position.x,chomp.mesh.position.z);
         if(dist<1.9&&!pp.driving&&!pp.flying&&chomp.cool<=0&&(pp.airH||0)<1.1){
           chomp.cool=4;
+          window.__svDamage&&__svDamage(20);
           const shielded=POWER==='pw_shield';
           const loss=shielded?Math.ceil(pp.score/2):pp.score;
           pp.score-=loss;const se=$('#ppscore');if(se)se.textContent=pp.score;
@@ -4550,7 +4661,7 @@ function ppBoot(){
           let nh=null,nhd=1e9;
           for(const h of helis){const d=h.mesh.position.distanceTo(player.position);if(d<nhd){nhd=d;nh=h}}
           if(nh&&nhd<3.6&&!pp.driving&&!pp.riding&&!pp.chatting){
-            fb2.textContent='🚁 Fly!';fb2.classList.remove('hide');
+            fb2.textContent=nh.ship?'🛸 Fly the STARFIGHTER!':'🚁 Fly!';fb2.classList.remove('hide');
             fb2.onclick=()=>{pp.flying=nh;pp.lift=0;sndWin();
               const popEl=document.createElement('div');popEl.className='chomppop';
               popEl.style.color='#45d8ff';popEl.textContent='🚁 SPOOLING UP! Hold 🦘 to climb!';
@@ -4709,6 +4820,10 @@ function ppBoot(){
             g5.beginPath();g5.arc(bx3,bz3,2.2,0,7);
             bd.state==='drop'?g5.stroke():g5.fill();
           }
+          // supply crates (gold squares)
+          g5.fillStyle='#ffd24a';
+          for(const cr of crates)
+            g5.fillRect(mx2(cr.mesh.position.x)-2,mz2(cr.mesh.position.z)-2,4,4);
           // gloom patrol (violet)
           g5.fillStyle='#c084fc';
           for(const gl of gloomies){
