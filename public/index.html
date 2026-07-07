@@ -245,6 +245,9 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .shcost{font:900 11px var(--body);color:var(--yellow);margin-top:3px}
 .ppride{bottom:74px}
 .ppfly{bottom:134px}
+.ppmist{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;
+  background:radial-gradient(circle,rgba(255,255,255,.85) 0%,rgba(240,248,255,.95) 100%);
+  transition:opacity .12s linear}
 .ppammo{position:absolute;top:62px;left:10px;z-index:6;font:900 13px var(--body);
   color:#062030;background:var(--yellow);border:2px solid #fff;border-radius:999px;
   padding:5px 12px;box-shadow:0 3px 10px rgba(255,225,77,.5)}
@@ -2192,6 +2195,7 @@ function ppNew(){
       <button id="ppBonk" class="ppact ppbonk hide">👊</button>
       <button id="ppShoot" class="ppact ppshoot hide">⚡</button>
       <div id="ppAmmo" class="ppammo hide">⚡ <b>3</b></div>
+      <div id="ppMist" class="ppmist"></div>
       <div id="ppChat" class="ppchat hide">
         <div class="ppchead"><span id="ppcName"></span><button class="act-mini" onclick="ppCloseChat()">✕</button></div>
         <div id="ppcMsgs" class="ppcmsgs"></div>
@@ -2397,7 +2401,9 @@ function ppBoot(){
       puff.position.set((Math.random()-.5)*9,(Math.random()-.5)*2,(Math.random()-.5)*5);
       cl.add(puff);
     }
-    cl.position.set((Math.random()-.5)*320,38+Math.random()*22,(Math.random()-.5)*320);
+    // most clouds fly-through height, a few high for depth
+    const cy=i<6?(20+Math.random()*16):(44+Math.random()*16);
+    cl.position.set((Math.random()-.5)*(i<6?190:320),cy,(Math.random()-.5)*(i<6?190:320));
     cl.userData.v=0.008+Math.random()*0.014;
     scene.add(cl);clouds.push(cl);
   }
@@ -2410,11 +2416,21 @@ function ppBoot(){
   scene.add(sun,new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9),new THREE.AmbientLight(0xffffff,0.1));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
   const B=100, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
-  const MTN={R:26,P:6,H:12}; // kingdom mountain: rim radius, plateau radius, plateau height
+  // kingdom massif: main peak + shoulder + foothill = natural silhouette, far from the road
+  const MTNS=[
+    {x:-40,z:-42,R:30,P:7,H:15},   // main peak (castle plateau)
+    {x:-18,z:-34,R:14,P:2,H:7},    // shoulder
+    {x:-52,z:-18,R:11,P:1.5,H:4.5} // foothill
+  ];
   function groundAt(x,z){
     let g=0;
-    const d=Math.hypot(x,z);
-    if(d<MTN.R)g=d<MTN.P?MTN.H:MTN.H*(1-(d-MTN.P)/(MTN.R-MTN.P));
+    for(const m of MTNS){
+      const d=Math.hypot(x-m.x,z-m.z);
+      if(d<m.R){
+        const h=d<m.P?m.H:m.H*(1-(d-m.P)/(m.R-m.P));
+        if(h>g)g=h;
+      }
+    }
     for(const r of ROOFS)
       if(Math.abs(x-r.x)<r.hw&&Math.abs(z-r.z)<r.hd&&r.h>g)g=r.h;
     return g;
@@ -2436,7 +2452,7 @@ function ppBoot(){
   ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
   const pond=new THREE.Mesh(new THREE.CircleGeometry(10,24),
     new THREE.MeshLambertMaterial({color:0x2e9dff,transparent:true,opacity:.9}));
-  pond.rotation.x=-Math.PI/2;pond.position.set(-55,.02,-25);scene.add(pond);
+  pond.rotation.x=-Math.PI/2;pond.position.set(-64,.02,30);scene.add(pond);
   const road=new THREE.Mesh(new THREE.PlaneGeometry(16,B*2),mat(0x3a3a44));
   road.rotation.x=-Math.PI/2;road.position.set(42,.015,0);scene.add(road);
   for(let i=0;i<14;i++){
@@ -2469,7 +2485,7 @@ function ppBoot(){
     const TREES=['tree1','tree2','tree3','pine1','pine2','willow','birch'];
     for(let i=0;i<46;i++){
       const x=-B+8+Math.random()*(B-14), z=(Math.random()-.5)*B*1.9;
-      if(Math.hypot(x-(-55),z-(-25))<14)continue;
+      if(Math.hypot(x-(-64),z-30)<14)continue;
       put(TREES[i%TREES.length],x,z,6+Math.random()*4,Math.random()*6.3,.7,9);
     }
     for(let i=0;i<40;i++)put(i%2?'flowers':'grass',(Math.random()-.5)*B*1.9,(Math.random()-.5)*B*1.9,.7+Math.random()*.4,Math.random()*6.3);
@@ -2518,48 +2534,59 @@ function ppBoot(){
     clubhouse(-34,58,1,0xa8d8ff,0x3a5a8a);
     clubhouse(4,60,-1,0xffe6a8,0x6a8a3a);
 
-    // ---- 👑 STARVILLE KINGDOM: mountain, castle, and the great star ----
+    // ---- 👑 STARVILLE KINGDOM: mountain massif, castle, and the great star ----
     {
-      const slope=new THREE.Mesh(
-        new THREE.CylinderGeometry(MTN.P,MTN.R,MTN.H,28,1,true),
-        new THREE.MeshLambertMaterial({map:grassTex}));
-      slope.position.y=MTN.H/2;scene.add(slope);slope.receiveShadow=true;
-      const cap=new THREE.Mesh(new THREE.CircleGeometry(MTN.P,24),mat(0x9a9aa8));
-      cap.rotation.x=-Math.PI/2;cap.position.y=MTN.H+.02;scene.add(cap);
+      // one grassy cone per peak = a natural multi-summit silhouette
+      for(const m of MTNS){
+        const slope=new THREE.Mesh(
+          new THREE.CylinderGeometry(Math.max(.6,m.P),m.R,m.H,26,1,true),
+          new THREE.MeshLambertMaterial({map:grassTex}));
+        slope.position.set(m.x,m.H/2,m.z);slope.receiveShadow=true;scene.add(slope);
+      }
+      const MC=MTNS[0], MX=MC.x, MZ=MC.z, bY=MC.H;
+      const cap=new THREE.Mesh(new THREE.CircleGeometry(MC.P,24),mat(0x9a9aa8));
+      cap.rotation.x=-Math.PI/2;cap.position.set(MX,bY+.02,MZ);scene.add(cap);
+      // rocky outcrops on the slopes
+      for(let i=0;i<7;i++){
+        const an=Math.random()*6.3, rr=MC.P+3+Math.random()*(MC.R-MC.P-6);
+        const rx=MX+Math.cos(an)*rr, rz=MZ+Math.sin(an)*rr;
+        const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(.8+Math.random()*1.1,0),mat(0x8a8a96));
+        rk.position.set(rx,groundAt(rx,rz)+.3,rz);
+        rk.rotation.set(Math.random(),Math.random(),Math.random());
+        rk.castShadow=true;scene.add(rk);
+      }
       const stone=new THREE.MeshLambertMaterial({color:new THREE.Color(0xc9c9d4)});
       stone.color.convertSRGBToLinear();
       const roofM=new THREE.MeshLambertMaterial({color:new THREE.Color(0xe20074)});
       roofM.color.convertSRGBToLinear();
-      const bY=MTN.H;
       const tower=(tx,tz,r,h)=>{
         const tw=new THREE.Mesh(new THREE.CylinderGeometry(r,r*1.12,h,10),stone);
-        tw.position.set(tx,bY+h/2,tz);tw.castShadow=true;scene.add(tw);
+        tw.position.set(MX+tx,bY+h/2,MZ+tz);tw.castShadow=true;scene.add(tw);
         const rf=new THREE.Mesh(new THREE.ConeGeometry(r*1.35,r*2,10),roofM);
-        rf.position.set(tx,bY+h+r,tz);rf.castShadow=true;scene.add(rf);
-        COLL.push({x:tx,z:tz,hw:r+.2,hd:r+.2,h:bY+h});
+        rf.position.set(MX+tx,bY+h+r,MZ+tz);rf.castShadow=true;scene.add(rf);
+        COLL.push({x:MX+tx,z:MZ+tz,hw:r+.2,hd:r+.2,h:bY+h});
       };
       const wall=(wx,wz,w,d)=>{
         const m=new THREE.Mesh(new THREE.BoxGeometry(w,2.6,d),stone);
-        m.position.set(wx,bY+1.3,wz);m.castShadow=true;scene.add(m);
-        COLL.push({x:wx,z:wz,hw:w/2,hd:d/2,h:bY+2.6});
+        m.position.set(MX+wx,bY+1.3,MZ+wz);m.castShadow=true;scene.add(m);
+        COLL.push({x:MX+wx,z:MZ+wz,hw:w/2,hd:d/2,h:bY+2.6});
       };
-      const W=4.4; // courtyard half-size
+      const W=4.4;
       tower(-W,-W,1,4.2);tower(W,-W,1,4.2);tower(-W,W,1,4.2);tower(W,W,1,4.2);
-      wall(0,-W,W*2-1.4,.5);           // back wall
-      wall(-W,0,.5,W*2-1.4);wall(W,0,.5,W*2-1.4); // sides
-      wall(-2.7,W,2.2,.5);wall(2.7,W,2.2,.5);     // gate faces the road — walk right in
-      // the keep + banner
+      wall(0,-W,W*2-1.4,.5);
+      wall(-W,0,.5,W*2-1.4);wall(W,0,.5,W*2-1.4);
+      wall(-2.7,W,2.2,.5);wall(2.7,W,2.2,.5); // gate faces the park
       const keep=new THREE.Mesh(new THREE.CylinderGeometry(1.7,2,6.5,12),stone);
-      keep.position.set(0,bY+3.25,0);keep.castShadow=true;scene.add(keep);
+      keep.position.set(MX,bY+3.25,MZ);keep.castShadow=true;scene.add(keep);
       const keepRoof=new THREE.Mesh(new THREE.ConeGeometry(2.3,2.6,12),roofM);
-      keepRoof.position.set(0,bY+7.7,0);keepRoof.castShadow=true;scene.add(keepRoof);
-      COLL.push({x:0,z:0,hw:2,hd:2,h:bY+6.5});
+      keepRoof.position.set(MX,bY+7.7,MZ);keepRoof.castShadow=true;scene.add(keepRoof);
+      COLL.push({x:MX,z:MZ,hw:2,hd:2,h:bY+6.5});
       const pole=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2.4,6),stone);
-      pole.position.set(0,bY+10.1,0);scene.add(pole);
+      pole.position.set(MX,bY+10.1,MZ);scene.add(pole);
       const flag=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.8),
         new THREE.MeshBasicMaterial({color:0xe20074,side:THREE.DoubleSide}));
-      flag.position.set(.75,bY+10.9,0);scene.add(flag);
-      // ⭐ THE GREAT STAR — golden beacon over the kingdom
+      flag.position.set(MX+.75,bY+10.9,MZ);scene.add(flag);
+      // ⭐ THE GREAT STAR
       const shape=new THREE.Shape();
       for(let i=0;i<10;i++){
         const r=i%2?0.42:1, an=i*Math.PI/5-Math.PI/2;
@@ -2571,11 +2598,10 @@ function ppBoot(){
       window.__svStar=new THREE.Mesh(sgeo,
         new THREE.MeshPhongMaterial({color:0xffd24a,emissive:0xcc9900,emissiveIntensity:.9,shininess:100}));
       __svStar.scale.setScalar(5.5);
-      __svStar.position.set(0,bY+18,0);
+      __svStar.position.set(MX,bY+18,MZ);
       scene.add(__svStar);
       const glow=new THREE.PointLight(0xffd24a,1.4,90);
-      glow.position.set(0,bY+18,0);scene.add(glow);
-      // "StarVille!" floats beneath the star, always facing you
+      glow.position.set(MX,bY+18,MZ);scene.add(glow);
       const cv=document.createElement('canvas');cv.width=1024;cv.height=224;
       const g2=cv.getContext('2d');
       g2.font='900 150px Baloo 2, Arial Black, sans-serif';
@@ -2585,7 +2611,7 @@ function ppBoot(){
       const ttex=new THREE.CanvasTexture(cv);ttex.encoding=THREE.sRGBEncoding;
       const label=new THREE.Sprite(new THREE.SpriteMaterial({map:ttex,depthTest:false}));
       label.scale.set(20,4.4,1);
-      label.position.set(0,bY+13.6,0);
+      label.position.set(MX,bY+13.6,MZ);
       scene.add(label);
     }
 
@@ -2611,7 +2637,7 @@ function ppBoot(){
 
     // 🦖 Ziggy the rideable raptor
     const dino=ppSpawn(assets,PP_MODELS.dino,2.1);
-    if(dino){dino.position.set(-32,0,-20);scene.add(dino);ppAnim(dino,A_IDLE)}
+    if(dino){dino.position.set(-12,0,34);scene.add(dino);ppAnim(dino,A_IDLE)}
 
     // 🚁 helicopters with momentum flight
     const helis=[];
@@ -3077,20 +3103,22 @@ function ppBoot(){
         const nd=nb.getChannelData(0);
         for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
         const mkHeli=()=>{
+          // heavy slow rotor "wop": deep-filtered noise, gentle sine chop, soft low rumble
           const src=ctx.createBufferSource();src.buffer=nb;src.loop=true;
-          const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=380;bp.Q.value=0.8;
-          const chop=ctx.createGain();chop.gain.value=0.5;
-          const lfo=ctx.createOscillator();lfo.frequency.value=13;
-          const lfoG=ctx.createGain();lfoG.gain.value=0.5;
+          const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=220;lp.Q.value=0.5;
+          const chop=ctx.createGain();chop.gain.value=0.7;
+          const lfo=ctx.createOscillator();lfo.type='sine';lfo.frequency.value=6;
+          const lfoG=ctx.createGain();lfoG.gain.value=0.3; // shallow modulation, not a buzz
           lfo.connect(lfoG);lfoG.connect(chop.gain);
-          const hum=ctx.createOscillator();hum.type='triangle';hum.frequency.value=85;
-          const humG=ctx.createGain();humG.gain.value=0.35;
+          const hum=ctx.createOscillator();hum.type='sawtooth';hum.frequency.value=46;
+          const humF=ctx.createBiquadFilter();humF.type='lowpass';humF.frequency.value=120;
+          const humG=ctx.createGain();humG.gain.value=0.10;
           const out=ctx.createGain();out.gain.value=0;
-          src.connect(bp);bp.connect(chop);chop.connect(out);
-          hum.connect(humG);humG.connect(out);
+          src.connect(lp);lp.connect(chop);chop.connect(out);
+          hum.connect(humF);humF.connect(humG);humG.connect(out);
           out.connect(ctx.destination);
           src.start();lfo.start();hum.start();
-          return {out,lfo,bp};
+          return {out,lfo,bp:lp};
         };
         snd.heliMe=mkHeli();
         snd.heliOthers=mkHeli();
@@ -3124,9 +3152,9 @@ function ppBoot(){
         // own heli: rpm drives volume + blade chop rate
         const h=pp.flying;
         if(h){
-          snd.heliMe.out.gain.value=0.10+h.rpm*0.30;
-          snd.heliMe.lfo.frequency.value=9+h.rpm*9+Math.abs(h.vel.y)*0.6;
-          snd.heliMe.bp.frequency.value=340+h.rpm*160;
+          snd.heliMe.out.gain.value=0.03+h.rpm*0.09; // much quieter
+          snd.heliMe.lfo.frequency.value=4.5+h.rpm*3.5+Math.abs(h.vel.y)*0.3; // slow heavy wop
+          snd.heliMe.bp.frequency.value=180+h.rpm*90;
         }else{
           // parked rotors winding down are audible nearby
           let g2=0;
@@ -3134,7 +3162,23 @@ function ppBoot(){
             const d=hh.mesh.position.distanceTo(player.position);
             g2=Math.max(g2,hh.rpm*Math.max(0,1-d/40));
           }
-          snd.heliMe.out.gain.value=g2*0.25;
+          snd.heliMe.out.gain.value=g2*0.08;
+        }
+        // ✈️☁️ flying through a cloud: soft white-out + whoosh
+        const mistEl=$('#ppMist');
+        if(mistEl){
+          let inCloud=0;
+          if(pp.flying){
+            const hp=pp.flying.mesh.position;
+            for(const cl of clouds){
+              const d=Math.hypot(hp.x-cl.position.x,(hp.y-cl.position.y)*1.6,hp.z-cl.position.z);
+              if(d<9)inCloud=Math.max(inCloud,1-d/9);
+            }
+          }
+          pp.mist=(pp.mist||0)+(inCloud-(pp.mist||0))*Math.min(1,dt2*5);
+          mistEl.style.opacity=(pp.mist*0.82).toFixed(2);
+          if(inCloud>0.25&&!pp.mistIn){pp.mistIn=true;sfxNoise(0.5,0.12)}
+          if(inCloud<=0.05)pp.mistIn=false;
         }
         // other players' helicopters: proximity-based
         let og=0;
@@ -3143,7 +3187,7 @@ function ppBoot(){
           const d=rec.root.position.distanceTo(player.position);
           og=Math.max(og,Math.max(0,1-d/55));
         }
-        snd.heliOthers.out.gain.value=og*0.28;
+        snd.heliOthers.out.gain.value=og*0.10;
       }catch(e){}
     }
 
@@ -3598,6 +3642,11 @@ function ppBoot(){
           pp.camYaw+=dd*Math.min(1,dt*2.6);
         }
       }
+      // camera auto-tilts with the terrain: higher ground = higher view angle
+      if(!keys.Shift&&!pp.flying){
+        const boost=Math.min(0.42,Math.max(0,groundAt(player.position.x,player.position.z)*0.024));
+        pp.camPitch+=((0.58+boost)-pp.camPitch)*Math.min(1,dt*2.2);
+      }
       const z=pp.zoom||1;
       const r=((pp.driving||pp.flying)?11.5:6.2)*z;
       const hor=r*Math.cos(pp.camPitch);
@@ -3605,6 +3654,9 @@ function ppBoot(){
         player.position.x+Math.sin(pp.camYaw)*hor,
         player.position.y+r*Math.sin(pp.camPitch),
         player.position.z+Math.cos(pp.camYaw)*hor);
+      // never sink the camera into a hillside
+      const camG=groundAt(target.x,target.z);
+      if(target.y<camG+2.2)target.y=camG+2.2;
       sndFrame(dt);
       cam.position.lerp(target,0.08);
       cam.lookAt(player.position.x,pp.flying?player.position.y+1:1.3*z,player.position.z);
