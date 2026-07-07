@@ -38,7 +38,7 @@ async function auth(req, res, next) {
   const raw = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('ksc='));
   const uid = unsign(raw?.slice(4));
   if (uid) {
-    const { rows: [u] } = await pool.query('SELECT id,role,display_name,username,status,theme,(avatar_key IS NOT NULL) AS has_avatar FROM users WHERE id=$1', [uid]);
+    const { rows: [u] } = await pool.query('SELECT id,role,display_name,username,status,theme,badge,(avatar_key IS NOT NULL) AS has_avatar FROM users WHERE id=$1', [uid]);
     if (u && u.status === 'active') req.user = u;
     else if (u) return res.status(403).json({ error: u.status === 'banned' ? 'This account has been removed from the club.' : 'This account is paused. Ask the club admin.' });
   }
@@ -58,7 +58,7 @@ app.post('/api/login', async (req, res) => {
   if (!u || !checkPw(password || '', u.password_hash)) return res.status(401).json({ error: 'Wrong username or password.' });
   if (u.status !== 'active') return res.status(403).json({ error: 'This account is not active.' });
   setSession(res, u.id);
-  res.json({ id: u.id, role: u.role, display_name: u.display_name });
+  res.json({ id: u.id, role: u.role, display_name: u.display_name, badge: u.badge || null });
 });
 app.post('/api/logout', (req, res) => { res.setHeader('Set-Cookie', 'ksc=; Path=/; Max-Age=0'); res.json({ ok: true }); });
 app.get('/api/me', (req, res) => res.json(req.user || null));
@@ -70,8 +70,8 @@ app.post('/api/join', async (req, res) => {
   if (!inv) return res.status(400).json({ error: 'That invite code is not valid.' });
   try {
     const { rows: [u] } = await pool.query(
-      `INSERT INTO users (role,display_name,username,password_hash,joined_code) VALUES ($1,$2,$3,$4,$5) RETURNING id,role,display_name`,
-      [inv.role, display_name.trim().slice(0, 40), username.trim().toLowerCase().slice(0, 30), hashPw(password), inv.code.toUpperCase()]);
+      `INSERT INTO users (role,display_name,username,password_hash,joined_code,badge) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,role,display_name`,
+      [inv.role, display_name.trim().slice(0, 40), username.trim().toLowerCase().slice(0, 30), hashPw(password), inv.code.toUpperCase(), inv.badge || null]);
     await pool.query('UPDATE invite_codes SET uses=uses+1 WHERE code=$1', [inv.code]);
     if (inv.role === 'kid')
       await pool.query(`INSERT INTO channels (owner_id,name) VALUES ($1,$2)`, [u.id, `${u.display_name}'s Stage`]);
@@ -86,7 +86,7 @@ app.post('/api/join', async (req, res) => {
 // ---------- Channels / feed ----------
 app.get('/api/channels', requireUser, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT c.*, u.display_name AS owner_name, u.avatar_emoji,
+    `SELECT c.*, u.display_name||COALESCE(' '||u.badge,'') AS owner_name, u.avatar_emoji,
        (SELECT count(*)::int FROM videos v WHERE v.channel_id=c.id AND v.status='live') AS video_count
      FROM channels c JOIN users u ON u.id=c.owner_id WHERE u.status='active' ORDER BY c.id`);
   res.json(rows);
@@ -98,7 +98,7 @@ app.get('/api/feed', requireUser, async (req, res) => {
        (v.thumb_key IS NOT NULL) AS has_thumb,
        COALESCE((SELECT AVG(score) FROM judge_scores js WHERE js.video_id=v.id),0)::float AS avg_score,
        FLOOR(v.views * GREATEST(1, POWER(COALESCE((SELECT AVG(score) FROM judge_scores js WHERE js.video_id=v.id),0),2)))::int AS chart_score,
-       c.name AS channel_name, u.display_name AS owner_name, u.avatar_emoji,
+       c.name AS channel_name, u.display_name||COALESCE(' '||u.badge,'') AS owner_name, u.avatar_emoji,
        (SELECT count(*)::int FROM reactions r WHERE r.video_id=v.id) AS reaction_count,
        (SELECT json_object_agg(kind,n) FROM (SELECT kind, count(*)::int AS n FROM reactions WHERE video_id=v.id GROUP BY kind) t) AS rx,
        (SELECT count(*)::int FROM comments cm WHERE cm.video_id=v.id AND cm.status='visible') AS comment_count
@@ -193,7 +193,7 @@ app.post('/api/videos/:id/view', requireUser, async (req, res) => {
 
 app.get('/api/videos/:id', requireUser, async (req, res) => {
   const { rows: [v] } = await pool.query(
-    `SELECT v.*, c.name AS channel_name, c.star_meter, c.id AS channel_id, c.owner_id, u.display_name AS owner_name
+    `SELECT v.*, c.name AS channel_name, c.star_meter, c.id AS channel_id, c.owner_id, u.display_name||COALESCE(' '||u.badge,'') AS owner_name
      FROM videos v JOIN channels c ON c.id=v.channel_id JOIN users u ON u.id=c.owner_id
      WHERE v.id=$1 AND v.status='live'`, [req.params.id]);
   if (!v) return res.status(404).json({ error: 'Video not found.' });
@@ -216,7 +216,7 @@ app.get('/api/videos/:id', requireUser, async (req, res) => {
 app.get('/api/videos/:id/comments', requireUser, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cm.id, cm.body, cm.parent_id, cm.created_at, cm.status,
-       u.display_name AS user_name, u.avatar_emoji AS user_emoji, (u.avatar_key IS NOT NULL) AS user_has_avatar, u.id AS user_id, u.role AS user_role, u.joined_code,
+       u.display_name||COALESCE(' '||u.badge,'') AS user_name, u.avatar_emoji AS user_emoji, (u.avatar_key IS NOT NULL) AS user_has_avatar, u.id AS user_id, u.role AS user_role, u.joined_code,
        CASE WHEN u.id IS NOT NULL THEN
          (SELECT count(*)::int FROM comments c2 WHERE c2.user_id=u.id AND c2.status='visible')
          + (SELECT count(*)::int FROM reactions r2 WHERE r2.user_id=u.id)
@@ -293,7 +293,7 @@ app.post('/api/channels/:id/unsubscribe', requireUser, async (req, res) => {
 });
 app.get('/api/channels/:id/subscribers', requireUser, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.display_name, u.avatar_emoji, u.joined_code, s.created_at FROM subscriptions s
+    `SELECT u.display_name||COALESCE(' '||u.badge,'') AS display_name, u.avatar_emoji, u.joined_code, s.created_at FROM subscriptions s
      JOIN users u ON u.id=s.user_id WHERE s.channel_id=$1 AND u.status='active' ORDER BY s.created_at`,
     [req.params.id]);
   res.json(rows);
@@ -364,7 +364,7 @@ app.get('/api/chat', requireUser, async (req, res) => {
   const after = parseInt(req.query.after) || 0;
   const { rows } = await pool.query(
     `SELECT cm.id, cm.body, cm.created_at, (cm.image_key IS NOT NULL) AS has_image,
-       u.display_name AS user_name, u.avatar_emoji AS user_emoji, (u.avatar_key IS NOT NULL) AS user_has_avatar, u.id AS user_id, u.role AS user_role, u.joined_code,
+       u.display_name||COALESCE(' '||u.badge,'') AS user_name, u.avatar_emoji AS user_emoji, (u.avatar_key IS NOT NULL) AS user_has_avatar, u.id AS user_id, u.role AS user_role, u.joined_code,
        cs.name AS cast_name, cs.emoji AS cast_emoji, cs.tier AS cast_tier, cs.specialty
      FROM chat_messages cm LEFT JOIN users u ON u.id=cm.user_id LEFT JOIN cast_members cs ON cs.id=cm.cast_id
      WHERE cm.status='visible' AND cm.id > $1
@@ -470,7 +470,7 @@ app.post('/api/videos/:id/unshare', requireUser, async (req, res) => {
 
 async function shareVideo(token) {
   const { rows: [v] } = await pool.query(
-    `SELECT v.*, c.name AS channel_name, u.display_name AS owner_name
+    `SELECT v.*, c.name AS channel_name, u.display_name||COALESCE(' '||u.badge,'') AS owner_name
      FROM videos v JOIN channels c ON c.id=v.channel_id JOIN users u ON u.id=c.owner_id
      WHERE v.share_token=$1 AND v.status='live'`, [token]);
   return v;
@@ -495,7 +495,7 @@ app.get('/api/share/:token/data', async (req, res) => {
   if (!v) return res.status(404).json({ error: 'Not found' });
   const { rows: comments } = await pool.query(
     `SELECT cm.body, cm.parent_id, cm.created_at,
-       u.display_name AS user_name, u.avatar_emoji AS user_emoji, u.role AS user_role,
+       u.display_name||COALESCE(' '||u.badge,'') AS user_name, u.avatar_emoji AS user_emoji, u.role AS user_role,
        cs.name AS cast_name, cs.emoji AS cast_emoji, cs.tier AS cast_tier, cs.specialty
      FROM comments cm LEFT JOIN users u ON u.id=cm.user_id LEFT JOIN cast_members cs ON cs.id=cm.cast_id
      WHERE cm.video_id=$1 AND cm.status='visible' ORDER BY cm.created_at`, [v.id]);
@@ -638,7 +638,7 @@ app.post('/api/park/pos', requireUser, (req, res) => {
   for(const k of ['body','skin','hairstyle','hair','top','bottom'])
     if(typeof cfg[k]==='string')safeCfg[k]=String(cfg[k]).slice(0,24);
   parkPresence.set(req.user.id,{
-    name:String(req.user.display_name||req.user.username||'Star').slice(0,24),
+    name:(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30),
     x:num(b.x), z:num(b.z), ry:Number(b.ry)||0,
     score:Math.max(0,Math.min(999999,parseInt(b.score,10)||0)),
     hero:String(b.hero||'custom').slice(0,20), cfg:safeCfg, ts:Date.now(),
@@ -668,7 +668,7 @@ app.get('/api/games/summary', requireUser, async (req, res) => {
     const { rows: [mine] } = await pool.query(
       `SELECT COALESCE(MAX(score),0)::int AS best FROM game_scores WHERE user_id=$1 AND game=$2`, [req.user.id, g]);
     const { rows: [top] } = await pool.query(
-      `SELECT u.display_name, MAX(gs.score)::int AS score FROM game_scores gs JOIN users u ON u.id=gs.user_id
+      `SELECT u.display_name||COALESCE(' '||u.badge,'') AS display_name, MAX(gs.score)::int AS score FROM game_scores gs JOIN users u ON u.id=gs.user_id
        WHERE gs.game=$1 AND u.status='active' GROUP BY u.id ORDER BY score DESC LIMIT 1`, [g]);
     out[g] = { my_best: mine.best, top: top || null };
   }
@@ -683,7 +683,7 @@ app.post('/api/games/:game/score', requireUser, async (req, res) => {
   const game = String(req.params.game).slice(0, 30);
   // who holds the crown right now?
   const { rows: [prev] } = await pool.query(
-    `SELECT u.id AS user_id, u.display_name, MAX(gs.score)::int AS score
+    `SELECT u.id AS user_id, u.display_name||COALESCE(' '||u.badge,'') AS display_name, MAX(gs.score)::int AS score
      FROM game_scores gs JOIN users u ON u.id=gs.user_id
      WHERE gs.game=$1 AND u.status='active' GROUP BY u.id ORDER BY score DESC LIMIT 1`, [game]);
   await pool.query(`INSERT INTO game_scores (user_id,game,score) VALUES ($1,$2,$3)`,
@@ -694,7 +694,7 @@ app.post('/api/games/:game/score', requireUser, async (req, res) => {
   if (score > 0 && (!prev || score > prev.score)) {
     const payload = {
       game, title: GAME_TITLES[game] || game.toUpperCase(),
-      new_name: req.user.display_name, new_score: score,
+      new_name: req.user.display_name+(req.user.badge?' '+req.user.badge:''), new_score: score,
       old_name: prev && prev.user_id !== req.user.id ? prev.display_name : null,
       old_score: prev ? prev.score : null,
       defended: !!prev && prev.user_id === req.user.id,
@@ -716,7 +716,7 @@ app.get('/api/events', requireUser, async (req, res) => {
 });
 app.get('/api/games/:game/leaderboard', requireUser, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.id AS user_id, u.display_name, u.avatar_emoji, u.joined_code,
+    `SELECT u.id AS user_id, u.display_name||COALESCE(' '||u.badge,'') AS display_name, u.avatar_emoji, u.joined_code,
        (u.avatar_key IS NOT NULL) AS user_has_avatar, MAX(g.score)::int AS score
      FROM game_scores g JOIN users u ON u.id=g.user_id
      WHERE g.game=$1 AND u.status='active'
@@ -750,7 +750,7 @@ app.get('/api/admin/comments', requireAdmin, async (req, res) => {
     : filter === 'removed' ? `cm.status='removed'`
     : `cm.status='visible' AND cm.user_id IS NOT NULL`;
   const { rows } = await pool.query(
-    `SELECT cm.*, u.display_name AS user_name, u.role AS user_role, u.status AS user_status,
+    `SELECT cm.*, u.display_name||COALESCE(' '||u.badge,'') AS user_name, u.role AS user_role, u.status AS user_status,
        cs.name AS cast_name, v.title AS video_title, v.id AS video_id
      FROM comments cm LEFT JOIN users u ON u.id=cm.user_id LEFT JOIN cast_members cs ON cs.id=cm.cast_id
      JOIN videos v ON v.id=cm.video_id
