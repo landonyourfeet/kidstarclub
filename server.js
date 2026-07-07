@@ -625,6 +625,29 @@ app.post('/api/park/talk', requireUser, async (req, res) => {
   }
 });
 
+// ---------- Starville multiplayer presence ----------
+const parkPresence=new Map(); // userId -> {name,x,z,ry,hero,cfg,ts}
+app.post('/api/park/pos', requireUser, (req, res) => {
+  const b=req.body||{};
+  const num=v=>Math.max(-500,Math.min(500,Number(v)||0));
+  let cfg={};
+  try{cfg=typeof b.cfg==='object'&&b.cfg?b.cfg:{}}catch(e){}
+  const safeCfg={};
+  for(const k of ['body','skin','hairstyle','hair','top','bottom'])
+    if(typeof cfg[k]==='string')safeCfg[k]=String(cfg[k]).slice(0,24);
+  parkPresence.set(req.user.id,{
+    name:String(req.user.display_name||req.user.username||'Star').slice(0,24),
+    x:num(b.x), z:num(b.z), ry:Number(b.ry)||0,
+    hero:String(b.hero||'custom').slice(0,20), cfg:safeCfg, ts:Date.now(),
+  });
+  const now=Date.now(), others=[];
+  for(const [id,p2] of parkPresence){
+    if(now-p2.ts>8000){parkPresence.delete(id);continue}
+    if(id!==req.user.id)others.push({id,...p2});
+  }
+  res.json({others});
+});
+
 // ---------- Arcade ----------
 app.get('/api/games/summary', requireUser, async (req, res) => {
   const games = String(req.query.games || '').split(',').filter(Boolean).slice(0, 12);
