@@ -2945,7 +2945,7 @@ function ppBoot(){
     // player chute (hidden until the dive)
     const chuteMesh=new THREE.Mesh(new THREE.SphereGeometry(1.9,12,8,0,Math.PI*2,0,Math.PI/2),
       new THREE.MeshLambertMaterial({color:0xffe14d,side:THREE.DoubleSide}));
-    chuteMesh.visible=false;player.add(chuteMesh);
+    chuteMesh.visible=false; // attached to the player when the chute pops
     function dropJump(){
       if(!pp.dropping)return;
       pp.dropping=false;pp.skyfall=true;pp.vy=0;
@@ -2981,7 +2981,9 @@ function ppBoot(){
         }
         const gY3=groundAt(player.position.x,player.position.z);
         if(!pp.canopy&&pp.jumpY-gY3<14){ // pop the chute!
-          pp.canopy=true;chuteMesh.visible=true;chuteMesh.position.y=2.6;
+          pp.canopy=true;
+          if(chuteMesh.parent!==player)player.add(chuteMesh);
+          chuteMesh.visible=true;chuteMesh.position.y=2.6;
           sfxTone(180,0.25,'sine',0.25,0,90);sfxNoise(0.2,0.15);
         }
         if(pp.canopy)pp.vy=Math.max(pp.vy,-3.4);
@@ -3147,11 +3149,10 @@ function ppBoot(){
       scene.add(g);
       __ambHeli.push({mesh:g,rotor,speed:7+i*2});
     }
-    pp.bombT=14;pp.banditT=30;
     function worldEvents(dt3){
       if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       // bombs
-      pp.bombT-=dt3;
+      pp.bombT=(pp.bombT??14)-dt3;
       if(pp.bombT<=0&&bombs.length<3){pp.bombT=13+Math.random()*8;spawnBomb()}
       for(let i=bombs.length-1;i>=0;i--){
         const bm=bombs[i];
@@ -3164,7 +3165,7 @@ function ppBoot(){
         if(bm.fuse<=0){boom(bm);bombs.splice(i,1)}
       }
       // bandits
-      pp.banditT-=dt3;
+      pp.banditT=(pp.banditT??30)-dt3;
       if(pp.banditT<=0&&bandits.length<3){pp.banditT=26+Math.random()*14;spawnBanditWave()}
       for(let i=bandits.length-1;i>=0;i--){
         const bd=bandits[i];
