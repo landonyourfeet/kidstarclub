@@ -641,7 +641,7 @@ app.post('/api/park/pos', requireUser, (req, res) => {
     name:(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30),
     x:num(b.x), z:num(b.z), ry:Number(b.ry)||0,
     score:Math.max(0,Math.min(999999,parseInt(b.score,10)||0)),
-    mode:['walk','car','heli','dino','drop'].includes(b.mode)?b.mode:'walk',
+    mode:['walk','car','heli','dino','drop','ship'].includes(b.mode)?b.mode:'walk',
     y:Math.max(0,Math.min(80,parseFloat(b.y)||0)),
     hero:String(b.hero||'custom').slice(0,20), cfg:safeCfg, ts:Date.now(),
   });
