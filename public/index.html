@@ -2077,7 +2077,7 @@ function ppCfg(){
   return fx?{...base,...fx}:base;
 }
 function ppSetAv(k,v){
-  const c=ppCfg();c[k]=v;localStorage.setItem('ksc_avatar',JSON.stringify(c));ppNew();
+  const c=ppCfg();c[k]=v;localStorage.setItem('ksc_avatar',JSON.stringify(c));window.__svHotSwap?__svHotSwap():ppNew();
 }
 function ppEquip(){
   try{return JSON.parse(localStorage.getItem('ksc_equip')||'{}')}catch(e){return {}}
@@ -2169,7 +2169,7 @@ window.ppShopTap=async(id,kind,cost,owned)=>{
   if(owned){
     equipIt();
     document.getElementById('ppShopPanel')?.remove();
-    ppNew();
+    window.__svHotSwap?__svHotSwap():ppNew();
     return;
   }
   if(!confirm(`Buy for ${cost} Star Bucks? ⭐`))return;
@@ -2179,7 +2179,7 @@ window.ppShopTap=async(id,kind,cost,owned)=>{
     try{const o2=ppOwned();o2.push(id);localStorage.setItem('ksc_owned',JSON.stringify(o2))}catch(e){}
     equipIt(); // auto-equip your new stuff
     document.getElementById('ppShopPanel')?.remove();
-    ppNew();
+    window.__svHotSwap?__svHotSwap():ppNew();
   }catch(e){alert(e.message||'Could not buy that!')}
 };
 function loadWorldLibs(cb,failEl){
@@ -2202,7 +2202,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-28';
+const SV_BUILD='SV-29';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2223,7 +2223,7 @@ function ppNew(){
         ${Object.entries(PP_HEROES).map(([k,h])=>{
           const locked=h.shop&&!ppOwned().includes(h.shop);
           return `<button class="ppbody sm${k===hero?' on':''}${locked?' lockd':''}" style="min-width:30%"
-            onclick="${locked?'ppShop()':`localStorage.setItem('ksc_hero','${k}');ppNew()`}">${locked?'🔒':h.emoji} ${h.name.split(' ')[0]}</button>`}).join('')}
+            onclick="${locked?'ppShop()':`localStorage.setItem('ksc_hero','${k}');window.__svHotSwap?__svHotSwap():ppNew()`}">${locked?'🔒':h.emoji} ${h.name.split(' ')[0]}</button>`}).join('')}
       </div>
       ${hero==='custom'?`
       <div class="pprow">${opt('body',['girl','boy'],cfg.body,['👧 Girl','👦 Boy'])}</div>
@@ -3651,7 +3651,7 @@ function ppBoot(){
 
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
-    const player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.scale||1.75))||ppBlocky(ppCfg());
+    let player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.scale||1.75))||ppBlocky(ppCfg());
     player.position.set(-36,0,16);scene.add(player);
     ppAnim(player,A_IDLE);
     spawnChomper(false);
@@ -3702,7 +3702,7 @@ function ppBoot(){
     }
     for(let i=0;i<48;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
 
-    const POWER=ppEquip().power||null;
+    let POWER=ppEquip().power||null;
     pp={score:0,time:600,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
       jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0,
@@ -4059,6 +4059,28 @@ function ppBoot(){
       wrap.appendChild(mc);
     }
     setTimeout(()=>window.__drawMap&&__drawMap(),50); // map appears immediately
+    // 🔄 hot-swap: change hero/skin/pet MID-GAME without relaunching the round
+    window.__svHotSwap=()=>{
+      try{
+        if(!document.body.contains(el)){window.__svHotSwap=null;return ppNew()}
+        POWER=ppEquip().power||null;
+        const h2=PP_HEROES[ppHero()];
+        const nm=(h2.blocky?null:ppSpawn(assets,h2.file,h2.scale||1.75))||ppBlocky(ppCfg());
+        nm.position.copy(player.position);nm.rotation.y=player.rotation.y;
+        nm.visible=player.visible;
+        if(chuteMesh.parent===player){player.remove(chuteMesh);if(pp.canopy){nm.add(chuteMesh)}}
+        scene.remove(player);scene.add(nm);
+        player=nm;ppAnim(player,A_IDLE);
+        const pk2=PP_PETFILE[ppEquip().pet];
+        const nb=ppSpawn(assets,PP_MODELS[pk2||'shiba'],PP_PETSCALE[pk2]||0.85);
+        if(nb&&buddy){
+          nb.position.copy(buddy.position);
+          scene.remove(buddy);scene.add(nb);
+          buddy=nb;ppAnim(buddy,A_IDLE);
+        }
+        sndPick&&sndPick();
+      }catch(e){console.error('[swap]',e)}
+    };
     addEventListener('keydown',sndBoot,{once:false});
     let biteTick=0;
     function sndFrame(dt2){
