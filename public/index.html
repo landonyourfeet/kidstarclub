@@ -216,6 +216,15 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   border:2px solid #0d0210;border-radius:999px;overflow:hidden}
 .ldbar i{display:block;height:100%;width:0;transition:width .25s ease;
   background:linear-gradient(90deg,#45d8ff,#ff2ec4,#ffe14d)}
+.chompflash{position:absolute;inset:0;z-index:6;pointer-events:none;
+  background:radial-gradient(circle,transparent 30%,rgba(226,0,60,.55));
+  animation:chompfl .65s ease-out forwards}
+@keyframes chompfl{0%{opacity:1}100%{opacity:0}}
+.chomppop{position:absolute;top:34%;left:50%;transform:translateX(-50%);z-index:7;
+  font:900 26px var(--display),cursive;color:#ff3355;-webkit-text-stroke:1.5px #fff;
+  pointer-events:none;animation:chompop 1.3s ease-out forwards}
+@keyframes chompop{0%{transform:translateX(-50%) scale(.4)}18%{transform:translateX(-50%) scale(1.25)}
+  100%{transform:translateX(-50%) translateY(-46px) scale(1);opacity:0}}
 /* park character creator */
 .ppstyle{max-width:420px;margin:0 auto 8px;background:#160826;border:2px solid var(--magenta);
   border-radius:12px;padding:8px}
@@ -1997,7 +2006,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Drag to run · pinch to zoom 🤏 · desktop: Shift+arrows looks around · drive 🚗, meet the AI kids 🤖, fetch bones 🦴!</p>
+    <p class="sbhint">Fetch bones 🦴 — but watch out for CHOMPY 👾! He eats your bones if he catches you. Hide in a clubhouse or hop in a car 🚗!</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2309,6 +2318,50 @@ function ppBoot(){
     }
     makeCar(37,-32,0xff2ec4);makeCar(47,8,0x45d8ff);makeCar(37,44,0xffe14d);
 
+    // ---- CHOMPY the bone monster: big chomping jaws, wants YOUR bones ----
+    function buildChomper(){
+      const g=new THREE.Group();
+      const bodyM=new THREE.MeshPhongMaterial({color:0x8a2be2,shininess:30});
+      const inM=new THREE.MeshLambertMaterial({color:0x4a0a3a});
+      const toothM=new THREE.MeshLambertMaterial({color:0xffffff});
+      const jawTop=new THREE.Group(), jawBot=new THREE.Group();
+      const top=new THREE.Mesh(new THREE.SphereGeometry(1.5,18,14,0,Math.PI*2,0,Math.PI/2),bodyM);
+      const topIn=new THREE.Mesh(new THREE.CircleGeometry(1.5,18),inM);
+      topIn.rotation.x=Math.PI/2;
+      jawTop.add(top,topIn);
+      const bot=new THREE.Mesh(new THREE.SphereGeometry(1.5,18,14,0,Math.PI*2,Math.PI/2,Math.PI/2),bodyM);
+      const botIn=new THREE.Mesh(new THREE.CircleGeometry(1.5,18),inM);
+      botIn.rotation.x=-Math.PI/2;
+      jawBot.add(bot,botIn);
+      for(let i=0;i<7;i++){
+        const a2=-Math.PI/2.6+i*(Math.PI/7.8);
+        const t1=new THREE.Mesh(new THREE.ConeGeometry(.14,.34,6),toothM);
+        t1.position.set(Math.sin(a2)*1.28,-.06,Math.cos(a2)*1.28);t1.rotation.x=Math.PI;jawTop.add(t1);
+        const t2=new THREE.Mesh(new THREE.ConeGeometry(.14,.34,6),toothM);
+        t2.position.set(Math.sin(a2)*1.28,.06,Math.cos(a2)*1.28);jawBot.add(t2);
+      }
+      for(const sx of [-.55,.55]){ // googly eyes on top
+        const st=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.5,8),bodyM);
+        st.position.set(sx,1.6,-.2);jawTop.add(st);
+        const eye=new THREE.Mesh(new THREE.SphereGeometry(.3,12,12),toothM);
+        eye.position.set(sx,1.95,-.2);jawTop.add(eye);
+        const pu=new THREE.Mesh(new THREE.SphereGeometry(.13,8,8),inM);
+        pu.position.set(sx,1.98,.06);jawTop.add(pu);
+      }
+      for(const [sx,sz] of [[-.7,.5],[.7,.5],[-.7,-.6],[.7,-.6]]){
+        const foot=new THREE.Mesh(new THREE.SphereGeometry(.28,8,8),bodyM);
+        foot.scale.set(1,.6,1.3);foot.position.set(sx,-1.45,sz);jawBot.add(foot);
+      }
+      jawTop.position.y=1.55;jawBot.position.y=1.55;
+      g.add(jawTop,jawBot);
+      g.traverse(m=>m.castShadow=true);
+      g.userData.jaws={jawTop,jawBot};
+      return g;
+    }
+    const chomper=buildChomper();
+    chomper.position.set(B-14,0,-B+14);scene.add(chomper);
+    const chomp={mesh:chomper,cool:0,speed:0.145};
+
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
     const player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75))||ppBlocky(ppCfg());
@@ -2548,6 +2601,39 @@ function ppBoot(){
           ppAnim(w.mesh,w.shy&&near<8?A_RUN:A_WALK);
         }
         w.mesh.userData.mixer?.update(dt);
+      }
+      // CHOMPY hunts your bones — hide in a clubhouse or hop in a car!
+      if(!pp.over&&!pp.chatting){
+        chomp.cool=Math.max(0,chomp.cool-dt);
+        const cd=player.position.clone().sub(chomp.mesh.position);cd.y=0;
+        const dist=cd.length();
+        cd.normalize();
+        const sp=chomp.speed+Math.min(0.06,pp.score*0.0002); // creeps faster as your pile grows
+        if(!tryMove(chomp.mesh,cd.x*sp,cd.z*sp,.95)){
+          // wall in the way — shuffle sideways to find the door
+          tryMove(chomp.mesh,cd.z*sp,-cd.x*sp,.95);
+        }
+        chomp.mesh.rotation.y=Math.atan2(cd.x,cd.z);
+        const j=chomp.mesh.userData.jaws, bite=Math.max(0,Math.sin(t*4))*(dist<10?.5:.28);
+        j.jawTop.rotation.x=-bite;j.jawBot.rotation.x=bite;
+        const hop=Math.abs(Math.sin(t*2.2))*.18;
+        chomp.mesh.position.y=hop;
+        if(dist<1.9&&!pp.driving&&chomp.cool<=0){
+          chomp.cool=4;
+          const loss=Math.min(30,pp.score);
+          pp.score-=loss;const se=$('#ppscore');if(se)se.textContent=pp.score;
+          sndBad();
+          const fl=document.createElement('div');fl.className='chompflash';
+          wrap.appendChild(fl);setTimeout(()=>fl.remove(),650);
+          const popEl=document.createElement('div');popEl.className='chomppop';
+          popEl.textContent='CHOMP! -'+loss+' 🦴';
+          wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+          // knock the hero clear + monster slinks off
+          tryMove(player,-cd.x*4,-cd.z*4,.45);
+          chomp.mesh.position.set(player.position.x+cd.x*-30,0,player.position.z+cd.z*-30);
+          chomp.mesh.position.x=Math.max(-B+4,Math.min(B-4,chomp.mesh.position.x));
+          chomp.mesh.position.z=Math.max(-B+4,Math.min(B-4,chomp.mesh.position.z));
+        }
       }
       // clubhouse roofs lift when you're inside
       for(const h of houses){
