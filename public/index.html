@@ -2194,7 +2194,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-21';
+const SV_BUILD='SV-22';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -4576,7 +4576,7 @@ function ppBoot(){
       worldEvents(dt);
       sndFrame(dt);
       cam.position.lerp(target,0.08);
-      cam.lookAt(player.position.x,pp.flying?player.position.y+1:1.3*z,player.position.z);
+      cam.lookAt(player.position.x,(pp.flying||pp.dropping||pp.skyfall)?player.position.y+1:1.3*z,player.position.z);
       renderer.render(scene,cam);
       __raf=requestAnimationFrame(loop);
     };
