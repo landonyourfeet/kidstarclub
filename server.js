@@ -626,6 +626,8 @@ app.post('/api/park/talk', requireUser, async (req, res) => {
 });
 
 // ---------- Starville multiplayer presence ----------
+// (who's-playing feed for the banner + arcade tile)
+
 const parkPresence=new Map(); // userId -> {name,x,z,ry,hero,cfg,ts}
 app.post('/api/park/pos', requireUser, (req, res) => {
   const b=req.body||{};
@@ -646,6 +648,15 @@ app.post('/api/park/pos', requireUser, (req, res) => {
     if(id!==req.user.id)others.push({id,...p2});
   }
   res.json({others});
+});
+app.get('/api/park/who', requireUser, (req, res) => {
+  const now=Date.now(), names=[];let me=false;
+  for(const [id,p2] of parkPresence){
+    if(now-p2.ts>8000){parkPresence.delete(id);continue}
+    if(id===req.user.id){me=true;continue}
+    names.push(p2.name);
+  }
+  res.json({names:names.slice(0,8), count:names.length, me});
 });
 
 // ---------- Arcade ----------
