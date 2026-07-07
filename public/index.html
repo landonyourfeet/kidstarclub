@@ -248,6 +248,9 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   animation:pillnudge 1.2s ease-in-out infinite}
 .ppride{bottom:74px}
 .ppfly{bottom:134px}
+.ppmap{position:absolute;bottom:74px;right:10px;z-index:6;pointer-events:none;
+  width:132px;height:132px;border-radius:12px;border:2px solid rgba(255,255,255,.35);
+  background:rgba(7,7,26,.55);box-shadow:0 3px 12px rgba(0,0,0,.4)}
 .ppmist{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;
   background:radial-gradient(circle,rgba(255,255,255,.85) 0%,rgba(240,248,255,.95) 100%);
   transition:opacity .12s linear}
@@ -2082,6 +2085,7 @@ const PP_MODELS={
   dino:'Velociraptor.glb',wolf:'Wolf.glb',
   horse:'Horse.glb',cow:'Cow.glb',alpaca:'Alpaca.glb',donkey:'Donkey.glb',stag:'Stag.glb',
   cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
+  spDome:'space_GeodesicDome.glb',spBase:'space_Base_Large.glb',spHouse:'space_House_Cylinder.glb',spRover:'space_Rover_Round.glb',spShip:'space_Ship.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
@@ -2211,6 +2215,7 @@ function ppNew(){
       <button id="ppShoot" class="ppact ppshoot hide">⚡</button>
       <div id="ppAmmo" class="ppammo hide">⚡ <b>3</b></div>
       <div id="ppMist" class="ppmist"></div>
+      <canvas id="ppMap" class="ppmap" width="132" height="132"></canvas>
       <div id="ppChat" class="ppchat hide">
         <div class="ppchead"><span id="ppcName"></span><button class="act-mini" onclick="ppCloseChat()">✕</button></div>
         <div id="ppcMsgs" class="ppcmsgs"></div>
@@ -2391,8 +2396,8 @@ function ppBoot(){
   renderer.setClearColor(0x87d8ff,1); // sky, not black, while the world loads
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
-  scene.fog=new THREE.Fog(0xbfe3ff,110,430);
-  const cam=new THREE.PerspectiveCamera(55,1,0.1,600);
+  scene.fog=new THREE.Fog(0xbfe3ff,130,560);
+  const cam=new THREE.PerspectiveCamera(55,1,0.1,1000);
   function fit(){const W=wrap.clientWidth,H=wrap.clientHeight;
     renderer.setSize(W,H);cam.aspect=W/H;cam.updateProjectionMatrix()}
   fit();addEventListener('resize',fit);
@@ -2405,14 +2410,14 @@ function ppBoot(){
     g2.fillStyle=gr;g2.fillRect(0,0,32,256);
     const skyTex=new THREE.CanvasTexture(cv);skyTex.encoding=THREE.sRGBEncoding;
     window.__skyMat=new THREE.MeshBasicMaterial({map:skyTex,side:THREE.BackSide,fog:false});
-    scene.add(new THREE.Mesh(new THREE.SphereGeometry(380,16,16),__skyMat));
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(880,16,16),__skyMat));
     // night starfield (hidden by day)
     const spos=new Float32Array(900*3);
     for(let i=0;i<900;i++){
       const th=Math.random()*Math.PI*2, ph=Math.random()*Math.PI*0.48;
-      spos[i*3]=Math.cos(th)*Math.cos(ph)*370;
-      spos[i*3+1]=Math.sin(ph)*370+8;
-      spos[i*3+2]=Math.sin(th)*Math.cos(ph)*370;
+      spos[i*3]=Math.cos(th)*Math.cos(ph)*860;
+      spos[i*3+1]=Math.sin(ph)*860+8;
+      spos[i*3+2]=Math.sin(th)*Math.cos(ph)*860;
     }
     const sg=new THREE.BufferGeometry();
     sg.setAttribute('position',new THREE.BufferAttribute(spos,3));
@@ -2431,24 +2436,35 @@ function ppBoot(){
     }
     // most clouds fly-through height, a few high for depth
     const cy=i<6?(20+Math.random()*16):(44+Math.random()*16);
-    cl.position.set((Math.random()-.5)*(i<6?400:600),cy,(Math.random()-.5)*(i<6?400:600));
+    cl.position.set((Math.random()-.5)*(i<6?760:1100),cy,(Math.random()-.5)*(i<6?760:1100));
     cl.userData.v=0.008+Math.random()*0.014;
     scene.add(cl);clouds.push(cl);
   }
   const sun=new THREE.DirectionalLight(0xffedc0,1.4);
   sun.position.set(30,52,18);sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);
-  sun.shadow.camera.left=-220;sun.shadow.camera.right=220;
-  sun.shadow.camera.top=220;sun.shadow.camera.bottom=-220;
+  sun.shadow.camera.left=-150;sun.shadow.camera.right=150;
+  sun.shadow.camera.top=150;sun.shadow.camera.bottom=-150;
   sun.shadow.bias=-0.0004;
+  scene.add(sun.target); // shadow window follows the player across the huge map
   const hemi=new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9);
   scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.1));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
-  const B=210, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  const B=470, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  // 🏜️ zones: dune desert (east band), 🏔️ red canyons (south), 🌌 moon base (north)
+  const CANYON_Z=240, SPACE_Z=-240;
+  function canyonAt(x,z){
+    if(z<CANYON_Z)return 0;
+    const e=Math.min(1,(z-CANYON_Z)/34);
+    const ridge=Math.pow(Math.max(0,Math.sin(x*0.055)+0.25),1.35);
+    const cross=0.75+0.25*Math.sin(z*0.03+x*0.01);
+    return ridge*cross*10*e;
+  }
+  const inSpace=z=>z<SPACE_Z;
   // 🏜️ rolling dunes east of the city (x > 72), blended in from the grass
   function duneAt(x,z){
-    if(x<72)return 0;
-    const e=Math.min(1,(x-72)/22);
+    if(x<72||z>CANYON_Z-10||z<SPACE_Z+10)return 0;
+    const e=Math.min(1,(x-72)/22)*Math.min(1,(CANYON_Z-10-z)/30,(z-(SPACE_Z+10))/30);
     const h=(Math.sin(x*0.075)+Math.sin(z*0.09+x*0.028)+Math.sin((x+z)*0.045))/3;
     return Math.max(0,h*0.5+0.5)*4.6*e;
   }
@@ -2462,7 +2478,7 @@ function ppBoot(){
     {x:-150,z:70,R:24,P:3,H:5}      // west knoll
   ];
   function groundAt(x,z){
-    let g=duneAt(x,z);
+    let g=Math.max(duneAt(x,z),canyonAt(x,z));
     for(const m of MTNS){
       const d=Math.hypot(x-m.x,z-m.z);
       if(d<m.R){
@@ -2524,6 +2540,56 @@ function ppBoot(){
     const sand=new THREE.Mesh(sgeo2,new THREE.MeshLambertMaterial({map:sandTex}));
     sand.position.x=cx2;sand.receiveShadow=true;scene.add(sand);
   }
+  // 🏔️ CANYON zone (south): red-rock ridges you can walk the rims of
+  {
+    const cv3=document.createElement('canvas');cv3.width=256;cv3.height=256;
+    const g4=cv3.getContext('2d');
+    g4.fillStyle='#b5502e';g4.fillRect(0,0,256,256);
+    for(let i=0;i<2000;i++){
+      g4.fillStyle=['#a5462a','#c25e34','#8f3c22','#d06e3e'][i%4];
+      g4.fillRect(Math.random()*256,Math.random()*256,3,1+Math.random()*2);
+    }
+    const rockTex=new THREE.CanvasTexture(cv3);
+    rockTex.encoding=THREE.sRGBEncoding;
+    rockTex.wrapS=rockTex.wrapT=THREE.RepeatWrapping;rockTex.repeat.set(40,12);
+    const CH=B-CANYON_Z, ccz=CANYON_Z+CH/2;
+    const cgeo=new THREE.PlaneGeometry(B*2,CH,150,36);
+    cgeo.rotateX(-Math.PI/2);
+    const cp=cgeo.attributes.position;
+    for(let i=0;i<cp.count;i++)
+      cp.setY(i,canyonAt(cp.getX(i),ccz+cp.getZ(i))+0.05);
+    cgeo.computeVertexNormals();
+    const cmesh=new THREE.Mesh(cgeo,new THREE.MeshLambertMaterial({map:rockTex}));
+    cmesh.position.z=ccz;cmesh.receiveShadow=true;scene.add(cmesh);
+  }
+  // 🌌 MOON BASE zone (north): dark ground, craters, glowing crystals — low gravity!
+  {
+    const mgeo=new THREE.PlaneGeometry(B*2,B-Math.abs(SPACE_Z));
+    const moon=new THREE.Mesh(mgeo,new THREE.MeshLambertMaterial({color:new THREE.Color(0x2a2440)}));
+    moon.material.color.convertSRGBToLinear();
+    moon.rotation.x=-Math.PI/2;
+    moon.position.set(0,.03,SPACE_Z-(B-Math.abs(SPACE_Z))/2);
+    moon.receiveShadow=true;scene.add(moon);
+    for(let i=0;i<14;i++){ // craters
+      const cr=new THREE.Mesh(new THREE.TorusGeometry(2+Math.random()*4,.5,8,20),
+        new THREE.MeshLambertMaterial({color:0x1c1830}));
+      cr.rotation.x=-Math.PI/2;cr.scale.y=.5;
+      cr.position.set((Math.random()-.5)*B*1.8,.15,SPACE_Z-14-Math.random()*(B-Math.abs(SPACE_Z)-24));
+      scene.add(cr);
+    }
+    for(let i=0;i<16;i++){ // glowing crystals
+      const c2=new THREE.Group();
+      for(let j=0;j<3;j++){
+        const cr2=new THREE.Mesh(new THREE.ConeGeometry(.3+Math.random()*.3,1.4+Math.random()*1.8,5),
+          new THREE.MeshPhongMaterial({color:0x8a5cff,emissive:0x5a2ad8,emissiveIntensity:.8}));
+        cr2.position.set((Math.random()-.5)*1.2,.7,(Math.random()-.5)*1.2);
+        cr2.rotation.z=(Math.random()-.5)*.5;
+        c2.add(cr2);
+      }
+      c2.position.set((Math.random()-.5)*B*1.8,0,SPACE_Z-12-Math.random()*(B-Math.abs(SPACE_Z)-24));
+      scene.add(c2);
+    }
+  }
 
   // load everything with a progress readout, then build the world
   ppLoadAssets((n,total)=>{
@@ -2562,6 +2628,18 @@ function ppBoot(){
       put('cactusF',80+Math.random()*(B-88),(Math.random()-.5)*B*1.8,1.4,Math.random()*6.3,.4,2);
     for(let i=0;i<18;i++)
       put('rockD',78+Math.random()*(B-86),(Math.random()-.5)*B*1.8,1.0+Math.random(),Math.random()*6.3,.6,2);
+    // canyon dressing: giant red rocks along the rims
+    for(let i=0;i<22;i++)
+      put('rockD',(Math.random()-.5)*B*1.9,CANYON_Z+16+Math.random()*(B-CANYON_Z-28),2.2+Math.random()*2.4,Math.random()*6.3,1.2,5);
+    for(let i=0;i<12;i++)
+      put(['cactus1','cactus2','cactus3'][i%3],(Math.random()-.5)*B*1.8,CANYON_Z+14+Math.random()*(B-CANYON_Z-26),2+Math.random()*1.4,Math.random()*6.3,.5,4);
+    // moon base: dome, hab modules, rover, a landed ship
+    put('spDome',-40,SPACE_Z-70,10,0,6,10);
+    put('spBase',60,SPACE_Z-110,8,Math.PI/3,7,8);
+    put('spHouse',-120,SPACE_Z-140,6,Math.PI/5,4,6);
+    put('spHouse',130,SPACE_Z-60,6,-Math.PI/4,4,6);
+    put('spRover',10,SPACE_Z-40,2.4,Math.PI/2,1.4,3);
+    put('spShip',-200,SPACE_Z-100,7,Math.PI/6,4,7);
     // city street: real houses (fancy fronts) + props
     const HOUSES=['house1','house2','house3','house4','house5','house6'];
     for(let i=0;i<6;i++){
@@ -3149,7 +3227,7 @@ function ppBoot(){
       const m=buildChomper();
       // spawn far from the hero
       const px=player?player.position.x:0, pz=player?player.position.z:0;
-      m.position.set(px>0?-B+12:B-12,0,pz>0?-B+12:B-12);
+      m.position.set(Math.max(-B+8,Math.min(B-8,px+(px>0?-60:60))),0,Math.max(-B+8,Math.min(B-8,pz+(pz>0?-60:60))));
       scene.add(m);
       chompers.push({mesh:m,cool:announce?2:0,speed:0.145});
       if(announce){
@@ -3537,7 +3615,7 @@ function ppBoot(){
       }
       const dt=Math.min(0.05,clock.getDelta());
       t+=dt*4.8;
-      for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>320)cl.position.x=-320}
+      for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>580)cl.position.x=-580}
       if(window.__svStar)__svStar.rotation.y+=dt*0.5;
       // ---- 🌙 day/night cycle: day → dusk → starry night → sunrise ----
       {
@@ -3663,8 +3741,9 @@ function ppBoot(){
       {
         const gY=pp.flying?0:groundAt(player.position.x,player.position.z);
         if(!pp.flying){
+          const grav=inSpace(player.position.z)?8:22; // 🌌 moon gravity!
           if(pp.jumpY>gY+0.001||pp.vy>0){
-            pp.vy-=22*dt;
+            pp.vy-=grav*dt;
             pp.jumpY=Math.max(gY,pp.jumpY+pp.vy*dt);
             if(pp.jumpY===gY)pp.vy=0;
           }else pp.jumpY=gY;
@@ -3863,7 +3942,10 @@ function ppBoot(){
             if(c.waveOut){scene.remove(c.mesh);return}
             c.dead=0;c.stun=0;c.cool=2;
             c.speed=0.145+ (pp.waveN-1)*0.008;
-            c.mesh.position.set(i%2?B-12:-B+12,0,i<2?-B+12:B-12);
+            const an2=i*(Math.PI/2)+Math.random()*0.7;
+            c.mesh.position.set(
+              Math.max(-B+8,Math.min(B-8,player.position.x+Math.cos(an2)*62)),0,
+              Math.max(-B+8,Math.min(B-8,player.position.z+Math.sin(an2)*62)));
             scene.add(c.mesh);
           });
           if(bossWave&&chompers[0]){ // the pack leader goes MEGA
@@ -3889,7 +3971,9 @@ function ppBoot(){
         if(chomp.dead){
           if(performance.now()>chomp.dead){
             chomp.dead=0;chomp.stun=0;chomp.cool=2;
-            chomp.mesh.position.set(player.position.x>0?-B+12:B-12,0,player.position.z>0?-B+12:B-12);
+            chomp.mesh.position.set(
+              Math.max(-B+8,Math.min(B-8,player.position.x+(Math.random()<.5?-70:70))),0,
+              Math.max(-B+8,Math.min(B-8,player.position.z+(Math.random()<.5?-70:70))));
             scene.add(chomp.mesh);
             const popEl=document.createElement('div');popEl.className='chomppop';
             popEl.style.color='#b45cff';popEl.textContent='CHOMPY IS BACK! 👾';
@@ -4112,6 +4196,59 @@ function ppBoot(){
       // never sink the camera into a hillside
       const camG=groundAt(target.x,target.z);
       if(target.y<camG+2.2)target.y=camG+2.2;
+      sun.position.set(player.position.x+30,52,player.position.z+18);
+      sun.target.position.set(player.position.x,0,player.position.z);
+      // 🗺️ minimap: you, the bad guys, and your friends
+      pp.mapT=(pp.mapT||0)-dt;
+      if(pp.mapT<=0){
+        pp.mapT=0.12;
+        const mc=$('#ppMap');
+        if(mc){
+          const g5=mc.getContext('2d'), S2=132, k2=S2/(B*2);
+          const mx2=w2=>(w2+B)*k2, mz2=w2=>(w2+B)*k2;
+          g5.clearRect(0,0,S2,S2);
+          // zone tints
+          g5.fillStyle='rgba(227,201,142,.20)';g5.fillRect(mx2(72),0,S2-mx2(72),S2);            // desert
+          g5.fillStyle='rgba(181,80,46,.25)';g5.fillRect(0,mz2(CANYON_Z),S2,S2-mz2(CANYON_Z)); // canyons
+          g5.fillStyle='rgba(90,60,180,.28)';g5.fillRect(0,0,S2,mz2(SPACE_Z));                 // moon base
+          // road + castle beacon
+          g5.fillStyle='rgba(255,255,255,.18)';g5.fillRect(mx2(33),0,mx2(51)-mx2(33),S2);
+          g5.fillStyle='#ffd24a';
+          g5.beginPath();g5.arc(mx2(MTNS[0].x),mz2(MTNS[0].z),3,0,7);g5.fill();
+          // mega star
+          if(mega.mesh&&Math.sin(performance.now()/120)>0){
+            g5.fillStyle='#b45cff';
+            g5.beginPath();g5.arc(mx2(mega.mesh.position.x),mz2(mega.mesh.position.z),2.5,0,7);g5.fill();
+          }
+          // chompers (red)
+          if(pp.wavePhase==='hunt'){
+            g5.fillStyle='#ff3b3b';
+            for(const c of chompers){
+              if(c.dead||c.waveOut)continue;
+              g5.beginPath();g5.arc(mx2(c.mesh.position.x),mz2(c.mesh.position.z),c.boss?3.4:2.2,0,7);g5.fill();
+            }
+          }
+          // bandits (orange; hollow while parachuting)
+          for(const bd of bandits){
+            const bx3=mx2(bd.mesh.position.x),bz3=mz2(bd.mesh.position.z);
+            g5.strokeStyle=g5.fillStyle='#ff8c1a';
+            g5.beginPath();g5.arc(bx3,bz3,2.2,0,7);
+            bd.state==='drop'?g5.stroke():g5.fill();
+          }
+          // other human players (cyan)
+          g5.fillStyle='#45d8ff';
+          for(const rec of others.values()){
+            g5.beginPath();g5.arc(mx2(rec.root.position.x),mz2(rec.root.position.z),2.4,0,7);g5.fill();
+          }
+          // you: white arrow showing facing
+          const px3=mx2(player.position.x),pz3=mz2(player.position.z);
+          const fy2=(pp.flying?pp.flying.mesh.rotation.y:player.rotation.y);
+          g5.save();g5.translate(px3,pz3);g5.rotate(Math.atan2(Math.sin(fy2),Math.cos(fy2)));
+          g5.fillStyle='#ffffff';
+          g5.beginPath();g5.moveTo(0,-4.6);g5.lineTo(3.2,3.6);g5.lineTo(-3.2,3.6);g5.closePath();g5.fill();
+          g5.restore();
+        }
+      }
       worldEvents(dt);
       sndFrame(dt);
       cam.position.lerp(target,0.08);
