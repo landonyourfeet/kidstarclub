@@ -2505,8 +2505,11 @@ function ppBoot(){
         player.position.copy(car.mesh.position);
         player.visible=false;
       }else if(mag>0.05&&!pp.chatting&&!pp.over){
-        tryMove(player,vx*0.32,vz*0.32,.45);
-        player.rotation.y=Math.atan2(vx,vz);
+        const af=pp.camYaw+Math.PI; // camera's forward
+        const mx=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
+        const mz=Math.cos(af)*(-vz)+Math.cos(af-Math.PI/2)*vx;
+        tryMove(player,mx*0.32,mz*0.32,.45);
+        player.rotation.y=Math.atan2(mx,mz);
       }
       if(!pp.driving){
         player.visible=true;
@@ -2609,6 +2612,14 @@ function ppBoot(){
       }
       player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
       buddy?.userData.mixer?.update(dt);
+      if(!keys.Shift){ // ease the camera around behind the player/car
+        const want=pp.driving?pp.driving.mesh.rotation.y+Math.PI
+          :(mag>0.05?player.rotation.y+Math.PI:null);
+        if(want!==null){
+          const dd=((want-pp.camYaw+Math.PI*3)%(Math.PI*2))-Math.PI;
+          pp.camYaw+=dd*Math.min(1,dt*2.6);
+        }
+      }
       const z=pp.zoom||1;
       const r=(pp.driving?11.5:6.2)*z;
       const hor=r*Math.cos(pp.camPitch);
