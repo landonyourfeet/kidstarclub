@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1899,15 +1898,22 @@ function btEnd(){
 let pp={};
 const PP_NPCS=['Zoe','Marco','Piper','Dev','Luna','Rex','Maya'];
 const PP_HEROES={
-  redpanda:{file:'hero_redpanda.glb',name:'Rae the Red Panda',emoji:'🦊'},
-  bee:{file:'hero_bee.glb',name:'Barbara the Bee',emoji:'🐝'},
-  flamingo:{file:'hero_flamingo.glb',name:'Fernando the Flamingo',emoji:'🦩'},
-  frog:{file:'hero_frog.glb',name:'Finn the Frog',emoji:'🐸'},
-  kid:{file:'hero_kid.glb',name:'Adventure Kid',emoji:'🧢'},
-  knight:{file:'hero_knight.glb',name:'Sir Knight',emoji:'⚔️'},
+  mia:{file:'modular_women_Casual.glb',name:'Mia',emoji:'👧',donor:1},
+  ruby:{file:'modular_women_Punk.glb',name:'Ruby',emoji:'🎸',donor:1},
+  ella:{file:'modular_women_Formal.glb',name:'Ella',emoji:'👗',donor:1},
+  ivy:{file:'modular_women_Adventurer.glb',name:'Ivy',emoji:'🧭',donor:1},
+  willow:{file:'modular_women_Witch.glb',name:'Willow',emoji:'🪄',donor:1},
+  leo:{file:'modular_men_Casual.glb',name:'Leo',emoji:'👦',donor:1},
+  sam:{file:'modular_men_Casual2.glb',name:'Sam',emoji:'🧢',donor:1},
   shiba:{file:'animals_pack_ShibaInu.glb',name:'Shiba Pup',emoji:'🐶'},
+  redpanda:{file:'hero_redpanda.glb',name:'Rae',emoji:'🦊'},
 };
+const PP_DONOR='hero_kid.glb'; // animation rig donor for the T-posed characters
 const PP_MODELS={
+  donor:'hero_kid.glb',kid:'hero_kid.glb',knight:'hero_knight.glb',
+  wmnCasual:'modular_women_Casual.glb',wmnPunk:'modular_women_Punk.glb',
+  wmnFormal:'modular_women_Formal.glb',wmnAdv:'modular_women_Adventurer.glb',
+  wmnWitch:'modular_women_Witch.glb',menCasual:'modular_men_Casual.glb',menCasual2:'modular_men_Casual2.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
@@ -1918,7 +1924,7 @@ const PP_MODELS={
   lamp:'Streetlight_Double.glb',traffic:'TrafficLight.glb',stopsign:'Sign_Stop.glb',
   bed:'Bed_Single.glb',couch:'Couch_Medium1.glb',table:'Table_RoundSmall.glb',chair:'Chair_1.glb',
 };
-function ppHero(){const h=localStorage.getItem('ksc_hero');return PP_HEROES[h]?h:'redpanda'}
+function ppHero(){const h=localStorage.getItem('ksc_hero');return PP_HEROES[h]?h:'mia'}
 function loadWorldLibs(cb,failEl){
   const seq=['/vendor/GLTFLoader.js','/vendor/DRACOLoader.js','/vendor/SkeletonUtils.js'];
   loadThree(()=>{
@@ -1959,7 +1965,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Drag to run! Explore Starville, go in the clubhouses, drive the cars 🚗, meet the AI kids 🤖, fetch bones 🦴!</p>
+    <p class="sbhint">Drag to run · pinch to zoom 🤏 · desktop: Shift+arrows looks around · drive 🚗, meet the AI kids 🤖, fetch bones 🦴!</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -1981,23 +1987,29 @@ async function ppLoadAssets(onProgress){
   })));
   PP_CACHE=out;return out;
 }
-function ppSpawn(assets,file,targetH){
+function ppSpawn(assets,file,targetH,donorFile){
   const src=assets[file];if(!src)return null;
   const obj=THREE.SkeletonUtils?THREE.SkeletonUtils.clone(src.scene):src.scene.clone(true);
   const box=new THREE.Box3().setFromObject(obj);
   const size=new THREE.Vector3();box.getSize(size);
   const s=targetH/(size.y||1);
   obj.scale.setScalar(s);
-  // rest feet on the ground
   const box2=new THREE.Box3().setFromObject(obj);
   obj.position.y=-box2.min.y;
   const root=new THREE.Group();root.add(obj);
   let mixer=null,actions={};
-  if(src.animations.length){
+  let clips=src.animations;
+  if(!clips.length&&donorFile&&assets[donorFile]){
+    // borrow the universal-rig clips, keeping only tracks whose bones exist here
+    const names=new Set();obj.traverse(n=>names.add(n.name));
+    clips=assets[donorFile].animations.map(c=>{
+      const tracks=c.tracks.filter(tr=>names.has(tr.name.split('.')[0]));
+      return tracks.length?new THREE.AnimationClip(c.name,c.duration,tracks):null;
+    }).filter(Boolean);
+  }
+  if(clips.length){
     mixer=new THREE.AnimationMixer(obj);
-    for(const clip of src.animations){
-      actions[clip.name.split('|').pop()]=mixer.clipAction(clip);
-    }
+    for(const clip of clips)actions[clip.name.split('|').pop()]=mixer.clipAction(clip);
   }
   root.userData={mixer,actions,current:null};
   return root;
@@ -2037,8 +2049,9 @@ function ppBoot(){
     const gr=g2.createLinearGradient(0,0,0,256);
     gr.addColorStop(0,'#2f8fff');gr.addColorStop(.55,'#8cc8ff');gr.addColorStop(1,'#dff0ff');
     g2.fillStyle=gr;g2.fillRect(0,0,32,256);
+    const skyTex=new THREE.CanvasTexture(cv);skyTex.encoding=THREE.sRGBEncoding;
     scene.add(new THREE.Mesh(new THREE.SphereGeometry(380,16,16),
-      new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),side:THREE.BackSide,fog:false})));
+      new THREE.MeshBasicMaterial({map:skyTex,side:THREE.BackSide,fog:false})));
   }
   const clouds=[];
   for(let i=0;i<9;i++){
@@ -2060,7 +2073,7 @@ function ppBoot(){
   sun.shadow.camera.top=110;sun.shadow.camera.bottom=-110;
   sun.shadow.bias=-0.0004;
   scene.add(sun,new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9),new THREE.AmbientLight(0xffffff,0.1));
-  const mat=c=>new THREE.MeshLambertMaterial({color:c});
+  const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
   const B=100, COLL=[];
   let grassTex;{
     const cv=document.createElement('canvas');cv.width=256;cv.height=256;
@@ -2071,6 +2084,7 @@ function ppBoot(){
       g2.fillRect(Math.random()*256,Math.random()*256,2,2+Math.random()*3);
     }
     grassTex=new THREE.CanvasTexture(cv);
+    grassTex.encoding=THREE.sRGBEncoding;
     grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping;grassTex.repeat.set(26,26);
   }
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(B*2+12,B*2+12),
@@ -2175,7 +2189,7 @@ function ppBoot(){
 
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
-    const player=ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75);
+    const player=ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75,hero.donor?PP_DONOR:null);
     player.position.set(-20,0,10);scene.add(player);
     ppAnim(player,A_IDLE);
     let buddy=ppSpawn(assets,PP_MODELS.shiba,0.85);
@@ -2188,9 +2202,9 @@ function ppBoot(){
     });
     wilds.forEach(w=>w.target.set(-B+10+Math.random()*70,0,(Math.random()-.5)*B*1.6));
     // AI friends on hero models
-    const NPC_FILES=['hero_knight.glb','hero_kid.glb','hero_bee.glb','hero_flamingo.glb','hero_frog.glb','hero_redpanda.glb','hero_kid.glb'];
+    const NPC_FILES=['modular_women_Punk.glb','modular_men_Casual.glb','modular_women_Adventurer.glb','modular_men_Casual2.glb','modular_women_Witch.glb','hero_kid.glb','modular_women_Formal.glb'];
     const npcs=PP_NPCS.map((name,i)=>{
-      const mesh=ppSpawn(assets,NPC_FILES[i],1.7);
+      const mesh=ppSpawn(assets,NPC_FILES[i],1.7,PP_DONOR);
       mesh.position.set((Math.random()-.5)*B*1.3,0,(Math.random()-.5)*B*1.3);
       scene.add(mesh);ppAnim(mesh,A_IDLE);
       return {name,mesh,target:new THREE.Vector3((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5),
@@ -2233,18 +2247,45 @@ function ppBoot(){
     }
     const el=renderer.domElement;
     el.style.touchAction='none';
-    el.addEventListener('pointerdown',e=>{pp.joy={x:e.clientX,y:e.clientY}});
+    pp.zoom=parseFloat(localStorage.getItem('ksc_zoom')||'1');
+    const ptrs=new Map();let pinch0=0,zoom0=1;
+    el.addEventListener('pointerdown',e=>{
+      ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(ptrs.size===2){ // pinch begins — stop running
+        pp.joy=null;pp.vel.set(0,0);
+        const [a2,b2]=[...ptrs.values()];
+        pinch0=Math.hypot(a2.x-b2.x,a2.y-b2.y);zoom0=pp.zoom;
+      }else pp.joy={x:e.clientX,y:e.clientY};
+    });
     el.addEventListener('pointermove',e=>{
+      const rec=ptrs.get(e.pointerId);
+      if(rec){rec.x=e.clientX;rec.y=e.clientY}
+      if(ptrs.size===2){
+        const [a2,b2]=[...ptrs.values()];
+        const d=Math.hypot(a2.x-b2.x,a2.y-b2.y);
+        if(pinch0>0){pp.zoom=Math.max(0.5,Math.min(2.6,zoom0*(pinch0/d)));
+          localStorage.setItem('ksc_zoom',pp.zoom)}
+        return;
+      }
       if(!pp.joy)return;
       const dx=e.clientX-pp.joy.x, dy=e.clientY-pp.joy.y;
       const len=Math.hypot(dx,dy)||1, cl=Math.min(len,60)/60;
       pp.vel.set(dx/len*cl, dy/len*cl);
     });
-    const stopJoy=()=>{pp.joy=null;pp.vel.set(0,0)};
+    const stopJoy=e=>{if(e)ptrs.delete(e.pointerId);
+      if(ptrs.size<2)pinch0=0;
+      if(!ptrs.size){pp.joy=null;pp.vel.set(0,0)}};
     el.addEventListener('pointerup',stopJoy);el.addEventListener('pointercancel',stopJoy);
+    el.addEventListener('wheel',e=>{e.preventDefault();
+      pp.zoom=Math.max(0.5,Math.min(2.6,pp.zoom*(1+e.deltaY*0.001)));
+      localStorage.setItem('ksc_zoom',pp.zoom)},{passive:false});
     const keys={};
-    const kd=e=>{keys[e.key]=true},ku=e=>{keys[e.key]=false};
+    const kd=e=>{
+      keys[e.key]=true;
+      if(e.key.startsWith('Arrow')&&!/INPUT|TEXTAREA/.test(e.target?.tagName||'')&&document.body.contains(el))e.preventDefault();
+    },ku=e=>{keys[e.key]=false};
     addEventListener('keydown',kd);addEventListener('keyup',ku);
+    pp.camYaw=0;pp.camPitch=0.58; // default: behind the hero, slightly above
     // fullscreen (portal pattern)
     const fbtn=$('#ppFull');
     const slot=document.createElement('div');slot.style.display='none';
@@ -2313,8 +2354,18 @@ function ppBoot(){
       t+=dt*4.8;
       for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>170)cl.position.x=-170}
       let vx=pp.vel.x,vz=pp.vel.y;
-      if(keys.ArrowLeft||keys.a)vx=-1; if(keys.ArrowRight||keys.d)vx=1;
-      if(keys.ArrowUp||keys.w)vz=-1; if(keys.ArrowDown||keys.s)vz=1;
+      const look=keys.Shift; // Shift + arrows orbits the camera around the hero
+      if(look){
+        if(keys.ArrowLeft)pp.camYaw+=dt*2.4;
+        if(keys.ArrowRight)pp.camYaw-=dt*2.4;
+        if(keys.ArrowUp)pp.camPitch=Math.min(1.25,pp.camPitch+dt*1.6);
+        if(keys.ArrowDown)pp.camPitch=Math.max(0.12,pp.camPitch-dt*1.6);
+      }else{
+        if(keys.ArrowLeft)vx=-1; if(keys.ArrowRight)vx=1;
+        if(keys.ArrowUp)vz=-1; if(keys.ArrowDown)vz=1;
+      }
+      if(keys.a)vx=-1; if(keys.d)vx=1;
+      if(keys.w)vz=-1; if(keys.s)vz=1;
       const mag=Math.hypot(vx,vz);
       if(pp.driving){
         const car=pp.driving;
@@ -2434,10 +2485,15 @@ function ppBoot(){
       }
       player.userData.mixer?.update(dt);
       buddy.userData.mixer?.update(dt);
-      const off=pp.driving?{y:9,z:13}:{y:6.4,z:9};
-      const target=new THREE.Vector3(player.position.x,player.position.y+off.y,player.position.z+off.z);
+      const z=pp.zoom||1;
+      const r=(pp.driving?11.5:6.2)*z;
+      const hor=r*Math.cos(pp.camPitch);
+      const target=new THREE.Vector3(
+        player.position.x+Math.sin(pp.camYaw)*hor,
+        player.position.y+r*Math.sin(pp.camPitch),
+        player.position.z+Math.cos(pp.camYaw)*hor);
       cam.position.lerp(target,0.08);
-      cam.lookAt(player.position.x,1.4,player.position.z);
+      cam.lookAt(player.position.x,1.3*z,player.position.z);
       renderer.render(scene,cam);
       __raf=requestAnimationFrame(loop);
     };
