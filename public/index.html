@@ -220,6 +220,13 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   background:radial-gradient(circle,transparent 30%,rgba(226,0,60,.55));
   animation:chompfl .65s ease-out forwards}
 @keyframes chompfl{0%{opacity:1}100%{opacity:0}}
+.svscores{position:absolute;top:62px;right:10px;z-index:6;display:flex;flex-direction:column;
+  gap:3px;pointer-events:none;max-width:46%}
+.svrow{font:800 11px var(--body);color:#fff;background:rgba(13,2,16,.62);
+  border:1px solid rgba(69,216,255,.5);border-radius:8px;padding:3px 8px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svrow.me{border-color:var(--yellow);color:var(--yellow)}
+.svrow b{color:#fff}
 .svbanner{position:fixed;top:0;left:0;right:0;z-index:150;border:none;cursor:pointer;
   font:900 14px var(--body);color:#fff;padding:10px 14px;text-align:center;
   background:linear-gradient(90deg,#c4108f,var(--magenta),#ff5fb0,var(--magenta),#c4108f);
@@ -2043,6 +2050,7 @@ function ppNew(){
         <div class="ldbar"><i id="ppBar"></i></div>
       </div></div>
       <button id="ppFull" class="ppfull">⛶</button>
+      <div id="svScores" class="svscores"></div>
       <button class="ppback" onclick="document.body.classList.remove('fs-active');arcade()">← Arcade</button>
       <button id="ppTalk" class="pptalk hide"></button>
       <button id="ppDrive" class="pptalk ppdrive hide"></button>
@@ -2595,6 +2603,7 @@ function ppBoot(){
       return sp;
     }
     function upsertOther(o){
+      const now=performance.now();
       let rec=others.get(o.id);
       if(!rec){
         const cfg={body:'girl',skin:PP_SKINS[0],hairstyle:'buns',hair:'#f5f0e8',top:'#fff0f4',bottom:'#f3c9d8',...(o.cfg||{})};
@@ -2603,25 +2612,41 @@ function ppBoot(){
         if(h&&!h.blocky&&assets[h.file])root=ppSpawn(assets,h.file,h.file.includes('ShibaInu')?1.0:1.75);
         if(!root)root=ppBlocky(cfg);
         root.add(nameSprite(o.name||'Star'));
-        root.position.set(o.x,0,o.z);
+        root.position.set(o.x,0,o.z);root.rotation.y=o.ry||0;
         scene.add(root);ppAnim(root,A_IDLE);
-        rec={root,tx:o.x,tz:o.z,try:o.ry,seen:Date.now(),moving:false};
+        rec={root,fx:o.x,fz:o.z,fry:o.ry||0,tx:o.x,tz:o.z,try:o.ry||0,
+          t0:now,dur:800,lastAt:now,seg:0,seen:Date.now(),name:o.name,score:0};
         others.set(o.id,rec);
       }
-      rec.moving=Math.hypot(o.x-rec.tx,o.z-rec.tz)>0.05;
-      rec.tx=o.x;rec.tz=o.z;rec.try=o.ry;rec.seen=Date.now();
+      // start a fresh glide segment from wherever the avatar is RIGHT NOW
+      rec.fx=rec.root.position.x;rec.fz=rec.root.position.z;rec.fry=rec.root.rotation.y;
+      rec.tx=o.x;rec.tz=o.z;rec.try=o.ry||0;
+      rec.dur=Math.max(350,Math.min(1600,now-rec.lastAt));
+      rec.t0=now;rec.lastAt=now;
+      rec.seg=Math.hypot(rec.tx-rec.fx,rec.tz-rec.fz);
+      rec.score=o.score||0;rec.name=o.name;
+      rec.seen=Date.now();
     }
     gIval(async()=>{
       try{
         const r=await api('/api/park/pos',{method:'POST',body:{
           x:player.position.x,z:player.position.z,ry:player.rotation.y,
-          hero:ppHero(),cfg:ppCfg()}});
+          score:pp.score,hero:ppHero(),cfg:ppCfg()}});
         const alive=new Set();
         for(const o of (r.others||[])){alive.add(o.id);upsertOther(o)}
         for(const [id,rec] of others)
           if(!alive.has(id)&&Date.now()-rec.seen>8000){scene.remove(rec.root);others.delete(id)}
-      }catch(e){}
+        svBoard();
+      }catch(e){svBoard()}
     },800);
+    function svBoard(){
+      const el2=$('#svScores');if(!el2)return;
+      const rows=[{name:'You',score:pp.score,me:1},
+        ...[...others.values()].map(r2=>({name:r2.name||'Star',score:r2.score||0}))]
+        .sort((a2,b2)=>b2.score-a2.score);
+      el2.innerHTML=rows.map((r2,i)=>
+        `<div class="svrow${r2.me?' me':''}">${i===0&&r2.score>0?'👑 ':''}${esc(r2.name)} <b>${r2.score}</b> 🦴</div>`).join('');
+    }
 
     const clock=new THREE.Clock();
     let t=0;
@@ -2802,15 +2827,19 @@ function ppBoot(){
           sndDrop();burst('pop');placeBone(b);
         }
       }
-      for(const rec of others.values()){
-        const r2=rec.root;
-        r2.position.x+=(rec.tx-r2.position.x)*Math.min(1,dt*6);
-        r2.position.z+=(rec.tz-r2.position.z)*Math.min(1,dt*6);
-        let da=((rec.try-r2.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;
-        r2.rotation.y+=da*Math.min(1,dt*8);
-        const mv=Math.hypot(rec.tx-r2.position.x,rec.tz-r2.position.z)>0.12;
-        ppAnim(r2,mv?A_WALK:A_IDLE);
-        r2.userData.mixer?.update(dt);ppBlockyUpdate(r2,dt);
+      {
+        const now=performance.now();
+        for(const rec of others.values()){
+          const r2=rec.root;
+          const k=Math.min(1,(now-rec.t0)/rec.dur); // constant-velocity glide across the segment
+          r2.position.x=rec.fx+(rec.tx-rec.fx)*k;
+          r2.position.z=rec.fz+(rec.tz-rec.fz)*k;
+          let da=((rec.try-rec.fry+Math.PI*3)%(Math.PI*2))-Math.PI;
+          r2.rotation.y=rec.fry+da*k;
+          const speed=rec.seg/(rec.dur/1000); // units per second over this segment
+          ppAnim(r2,(k<1&&speed>0.4)?(speed>4.5?A_RUN:A_WALK):A_IDLE);
+          r2.userData.mixer?.update(dt);ppBlockyUpdate(r2,dt);
+        }
       }
       player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
       buddy?.userData.mixer?.update(dt);
