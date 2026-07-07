@@ -691,6 +691,14 @@ const PARK_SHOP = {
   pet_alpaca:  {kind:'pet',  name:'Alpaca Amigo', emoji:'🦙', cost:400},
   pet_donkey:  {kind:'pet',  name:'Disco Donkey', emoji:'🫏', cost:320},
   pet_stag:    {kind:'pet',  name:'Royal Stag',   emoji:'👑', cost:500},
+  // heroes — fully-animated characters, yours forever once unlocked
+  hero_frog:     {kind:'hero', name:'Astro Finn',     emoji:'🐸', cost:600},
+  hero_bee:      {kind:'hero', name:'Astro Barbara',  emoji:'🐝', cost:600},
+  hero_flamingo: {kind:'hero', name:'Astro Fernando', emoji:'🦩', cost:600},
+  hero_ranger:   {kind:'hero', name:'Star Ranger',    emoji:'🪖', cost:700},
+  hero_cyber:    {kind:'hero', name:'Cyber Runner',   emoji:'🌆', cost:700},
+  hero_mech_rae: {kind:'hero', name:'Mech Rae',       emoji:'🤖', cost:800},
+  hero_mech_finn:{kind:'hero', name:'Mech Finn',      emoji:'🦾', cost:800},
   // powers (one equipped at a time)
   pw_speed:    {kind:'power',name:'Speed Boost',  emoji:'🏃', cost:400, blurb:'+25% run speed'},
   pw_shield:   {kind:'power',name:'Star Shield',  emoji:'🛡️', cost:500, blurb:'Chompy bites only take HALF your Star Bucks'},
@@ -711,7 +719,7 @@ function shopStock(dateStr){
   const take=Math.ceil(ids.length*0.7);
   const stock=new Set(ids.slice(0,take));
   // guarantee at least one of each kind on the shelf
-  for(const kind of ['skin','pet','power'])
+  for(const kind of ['skin','pet','power','hero'])
     if(![...stock].some(id=>PARK_SHOP[id].kind===kind))
       stock.add(ids.find(id=>PARK_SHOP[id].kind===kind));
   return stock;
