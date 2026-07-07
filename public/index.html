@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -211,8 +210,12 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   border:3px solid var(--cyan);border-radius:14px;background:#87d8ff;
   box-shadow:0 0 18px rgba(69,216,255,.3)}
 .ppwrap canvas{display:block;width:100%!important;height:100%!important;border-radius:11px}
-.pphud{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-weight:800;color:#0d0210;text-align:center;padding:20px}
+.pphud{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:#0d0210;text-align:center;padding:20px;background:#87d8ff}
+.ldbar{width:min(240px,70%);height:14px;margin:0 auto;background:rgba(13,2,16,.25);
+  border:2px solid #0d0210;border-radius:999px;overflow:hidden}
+.ldbar i{display:block;height:100%;width:0;transition:width .25s ease;
+  background:linear-gradient(90deg,#45d8ff,#ff2ec4,#ffe14d)}
 /* park character creator */
 .ppstyle{max-width:420px;margin:0 auto 8px;background:#160826;border:2px solid var(--magenta);
   border-radius:12px;padding:8px}
@@ -1973,7 +1976,11 @@ function ppNew(){
       <div class="pprow"><span class="pplbl">TOP</span>${sw('top',cfg.top)}</div>
       <div class="pprow"><span class="pplbl">BTM</span>${sw('bottom',cfg.bottom)}</div>`:''}
     </div>
-    <div id="ppwrap" class="ppwrap"><div class="pphud" id="ppLoad">🌟 building Starville… <b id="ppPct">0%</b></div>
+    <div id="ppwrap" class="ppwrap">
+      <div class="pphud" id="ppLoad"><div>
+        <div style="font-size:16px;margin-bottom:8px">🌟 building Starville… <b id="ppPct">0%</b></div>
+        <div class="ldbar"><i id="ppBar"></i></div>
+      </div></div>
       <button id="ppFull" class="ppfull">⛶</button>
       <button class="ppback" onclick="document.body.classList.remove('fs-active');arcade()">← Arcade</button>
       <button id="ppTalk" class="pptalk hide"></button>
@@ -2136,6 +2143,7 @@ function ppBoot(){
   renderer.outputEncoding=THREE.sRGBEncoding;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure=1.0;
+  renderer.setClearColor(0x87d8ff,1); // sky, not black, while the world loads
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
   scene.fog=new THREE.Fog(0xbfe3ff,70,220);
@@ -2206,7 +2214,11 @@ function ppBoot(){
   }
 
   // load everything with a progress readout, then build the world
-  ppLoadAssets((n,total)=>{const p=$('#ppPct');if(p)p.textContent=Math.round(n/total*100)+'%'})
+  ppLoadAssets((n,total)=>{
+    const pct=Math.round(n/total*100);
+    const p=$('#ppPct');if(p)p.textContent=pct+'%';
+    const bar=$('#ppBar');if(bar)bar.style.width=pct+'%';
+  })
   .then(assets=>{
     $('#ppLoad')?.remove();
     const put=(key,x,z,h,ry=0,collide=0)=>{
