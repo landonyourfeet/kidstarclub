@@ -3456,27 +3456,81 @@ function ppBoot(){
         const h=PP_HEROES[o.hero];
         if(h&&!h.blocky&&assets[h.file])root=ppSpawn(assets,h.file,h.file.includes('ShibaInu')?1.0:1.75);
         if(!root)root=ppBlocky(cfg);
-        root.add(nameSprite(o.name||'Star'));
-        root.position.set(o.x,0,o.z);root.rotation.y=o.ry||0;
-        scene.add(root);ppAnim(root,A_IDLE);
-        rec={root,fx:o.x,fz:o.z,fry:o.ry||0,tx:o.x,tz:o.z,try:o.ry||0,
+        const cont=new THREE.Group();
+        cont.add(root);
+        const tag=nameSprite(o.name||'Star');
+        cont.add(tag);
+        cont.position.set(o.x,0,o.z);cont.rotation.y=o.ry||0;
+        scene.add(cont);ppAnim(root,A_IDLE);
+        rec={root:cont,av:root,tag,veh:null,vehKey:'',mode:'walk',
+          fx:o.x,fz:o.z,fy:0,ty:0,fry:o.ry||0,tx:o.x,tz:o.z,try:o.ry||0,
           t0:now,dur:800,lastAt:now,seg:0,seen:Date.now(),name:o.name,score:0};
         others.set(o.id,rec);
       }
       // start a fresh glide segment from wherever the avatar is RIGHT NOW
       rec.fx=rec.root.position.x;rec.fz=rec.root.position.z;rec.fry=rec.root.rotation.y;
-      rec.tx=o.x;rec.tz=o.z;rec.try=o.ry||0;
+      rec.fy=rec.root.position.y;
+      rec.tx=o.x;rec.tz=o.z;rec.try=o.ry||0;rec.ty=o.y||0;
       rec.dur=Math.max(350,Math.min(1600,now-rec.lastAt));
       rec.t0=now;rec.lastAt=now;
       rec.seg=Math.hypot(rec.tx-rec.fx,rec.tz-rec.fz);
-      rec.score=o.score||0;rec.name=o.name;rec.fly=!!o.fly;
+      rec.score=o.score||0;rec.name=o.name;rec.mode=o.mode||'walk';
       rec.seen=Date.now();
+    }
+    // build the vehicle a remote friend is actually using
+    function ensureVeh(rec){
+      if(rec.vehKey===rec.mode)return;
+      if(rec.veh){rec.root.remove(rec.veh);rec.veh=null}
+      rec.vehKey=rec.mode;
+      rec.av.visible=rec.mode==='walk';
+      rec.tag.position.y=rec.mode==='heli'?3.6:rec.mode==='dino'?3.2:2.6;
+      if(rec.mode==='heli'){
+        const g=new THREE.Group();
+        const body=new THREE.Mesh(new THREE.SphereGeometry(1.05,12,10),
+          new THREE.MeshPhongMaterial({color:0x45d8ff,shininess:70}));
+        body.scale.set(1,.8,1.35);body.position.y=1.1;
+        const boom3=new THREE.Mesh(new THREE.CylinderGeometry(.14,.22,2.6,8),
+          new THREE.MeshPhongMaterial({color:0x45d8ff}));
+        boom3.rotation.x=Math.PI/2;boom3.position.set(0,1.15,-2.1);
+        const rotor=new THREE.Group();
+        for(const r of [0,Math.PI/2]){
+          const blade=new THREE.Mesh(new THREE.BoxGeometry(5.2,.05,.28),mat(0x1a1a22));
+          blade.rotation.y=r;rotor.add(blade);
+        }
+        rotor.position.y=2.15;
+        for(const sx of [-.7,.7]){
+          const skid=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.4,6),mat(0x333333));
+          skid.rotation.x=Math.PI/2;skid.position.set(sx,.22,0);g.add(skid);
+        }
+        g.add(body,boom3,rotor);
+        g.userData.rotor=rotor;
+        rec.veh=g;rec.root.add(g);
+      }else if(rec.mode==='car'){
+        const g=new THREE.Group();
+        const body=new THREE.Mesh(new THREE.BoxGeometry(1.3,.5,2.6),
+          new THREE.MeshPhongMaterial({color:0xff2ec4,shininess:70}));body.position.y=.55;
+        const cab=new THREE.Mesh(new THREE.BoxGeometry(1.1,.5,1.2),
+          new THREE.MeshPhongMaterial({color:0xbfe8ff,transparent:true,opacity:.85}));cab.position.set(0,1.0,-.1);
+        g.add(body,cab);
+        const wheels=[];
+        for(const [wx,wz] of [[-.7,.9],[.7,.9],[-.7,-.9],[.7,-.9]]){
+          const w=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,.22,10),mat(0x1a1a1a));
+          w.rotation.z=Math.PI/2;w.position.set(wx,.3,wz);wheels.push(w);g.add(w);
+        }
+        g.userData.wheels=wheels;
+        rec.veh=g;rec.root.add(g);
+      }else if(rec.mode==='dino'){
+        const d3=ppSpawn(assets,PP_MODELS.dino,2.1);
+        if(d3){rec.veh=d3;rec.root.add(d3);ppAnim(d3,A_IDLE)}
+      }
     }
     gIval(async()=>{
       try{
         const r=await api('/api/park/pos',{method:'POST',body:{
           x:player.position.x,z:player.position.z,ry:player.rotation.y,
-          fly:!!pp.flying,score:pp.score,hero:ppHero(),cfg:ppCfg()}});
+          y:Math.round(player.position.y*10)/10,
+          mode:(pp.flying?'heli':pp.driving?'car':pp.riding?'dino':'walk'),
+          score:pp.score,hero:ppHero(),cfg:ppCfg()}});
         const alive=new Set();
         for(const o of (r.others||[])){alive.add(o.id);upsertOther(o)}
         for(const [id,rec] of others)
@@ -3594,7 +3648,7 @@ function ppBoot(){
         // other players' helicopters: proximity-based
         let og=0;
         for(const rec of others.values()){
-          if(!rec.fly)continue;
+          if(rec.mode!=='heli')continue;
           const d=rec.root.position.distanceTo(player.position);
           og=Math.max(og,Math.max(0,1-d/55));
         }
@@ -4149,15 +4203,29 @@ function ppBoot(){
         const now=performance.now();
         for(const rec of others.values()){
           const r2=rec.root;
+          ensureVeh(rec);
           const k=Math.min(1,(now-rec.t0)/rec.dur); // constant-velocity glide across the segment
           r2.position.x=rec.fx+(rec.tx-rec.fx)*k;
           r2.position.z=rec.fz+(rec.tz-rec.fz)*k;
-          r2.position.y=groundAt(r2.position.x,r2.position.z);
+          // helicopters glide in real 3D; everything else rides the terrain
+          r2.position.y=rec.mode==='heli'
+            ? rec.fy+(rec.ty-rec.fy)*k
+            : groundAt(r2.position.x,r2.position.z);
           let da=((rec.try-rec.fry+Math.PI*3)%(Math.PI*2))-Math.PI;
           r2.rotation.y=rec.fry+da*k;
           const speed=rec.seg/(rec.dur/1000); // units per second over this segment
-          ppAnim(r2,(k<1&&speed>0.4)?(speed>4.5?A_RUN:A_WALK):A_IDLE);
-          r2.userData.mixer?.update(dt);ppBlockyUpdate(r2,dt);
+          const moving=k<1&&speed>0.4;
+          if(rec.mode==='walk'){
+            ppAnim(rec.av,moving?(speed>4.5?A_RUN:A_WALK):A_IDLE);
+            rec.av.userData.mixer?.update(dt);ppBlockyUpdate(rec.av,dt);
+          }else if(rec.mode==='dino'&&rec.veh){
+            ppAnim(rec.veh,moving?A_RUN:A_IDLE);
+            rec.veh.userData.mixer?.update(dt);
+          }else if(rec.veh?.userData.rotor){
+            rec.veh.userData.rotor.rotation.y+=dt*24;
+          }else if(rec.veh?.userData.wheels&&moving){
+            rec.veh.userData.wheels.forEach(w=>w.rotation.x+=dt*speed*0.8);
+          }
         }
       }
       player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
