@@ -243,6 +243,9 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .shname{font:900 12px var(--body);margin:3px 0 1px}
 .shblurb{font:700 9px var(--body);color:#b678a8;line-height:1.2}
 .shcost{font:900 11px var(--body);color:var(--yellow);margin-top:3px}
+.shnew{font:900 8px var(--body);letter-spacing:.08em;color:#062030;background:var(--cyan);
+  border-radius:999px;padding:2px 7px;display:inline-block;margin-bottom:3px;
+  animation:pillnudge 1.2s ease-in-out infinite}
 .ppride{bottom:74px}
 .ppfly{bottom:134px}
 .ppmist{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;
@@ -2063,11 +2066,21 @@ const PP_SKINFX={
   skin_gold:  {skin:'#ffd24a',hair:'#ffe89a',top:'#f5b71e',bottom:'#c98a0a',glow:'#ffcf3f'},
   skin_galaxy:{skin:'#8a6ad8',hair:'#2a1a5e',top:'#4a2a9e',bottom:'#1a0a3e',glow:'#b45cff'},
   skin_neon:  {skin:'#baf7c9',hair:'#0d2f16',top:'#19f56a',bottom:'#0a6b2e',glow:'#2bff7a'},
+  skin_lava:  {skin:'#ff7a3a',hair:'#3a0a0a',top:'#e2321e',bottom:'#7a0a0a',glow:'#ff5a1e'},
+  skin_ice:   {skin:'#d8f0ff',hair:'#ffffff',top:'#8ad4ff',bottom:'#3a8ac4',glow:'#aee6ff'},
+  skin_ninja: {skin:'#c9b8a8',hair:'#0a0a0f',top:'#16161e',bottom:'#0a0a0f',glow:'#4a4a5e'},
+  skin_bubble:{skin:'#ffd8e8',hair:'#ff8ac0',top:'#ff5fb0',bottom:'#c4108f',glow:'#ff9dd0'},
+  skin_chrome:{skin:'#d8dce8',hair:'#aab2c4',top:'#8a94aa',bottom:'#5a6478',glow:'#c8d2e8'},
+  skin_sunset:{skin:'#ffc48a',hair:'#7a2a5e',top:'#ff7a4a',bottom:'#a4306e',glow:'#ff9a5a'},
+  skin_slime: {skin:'#c8f56a',hair:'#2e5a0a',top:'#7ac420',bottom:'#3a6b0a',glow:'#9aff2e'},
 };
-const PP_PETFILE={pet_fox:'fox',pet_husky:'husky',pet_deer:'deer',pet_wolf:'wolf'};
+const PP_PETFILE={pet_fox:'fox',pet_husky:'husky',pet_deer:'deer',pet_wolf:'wolf',
+  pet_horse:'horse',pet_cow:'cow',pet_alpaca:'alpaca',pet_donkey:'donkey',pet_stag:'stag'};
+const PP_PETSCALE={deer:1.35,wolf:1.05,horse:1.5,cow:1.3,alpaca:1.25,donkey:1.2,stag:1.5};
 const PP_MODELS={
   kid:'hero_kid.glb',knight:'hero_knight.glb',
   dino:'Velociraptor.glb',wolf:'Wolf.glb',
+  horse:'Horse.glb',cow:'Cow.glb',alpaca:'Alpaca.glb',donkey:'Donkey.glb',stag:'Stag.glb',
   cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
@@ -2097,6 +2110,7 @@ async function ppShop(){
       <div class="shgrid">${items.map(([id,d])=>{
         const owned=data.owned.includes(id), on=eq[kind]===id;
         return `<button class="shitem${owned?' owned':''}${on?' on':''}" onclick="ppShopTap('${id}','${kind}',${d.cost},${owned})">
+          ${d.fresh?'<div class="shnew">🆕 NEW TODAY</div>':''}
           <div class="shemoji">${d.emoji}</div>
           <div class="shname">${d.name}</div>
           ${d.blurb?`<div class="shblurb">${d.blurb}</div>`:''}
@@ -2108,7 +2122,7 @@ async function ppShop(){
       <div class="shbal">⭐ <b>${data.balance}</b> Star Bucks</div>
       <button class="act-mini" onclick="document.getElementById('ppShopPanel').remove()">✕</button>
     </div>
-    <div class="shnote" style="margin:0 12px 8px">Finish rounds in Starville to earn more Star Bucks!</div>
+    <div class="shnote" style="margin:0 12px 8px">🗓️ New stock every day — today's shelf below. Finish rounds to earn Star Bucks!</div>
     ${section('skin','✨ SKINS','Style your custom My Kid hero')}
     ${section('pet','🐾 PETS','Your new sidekick follows you everywhere')}
     ${section('power','⚡ POWERS','One equipped at a time')}`;
@@ -2158,7 +2172,7 @@ function ppNew(){
   const opt=(kind,vals,cur,labels)=>vals.map((v,i)=>
     `<button class="ppbody sm${v===cur?' on':''}" onclick="ppSetAv('${kind}','${v}')">${labels[i]}</button>`).join('');
   $('#gameArea').innerHTML=`
-    <div class="sbtop">⭐ <span id="ppscore">0</span> · ⏱ <span id="pptime">120</span>s</div>
+    <div class="sbtop">⭐ <span id="ppscore">0</span> · ⏱ <span id="pptime">600</span>s</div>
     <div class="ppstyle">
       <div class="pprow" style="justify-content:space-between;align-items:center">
         <span class="pplbl" style="width:auto">PICK YOUR HERO</span>
@@ -2904,7 +2918,7 @@ function ppBoot(){
       if(pp.over||pp.chatting)return;
       // bombs
       pp.bombT-=dt3;
-      if(pp.bombT<=0&&bombs.length<2){pp.bombT=18+Math.random()*10;spawnBomb()}
+      if(pp.bombT<=0&&bombs.length<3){pp.bombT=13+Math.random()*8;spawnBomb()}
       for(let i=bombs.length-1;i>=0;i--){
         const bm=bombs[i];
         bm.fuse-=dt3;
@@ -2917,7 +2931,7 @@ function ppBoot(){
       }
       // bandits
       pp.banditT-=dt3;
-      if(pp.banditT<=0&&bandits.length===0){pp.banditT=42+Math.random()*22;spawnBanditWave()}
+      if(pp.banditT<=0&&bandits.length<3){pp.banditT=26+Math.random()*14;spawnBanditWave()}
       for(let i=bandits.length-1;i>=0;i--){
         const bd=bandits[i];
         if(bd.state==='drop'){
@@ -3091,6 +3105,23 @@ function ppBoot(){
       let nc=null,nd2=1e9;
       for(const c of chompers){if(c.dead||c.waveOut)continue;const d=c.mesh.position.distanceTo(player.position);if(d<nd2){nd2=d;nc=c}}
       if(!nc||nd2>4.2){window.__bonkBandit&&__bonkBandit();return}
+      if(nc.boss>0){
+        nc.boss--;
+        if(nc.boss>0){
+          nc.stun=2;sndBlast&&sndBlast();
+          const popEl=document.createElement('div');popEl.className='chomppop';
+          popEl.style.color='#ff8c1a';popEl.textContent='💥 BOSS HIT! '+nc.boss+' MORE!';
+          wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1100);
+          return;
+        }
+        nc.dead=performance.now()+600000;scene.remove(nc.mesh);
+        pp.score+=100;const se3=$('#ppscore');if(se3)se3.textContent=pp.score;
+        sndWin();burst('storm');
+        const popEl=document.createElement('div');popEl.className='chomppop';
+        popEl.style.color='#ffe14d';popEl.textContent='🏆 MEGA CHOMPY DEFEATED! +100 ⭐';
+        wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1600);
+        return;
+      }
       const dir=nc.mesh.position.clone().sub(player.position).setY(0).normalize();
       nc.stun=5;nc.cool=Math.max(nc.cool,1);
       nc.mesh.position.add(dir.multiplyScalar(12));
@@ -3137,7 +3168,7 @@ function ppBoot(){
     ppAnim(player,A_IDLE);
     spawnChomper(false);
     const petKey=PP_PETFILE[ppEquip().pet];
-    const petScale=petKey==='deer'?1.35:petKey==='wolf'?1.05:0.85;
+    const petScale=PP_PETSCALE[petKey]||0.85;
     let buddy=ppSpawn(assets,PP_MODELS[petKey||'shiba'],petScale);
     if(buddy){buddy.position.set(-18,0,12);scene.add(buddy);ppAnim(buddy,A_IDLE)}
     // wildlife: deer, fox, husky roam the park
@@ -3184,7 +3215,7 @@ function ppBoot(){
     for(let i=0;i<48;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
 
     const POWER=ppEquip().power||null;
-    pp={score:0,time:120,over:false,vel:new THREE.Vector2(0,0),joy:null,
+    pp={score:0,time:600,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
       jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0};
     gIval(()=>{ if(pp.over||pp.chatting)return;
@@ -3584,7 +3615,7 @@ function ppBoot(){
       }else if(pp.driving){
         const car=pp.driving;
         if(!pp.chatting){
-          car.heat+=dt;
+          car.heat+=dt*(POWER==='pw_cool'?0.5:1);
           if(car.heat>=60){ // engine's done — everybody out!
             pp.driving=null;
             player.position.set(car.mesh.position.x+2,0,car.mesh.position.z);
@@ -3652,7 +3683,7 @@ function ppBoot(){
       // 💜 mega bone lifecycle
       if(!pp.over&&!pp.chatting){
         pp.megaT+=dt;
-        if(!mega.mesh&&pp.megaT>16){pp.megaT=0;megaBone()}
+        if(!mega.mesh&&pp.megaT>(POWER==='pw_megaluck'?8:16)){pp.megaT=0;megaBone()}
         if(mega.mesh){
           const now2=performance.now();
           if(now2>mega.until){scene.remove(mega.mesh);mega.mesh=null}
@@ -3750,8 +3781,25 @@ function ppBoot(){
           let hit=false;
           for(const c of chompers){
             if(c.dead||c.waveOut)continue;
-            if(c.mesh.position.distanceTo(bl.mesh.position)<1.9){
+            if(c.mesh.position.distanceTo(bl.mesh.position)<(c.boss?2.6:1.9)){
               hit=true;
+              if(c.boss>0){
+                c.boss--;
+                if(c.boss>0){
+                  c.stun=1.5;sndBlast&&sndBlast();
+                  const popEl=document.createElement('div');popEl.className='chomppop';
+                  popEl.style.color='#ff8c1a';popEl.textContent='💥 BOSS HIT! '+c.boss+' MORE!';
+                  wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1100);
+                  break;
+                }
+                c.dead=performance.now()+600000;scene.remove(c.mesh);
+                pp.score+=100;const se3=$('#ppscore');if(se3)se3.textContent=pp.score;
+                sndWin();burst('storm');
+                const popEl=document.createElement('div');popEl.className='chomppop';
+                popEl.style.color='#ffe14d';popEl.textContent='🏆 MEGA CHOMPY DEFEATED! +100 ⭐';
+                wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1600);
+                break;
+              }
               c.dead=performance.now()+120000; // gone for 2 minutes
               scene.remove(c.mesh);
               sndBad();burst('storm');
@@ -3806,23 +3854,30 @@ function ppBoot(){
         pp.waveT-=dt;
         if(pp.wavePhase==='calm'&&pp.waveT<=0){
           pp.waveN++;pp.wavePhase='hunt';pp.waveT=120;
-          const count=Math.min(4,pp.waveN);
+          const count=Math.min(5,pp.waveN);
+          const bossWave=pp.waveN%3===0;
           while(chompers.length<count)spawnChomper(false);
           chompers.forEach((c,i)=>{
             c.waveOut=i>=count;
+            c.boss=0;c.mesh.scale.setScalar(1);
             if(c.waveOut){scene.remove(c.mesh);return}
             c.dead=0;c.stun=0;c.cool=2;
             c.speed=0.145+ (pp.waveN-1)*0.008;
             c.mesh.position.set(i%2?B-12:-B+12,0,i<2?-B+12:B-12);
             scene.add(c.mesh);
           });
+          if(bossWave&&chompers[0]){ // the pack leader goes MEGA
+            chompers[0].boss=3;
+            chompers[0].speed+=0.02;
+            chompers[0].mesh.scale.setScalar(1.8);
+          }
           sndBad();
           const popEl=document.createElement('div');popEl.className='chomppop';
           popEl.style.color='#b45cff';
-          popEl.textContent='👾 WAVE '+pp.waveN+'! THE CHOMPERS ARE COMING!';
-          wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1500);
+          popEl.textContent=bossWave?'👾👾 BOSS WAVE! MEGA CHOMPY TAKES 3 HITS!':'👾 WAVE '+pp.waveN+'! THE CHOMPERS ARE COMING!';
+          wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1600);
         }else if(pp.wavePhase==='hunt'&&pp.waveT<=0){
-          pp.wavePhase='calm';pp.waveT=40;
+          pp.wavePhase='calm';pp.waveT=25;
           chompers.forEach(c=>{c.waveOut=true;scene.remove(c.mesh)});
           const popEl=document.createElement('div');popEl.className='chomppop';
           popEl.style.color='#4ade80';
@@ -3853,7 +3908,7 @@ function ppBoot(){
         const cd=player.position.clone().sub(chomp.mesh.position);cd.y=0;
         const dist=cd.length();
         cd.normalize();
-        const sp=chomp.speed+Math.min(0.06,pp.score*0.0002); // creeps faster as your pile grows
+        const sp=(chomp.speed+Math.min(0.06,pp.score*0.0002))*(POWER==='pw_slowjaws'?0.8:1);
         if(!tryMove(chomp.mesh,cd.x*sp,cd.z*sp,.95)){
           // wall in the way — shuffle sideways to find the door
           tryMove(chomp.mesh,cd.z*sp,-cd.x*sp,.95);
@@ -4002,7 +4057,7 @@ function ppBoot(){
           }
         }
         if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<((pp.flying?3.2:pp.driving?2.6:1.9)*(POWER==='pw_magnet'?2:1))){
-          pp.score+=10;const se=$('#ppscore');if(se)se.textContent=pp.score;
+          pp.score+=(POWER==='pw_star15'?15:10);const se=$('#ppscore');if(se)se.textContent=pp.score;
           sndCoin();burst('pop');placeBone(b);
         }
       }
