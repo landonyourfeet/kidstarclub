@@ -225,6 +225,9 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .ppjump{bottom:14px;left:12px;background:var(--cyan)}
 .ppbonk{bottom:14px;left:76px;background:#ff8c1a;animation:pillnudge 1s ease-in-out infinite}
 .ppshoot{bottom:14px;left:140px;background:var(--yellow)}
+.ppdown{bottom:14px;left:76px;background:#a78bfa}
+.ppride{bottom:74px}
+.ppfly{bottom:134px}
 .ppammo{position:absolute;top:62px;left:10px;z-index:6;font:900 13px var(--body);
   color:#062030;background:var(--yellow);border:2px solid #fff;border-radius:999px;
   padding:5px 12px;box-shadow:0 3px 10px rgba(255,225,77,.5)}
@@ -2019,6 +2022,7 @@ function ppSetAv(k,v){
 }
 const PP_MODELS={
   kid:'hero_kid.glb',knight:'hero_knight.glb',
+  dino:'Velociraptor.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
@@ -2086,6 +2090,9 @@ function ppNew(){
       <button class="ppback" onclick="document.body.classList.remove('fs-active');arcade()">← Arcade</button>
       <button id="ppTalk" class="pptalk hide"></button>
       <button id="ppDrive" class="pptalk ppdrive hide"></button>
+      <button id="ppRide" class="pptalk ppdrive ppride hide"></button>
+      <button id="ppFly" class="pptalk ppdrive ppfly hide"></button>
+      <button id="ppDown" class="ppact ppdown hide">⬇️</button>
       <button id="ppJump" class="ppact ppjump">🦘</button>
       <button id="ppBonk" class="ppact ppbonk hide">👊</button>
       <button id="ppShoot" class="ppact ppshoot hide">⚡</button>
@@ -2097,7 +2104,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Fetch bones 🦴, grab 💜 MEGA BONES (+50) & find ⚡ STAR BLASTERS — 3 shots, zap a Chompy off the map for 2 minutes! Jump 🦘 (Space), Bonk 👊 (B), Shoot ⚡ (F). Friends appear in your world! 🧑‍🤝‍🧑</p>
+    <p class="sbhint">Ride 🦖 Ziggy the raptor, fly the 🚁 helicopters (hold 🦘 to climb, ⬇️ to descend — Space/C on desktop), zap Chompies with ⚡ STAR BLASTERS, grab 💜 MEGA BONES! Friends appear in your world 🧑‍🤝‍🧑</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2135,7 +2142,13 @@ function ppSpawn(assets,file,targetH){
   const clips=src.animations;
   if(clips.length){
     mixer=new THREE.AnimationMixer(obj);
-    for(const clip of clips)actions[clip.name.split('|').pop()]=mixer.clipAction(clip);
+    for(const clip of clips){
+      const k=clip.name.split('|').pop();
+      const act=mixer.clipAction(clip);
+      actions[k]=act;
+      const short=k.includes('_')?k.split('_').pop():null; // Velociraptor_Run -> Run
+      if(short&&!actions[short])actions[short]=act;
+    }
   }
   root.userData={mixer,actions,current:null};
   return root;
@@ -2418,6 +2431,64 @@ function ppBoot(){
     }
     makeCar(37,-32,0xff2ec4);makeCar(47,8,0x45d8ff);makeCar(37,44,0xffe14d);
 
+    // 🦖 Ziggy the rideable raptor
+    const dino=ppSpawn(assets,PP_MODELS.dino,2.1);
+    if(dino){dino.position.set(-8,0,-14);scene.add(dino);ppAnim(dino,A_IDLE)}
+
+    // 🚁 helicopters with momentum flight
+    const helis=[];
+    function makeHeli(x,z,c){
+      const g=new THREE.Group();
+      const tilt=new THREE.Group();g.add(tilt);
+      const body=new THREE.Mesh(new THREE.SphereGeometry(1.05,14,12),
+        new THREE.MeshPhongMaterial({color:c,shininess:70}));
+      body.scale.set(1,.8,1.35);body.position.y=1.1;
+      const glass=new THREE.Mesh(new THREE.SphereGeometry(.7,12,10),
+        new THREE.MeshPhongMaterial({color:0xbfe8ff,transparent:true,opacity:.7}));
+      glass.scale.set(.9,.7,.8);glass.position.set(0,1.25,.75);
+      const boom=new THREE.Mesh(new THREE.CylinderGeometry(.14,.22,2.6,8),
+        new THREE.MeshPhongMaterial({color:c}));
+      boom.rotation.x=Math.PI/2;boom.position.set(0,1.15,-2.1);
+      const finV=new THREE.Mesh(new THREE.BoxGeometry(.08,.7,.5),
+        new THREE.MeshPhongMaterial({color:0xffe14d}));
+      finV.position.set(0,1.5,-3.3);
+      const rotor=new THREE.Group();
+      for(const r of [0,Math.PI/2]){
+        const blade=new THREE.Mesh(new THREE.BoxGeometry(5.2,.05,.28),
+          new THREE.MeshPhongMaterial({color:0x1a1a22}));
+        blade.rotation.y=r;rotor.add(blade);
+      }
+      rotor.position.y=2.15;
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.4,6),
+        new THREE.MeshPhongMaterial({color:0x333}));
+      mast.position.y=1.95;
+      const tail=new THREE.Mesh(new THREE.BoxGeometry(.06,1.1,.16),
+        new THREE.MeshPhongMaterial({color:0x1a1a22}));
+      tail.position.set(.18,1.5,-3.15);
+      for(const sx of [-.7,.7]){
+        const skid=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.4,6),
+          new THREE.MeshPhongMaterial({color:0x333}));
+        skid.rotation.x=Math.PI/2;skid.position.set(sx,.22,0);
+        const strut=new THREE.Mesh(new THREE.BoxGeometry(.06,.6,.06),
+          new THREE.MeshPhongMaterial({color:0x333}));
+        strut.position.set(sx,.55,0);
+        tilt.add(skid,strut);
+      }
+      tilt.add(body,glass,boom,finV,rotor,mast,tail);
+      g.traverse(m=>m.castShadow=true);
+      // helipad
+      const pad=new THREE.Mesh(new THREE.CircleGeometry(3.4,24),
+        new THREE.MeshLambertMaterial({color:0x2a2a33}));
+      pad.rotation.x=-Math.PI/2;pad.position.set(x,.018,z);scene.add(pad);
+      const hmk=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.6),
+        new THREE.MeshBasicMaterial({color:0xffe14d,transparent:true,opacity:.9}));
+      hmk.rotation.x=-Math.PI/2;hmk.position.set(x,.02,z);scene.add(hmk);
+      g.position.set(x,0,z);scene.add(g);
+      helis.push({mesh:g,tilt,rotor,vel:new THREE.Vector3(),rpm:0});
+    }
+    makeHeli(0,-72,0xff2ec4);
+    makeHeli(-62,42,0x45d8ff);
+
     // ---- CHOMPY the bone monster: big chomping jaws, wants YOUR bones ----
     function buildChomper(){
       const g=new THREE.Group();
@@ -2499,7 +2570,7 @@ function ppBoot(){
       if(sb)sb.classList.toggle('hide',pp.ammo<=0);
     };
     window.ppShoot=()=>{
-      if(pp.ammo<=0||pp.driving||pp.chatting||pp.over)return;
+      if(pp.ammo<=0||pp.driving||pp.flying||pp.chatting||pp.over)return;
       pp.ammo--;ammoUI();
       sndBlast&&sndBlast();
       ppAnim(player,['Gun_Shoot','Idle_Shoot','Run_Shoot','Punch']);
@@ -2514,7 +2585,7 @@ function ppBoot(){
       bolts.push({mesh:bolt,dx:Math.sin(player.rotation.y),dz:Math.cos(player.rotation.y),life:1.3});
     };
     window.ppBonk=()=>{
-      if(pp.driving||pp.chatting||pp.over)return;
+      if(pp.driving||pp.flying||pp.chatting||pp.over)return;
       let nc=null,nd2=1e9;
       for(const c of chompers){if(c.dead)continue;const d=c.mesh.position.distanceTo(player.position);if(d<nd2){nd2=d;nc=c}}
       if(!nc||nd2>4.2)return;
@@ -2599,7 +2670,7 @@ function ppBoot(){
 
     pp={score:0,time:120,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
-      jumpY:0,vy:0,megaT:0,ammo:0,blsT:12};
+      jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0};
     gIval(()=>{ if(pp.over||pp.chatting)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
@@ -2620,7 +2691,19 @@ function ppBoot(){
     }
     const el=renderer.domElement;
     el.style.touchAction='none';
-    const jb=$('#ppJump');if(jb)jb.onclick=()=>doJump();
+    const jb=$('#ppJump');
+    if(jb){
+      jb.onclick=()=>{if(!pp.flying)doJump()};
+      jb.addEventListener('pointerdown',()=>{if(pp.flying)pp.lift=1});
+      jb.addEventListener('pointerup',()=>{pp.lift=0});
+      jb.addEventListener('pointercancel',()=>{pp.lift=0});
+    }
+    const db2=$('#ppDown');
+    if(db2){
+      db2.addEventListener('pointerdown',()=>{if(pp.flying)pp.lift=-1});
+      db2.addEventListener('pointerup',()=>{pp.lift=0});
+      db2.addEventListener('pointercancel',()=>{pp.lift=0});
+    }
     const kb=$('#ppBonk');if(kb)kb.onclick=()=>ppBonk();
     const shb=$('#ppShoot');if(shb)shb.onclick=()=>ppShoot();
     pp.zoom=parseFloat(localStorage.getItem('ksc_zoom')||'1');
@@ -2656,7 +2739,7 @@ function ppBoot(){
       pp.zoom=Math.max(0.5,Math.min(2.6,pp.zoom*(1+e.deltaY*0.001)));
       localStorage.setItem('ksc_zoom',pp.zoom)},{passive:false});
     const keys={};
-    const doJump=()=>{if(pp.jumpY<=0&&!pp.driving&&!pp.chatting&&!pp.over){pp.vy=8.2;sndPick()}};
+    const doJump=()=>{if(pp.jumpY<=0&&!pp.driving&&!pp.flying&&!pp.chatting&&!pp.over){pp.vy=pp.riding?10.5:8.2;if(pp.riding)ppAnim(pp.riding,['Jump']);sndPick()}};
     const kd=e=>{
       keys[e.key]=true;
       const inField=/INPUT|TEXTAREA/.test(e.target?.tagName||'');
@@ -2807,7 +2890,40 @@ function ppBoot(){
       if(keys.a)vx=-1; if(keys.d)vx=1;
       if(keys.w)vz=-1; if(keys.s)vz=1;
       const mag=Math.hypot(vx,vz);
-      if(pp.driving){
+      if(pp.flying){
+        const h=pp.flying;
+        h.rpm=Math.min(1,h.rpm+dt*.8);
+        h.rotor.rotation.y+=h.rpm*dt*26;
+        if(!pp.chatting){
+          const af=pp.camYaw+Math.PI;
+          const ax=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
+          const az=Math.cos(af)*(-vz)+Math.cos(af-Math.PI/2)*vx;
+          // momentum: thrust + drag, collective for lift, gravity when idle
+          h.vel.x+=ax*13*dt*h.rpm; h.vel.z+=az*13*dt*h.rpm;
+          h.vel.x*=1-1.6*dt; h.vel.z*=1-1.6*dt;
+          const liftIn=pp.lift||(keys[' ']?1:(keys.c||keys.C)?-1:0);
+          h.vel.y+= (liftIn>0?10:liftIn<0?-9:-5.5)*dt*h.rpm;
+          h.vel.y=Math.max(-7,Math.min(6,h.vel.y));h.vel.y*=1-0.8*dt;
+          const m=h.mesh;
+          if(m.position.y>2.4){ // above the rooftops: free flight inside the hedge walls
+            m.position.x=Math.max(-B+2,Math.min(B-2,m.position.x+h.vel.x*dt));
+            m.position.z=Math.max(-B+2,Math.min(B-2,m.position.z+h.vel.z*dt));
+          }else{
+            if(!tryMove(m,h.vel.x*dt,h.vel.z*dt,1.6)){h.vel.x*=-.25;h.vel.z*=-.25}
+          }
+          m.position.y=Math.max(0,Math.min(42,m.position.y+h.vel.y*dt));
+          if(m.position.y===0&&h.vel.y<0)h.vel.y=0;
+          const sp=Math.hypot(h.vel.x,h.vel.z);
+          if(sp>0.6)m.rotation.y+=(((Math.atan2(h.vel.x,h.vel.z)-m.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*3);
+          // bank & pitch with the motion
+          const fwd=(h.vel.x*Math.sin(m.rotation.y)+h.vel.z*Math.cos(m.rotation.y));
+          const side=(h.vel.x*Math.cos(m.rotation.y)-h.vel.z*Math.sin(m.rotation.y));
+          h.tilt.rotation.x+=((fwd*0.045)-h.tilt.rotation.x)*Math.min(1,dt*5);
+          h.tilt.rotation.z+=((side*0.05)-h.tilt.rotation.z)*Math.min(1,dt*5);
+        }
+        player.position.copy(pp.flying.mesh.position);
+        player.visible=false;
+      }else if(pp.driving){
         const car=pp.driving;
         if(!pp.chatting){
           car.heat+=dt;
@@ -2830,6 +2946,21 @@ function ppBoot(){
           }
         }
         if(pp.driving){player.position.copy(pp.driving.mesh.position);player.visible=false}
+      }else if(pp.riding){
+        const d2=pp.riding;
+        if(mag>0.05&&!pp.chatting&&!pp.over){
+          const af=pp.camYaw+Math.PI;
+          const mx=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
+          const mz=Math.cos(af)*(-vz)+Math.cos(af-Math.PI/2)*vx;
+          tryMove(d2,mx*0.48,mz*0.48,.6); // raptor speed!
+          d2.rotation.y=Math.atan2(mx,mz);
+          ppAnim(d2,A_RUN);
+        }else ppAnim(d2,A_IDLE);
+        d2.position.y=pp.jumpY;
+        d2.userData.mixer?.update(dt);
+        player.position.copy(d2.position);
+        player.rotation.y=d2.rotation.y;
+        player.visible=false;
       }else if(mag>0.05&&!pp.chatting&&!pp.over){
         const af=pp.camYaw+Math.PI; // camera's forward
         const mx=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
@@ -2843,7 +2974,7 @@ function ppBoot(){
         pp.jumpY=Math.max(0,pp.jumpY+pp.vy*dt);
         if(pp.jumpY===0)pp.vy=0;
       }
-      if(!pp.driving){
+      if(!pp.driving&&!pp.riding&&!pp.flying){
         player.visible=true;
         const moving=mag>0.05&&!pp.chatting;
         player.userData.armed=pp.ammo>0;
@@ -3018,7 +3149,7 @@ function ppBoot(){
         j.jawTop.rotation.x=-bite;j.jawBot.rotation.x=bite;
         const hop=Math.abs(Math.sin(t*2.2))*.18;
         chomp.mesh.position.y=hop;
-        if(dist<1.9&&!pp.driving&&chomp.cool<=0&&pp.jumpY<1.1){
+        if(dist<1.9&&!pp.driving&&!pp.flying&&chomp.cool<=0&&pp.jumpY<1.1){
           chomp.cool=4;
           const loss=pp.score; // he eats EVERYTHING
           pp.score=0;const se=$('#ppscore');if(se)se.textContent=0;
@@ -3071,6 +3202,50 @@ function ppBoot(){
           tb.onclick=()=>ppOpenChat(nearest.name);
         }else tb.classList.add('hide');
       }else if(pp.driving)tb?.classList.add('hide');
+      // ride & fly buttons
+      const rb=$('#ppRide');
+      if(rb){
+        if(pp.riding){
+          rb.textContent='⏬ Hop off';rb.classList.remove('hide');
+          rb.onclick=()=>{
+            const d2=pp.riding;pp.riding=null;
+            player.position.set(d2.position.x+1.6,0,d2.position.z);
+            player.visible=true;ppAnim(d2,A_IDLE);sndPick();
+          };
+        }else if(dino&&!pp.driving&&!pp.flying&&!pp.chatting&&dino.position.distanceTo(player.position)<3.2){
+          rb.textContent='🦖 Ride!';rb.classList.remove('hide');
+          rb.onclick=()=>{pp.riding=dino;sndWin();
+            const popEl=document.createElement('div');popEl.className='chomppop';
+            popEl.style.color='#4ade80';popEl.textContent='🦖 RAPTOR RIDER!';
+            wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1100);};
+        }else rb.classList.add('hide');
+      }
+      const fb2=$('#ppFly');
+      if(fb2){
+        if(pp.flying){
+          const low=pp.flying.mesh.position.y<0.6;
+          fb2.textContent=low?'⏬ Land & hop out':'⬇️ get low to land!';
+          fb2.classList.remove('hide');
+          fb2.onclick=low?()=>{
+            const h=pp.flying;pp.flying=null;pp.lift=0;
+            h.tilt.rotation.set(0,0,0);
+            player.position.set(h.mesh.position.x+2.4,0,h.mesh.position.z);
+            player.visible=true;sndPick();
+          }:null;
+        }else{
+          let nh=null,nhd=1e9;
+          for(const h of helis){const d=h.mesh.position.distanceTo(player.position);if(d<nhd){nhd=d;nh=h}}
+          if(nh&&nhd<3.6&&!pp.driving&&!pp.riding&&!pp.chatting){
+            fb2.textContent='🚁 Fly!';fb2.classList.remove('hide');
+            fb2.onclick=()=>{pp.flying=nh;pp.lift=0;sndWin();
+              const popEl=document.createElement('div');popEl.className='chomppop';
+              popEl.style.color='#45d8ff';popEl.textContent='🚁 SPOOLING UP! Hold 🦘 to climb!';
+              wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1500);};
+          }else fb2.classList.add('hide');
+        }
+      }
+      const dnb=$('#ppDown');
+      if(dnb)dnb.classList.toggle('hide',!pp.flying);
       const db=$('#ppDrive');
       if(db){
         if(pp.driving){
@@ -3083,7 +3258,7 @@ function ppBoot(){
         }else{
           let nc=null,ncd=1e9;
           for(const c of cars){const d=c.mesh.position.distanceTo(player.position);if(d<ncd){ncd=d;nc=c}}
-          if(nc&&ncd<3.5&&!pp.chatting){
+          if(nc&&ncd<3.5&&!pp.chatting&&!pp.riding&&!pp.flying){
             if(nc.heat>30){
               db.textContent='🔥 ENGINE COOLING…';db.classList.remove('hide');
               db.onclick=null;
@@ -3096,7 +3271,7 @@ function ppBoot(){
       }
       for(const b of bones){
         b.rotation.y+=dt*2.4;b.position.y=0.9+Math.sin(t+b.position.x)*0.15;
-        if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<(pp.driving?2.6:1.9)){
+        if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<(pp.flying?3.2:pp.driving?2.6:1.9)){
           pp.score+=10;const se=$('#ppscore');if(se)se.textContent=pp.score;
           sndDrop();burst('pop');placeBone(b);
         }
@@ -3117,6 +3292,7 @@ function ppBoot(){
       }
       player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
       buddy?.userData.mixer?.update(dt);
+      for(const h of helis)if(h!==pp.flying&&h.rpm>0){h.rpm=Math.max(0,h.rpm-dt*.4);h.rotor.rotation.y+=h.rpm*dt*26}
       if(!keys.Shift){ // ease the camera around behind the player/car
         const want=pp.driving?pp.driving.mesh.rotation.y+Math.PI
           :(mag>0.05?player.rotation.y+Math.PI:null);
@@ -3126,14 +3302,14 @@ function ppBoot(){
         }
       }
       const z=pp.zoom||1;
-      const r=(pp.driving?11.5:6.2)*z;
+      const r=((pp.driving||pp.flying)?11.5:6.2)*z;
       const hor=r*Math.cos(pp.camPitch);
       const target=new THREE.Vector3(
         player.position.x+Math.sin(pp.camYaw)*hor,
         player.position.y+r*Math.sin(pp.camPitch),
         player.position.z+Math.cos(pp.camYaw)*hor);
       cam.position.lerp(target,0.08);
-      cam.lookAt(player.position.x,1.3*z,player.position.z);
+      cam.lookAt(player.position.x,pp.flying?player.position.y+1:1.3*z,player.position.z);
       renderer.render(scene,cam);
       __raf=requestAnimationFrame(loop);
     };
