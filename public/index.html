@@ -248,6 +248,11 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   animation:pillnudge 1.2s ease-in-out infinite}
 .ppride{bottom:74px}
 .ppfly{bottom:134px}
+.ppdropjump{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);z-index:7;
+  font:900 20px var(--body);color:#062030;background:var(--yellow);border:3px solid #fff;
+  border-radius:999px;padding:14px 30px;cursor:pointer;
+  box-shadow:0 6px 20px rgba(255,225,77,.55);animation:pillnudge .9s ease-in-out infinite}
+.ppdropjump.hide{display:none}
 .ppmap{position:absolute;bottom:74px;right:10px;z-index:6;pointer-events:none;
   width:132px;height:132px;border-radius:12px;border:2px solid rgba(255,255,255,.35);
   background:rgba(7,7,26,.55);box-shadow:0 3px 12px rgba(0,0,0,.4)}
@@ -2216,6 +2221,7 @@ function ppNew(){
       <div id="ppAmmo" class="ppammo hide">⚡ <b>3</b></div>
       <div id="ppMist" class="ppmist"></div>
       <canvas id="ppMap" class="ppmap" width="132" height="132"></canvas>
+      <button id="ppDropJump" class="ppdropjump">🪂 JUMP!</button>
       <div id="ppChat" class="ppchat hide">
         <div class="ppchead"><span id="ppcName"></span><button class="act-mini" onclick="ppCloseChat()">✕</button></div>
         <div id="ppcMsgs" class="ppcmsgs"></div>
@@ -2844,6 +2850,97 @@ function ppBoot(){
     makeHeli(-62,42,0x45d8ff);
     makeHeli(112,-36,0xff8c1a); // desert bird
 
+    // ---- 🍌 THE GREAT BANANA: everyone rides in on the drop ship ----
+    const drop={t:0,dur:38,live:true};
+    {
+      const g=new THREE.Group();
+      // banana body: an arc of torus, yellow and proud
+      const body=new THREE.Mesh(new THREE.TorusGeometry(8.5,2.3,14,40,2.1),
+        new THREE.MeshPhongMaterial({color:0xffe14d,emissive:0x7a5a00,emissiveIntensity:.25,shininess:60}));
+      body.rotation.z=Math.PI+0.52; // curve down like a smile — deck on top
+      g.add(body);
+      for(const e of [0,2.1]){ // brown tips
+        const tip=new THREE.Mesh(new THREE.ConeGeometry(1.1,2.2,10),mat(0x4a2e14));
+        tip.position.set(Math.cos(e+Math.PI+0.52)*8.5,Math.sin(e+Math.PI+0.52)*8.5,0);
+        tip.rotation.z=e+Math.PI+0.52+Math.PI/2;
+        g.add(tip);
+      }
+      const prop=new THREE.Group();
+      for(const r of [0,Math.PI/2]){
+        const blade=new THREE.Mesh(new THREE.BoxGeometry(3,.08,.3),mat(0x1a1a22));
+        blade.rotation.x=r;prop.add(blade);
+      }
+      prop.position.set(-9.5,3,0);prop.rotation.z=Math.PI/2;
+      g.add(prop);
+      const fin=new THREE.Mesh(new THREE.BoxGeometry(.15,2.2,1.6),
+        new THREE.MeshPhongMaterial({color:0xff2ec4}));
+      fin.position.set(-8.6,5,0);g.add(fin);
+      g.traverse(m=>m.castShadow=true);
+      scene.add(g);
+      drop.mesh=g;drop.prop=prop;
+      drop.from=new THREE.Vector3(-B+30,34,-B+30);
+      drop.to=new THREE.Vector3(B-30,34,B-30);
+      g.position.copy(drop.from);
+      g.rotation.y=Math.atan2(drop.to.x-drop.from.x,drop.to.z-drop.from.z)+Math.PI/2;
+    }
+    // player chute (hidden until the dive)
+    const chuteMesh=new THREE.Mesh(new THREE.SphereGeometry(1.9,12,8,0,Math.PI*2,0,Math.PI/2),
+      new THREE.MeshLambertMaterial({color:0xffe14d,side:THREE.DoubleSide}));
+    chuteMesh.visible=false;player.add(chuteMesh);
+    function dropJump(){
+      if(!pp.dropping)return;
+      pp.dropping=false;pp.skyfall=true;pp.vy=0;
+      $('#ppDropJump')?.classList.add('hide');
+      sfxNoise(0.5,0.2);
+      const popEl=document.createElement('div');popEl.className='chomppop';
+      popEl.style.color='#ffe14d';popEl.textContent='🪂 GERONIMOOO!';
+      wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1200);
+    }
+    { const jb2=$('#ppDropJump'); if(jb2)jb2.onclick=dropJump; }
+    function dropUpdate(dt4){
+      if(!drop.live)return;
+      drop.prop.rotation.x+=dt4*20;
+      if(pp.dropping){
+        drop.t+=dt4;
+        const k=Math.min(1,drop.t/drop.dur);
+        drop.mesh.position.lerpVectors(drop.from,drop.to,k);
+        drop.mesh.position.y=34+Math.sin(drop.t*1.2)*0.8;
+        player.position.set(drop.mesh.position.x,drop.mesh.position.y+3.4,drop.mesh.position.z);
+        player.rotation.y=drop.mesh.rotation.y-Math.PI/2;
+        pp.jumpY=player.position.y;pp.vy=0;
+        ppAnim(player,A_IDLE);
+        if(k>=1)dropJump(); // end of the line — everybody out
+      }else if(pp.skyfall){
+        // air steering while falling
+        if(mag>0.05){
+          const af=pp.camYaw+Math.PI;
+          const mx=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
+          const mz=Math.cos(af)*(-vz)+Math.cos(af-Math.PI/2)*vx;
+          player.position.x=Math.max(-B+2,Math.min(B-2,player.position.x+mx*8*dt4));
+          player.position.z=Math.max(-B+2,Math.min(B-2,player.position.z+mz*8*dt4));
+          player.rotation.y=Math.atan2(mx,mz);
+        }
+        const gY3=groundAt(player.position.x,player.position.z);
+        if(!pp.canopy&&pp.jumpY-gY3<14){ // pop the chute!
+          pp.canopy=true;chuteMesh.visible=true;chuteMesh.position.y=2.6;
+          sfxTone(180,0.25,'sine',0.25,0,90);sfxNoise(0.2,0.15);
+        }
+        if(pp.canopy)pp.vy=Math.max(pp.vy,-3.4);
+        ppAnim(player,['Jump_Idle','Jump','Fall']);
+        if(pp.jumpY<=gY3+0.02){ // touchdown
+          pp.skyfall=false;pp.canopy=false;chuteMesh.visible=false;
+          sfxTone(70,0.12,'square',0.25);burst('pop');
+          const popEl=document.createElement('div');popEl.className='chomppop';
+          popEl.style.color='#4ade80';popEl.textContent='✨ TOUCHDOWN! GO GO GO!';
+          wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+        }
+      }else if(drop.mesh.visible){
+        // ship sails off the edge and away
+        drop.mesh.position.x+=dt4*14;drop.mesh.position.y+=dt4*2;
+        if(drop.mesh.position.x>B+80){drop.mesh.visible=false;drop.live=false}
+      }
+    }
+
     // ---- 🌍 WORLD EVENTS: bombs, Star Bandits, traffic, air patrol ----
     // 💣 cartoon bombs: tick, beep faster, BOOM — hurts you AND Chompies
     const bombs=[];
@@ -2993,7 +3090,7 @@ function ppBoot(){
     }
     pp.bombT=14;pp.banditT=30;
     function worldEvents(dt3){
-      if(pp.over||pp.chatting)return;
+      if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       // bombs
       pp.bombT-=dt3;
       if(pp.bombT<=0&&bombs.length<3){pp.bombT=13+Math.random()*8;spawnBomb()}
@@ -3295,8 +3392,9 @@ function ppBoot(){
     const POWER=ppEquip().power||null;
     pp={score:0,time:600,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
-      jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0};
-    gIval(()=>{ if(pp.over||pp.chatting)return;
+      jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0,
+      dropping:true,skyfall:false,canopy:false};
+    gIval(()=>{ if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
         submitScore('puppy',pp.score).then(x=>setTimeout(()=>alert('Good round!! ⭐ +'+pp.score+' Star Bucks banked!'+x),300))}
@@ -3366,7 +3464,7 @@ function ppBoot(){
       pp.zoom=Math.max(0.5,Math.min(2.6,pp.zoom*(1+e.deltaY*0.001)));
       localStorage.setItem('ksc_zoom',pp.zoom)},{passive:false});
     const keys={};
-    const doJump=()=>{if((pp.airH||0)<=0.05&&!pp.driving&&!pp.flying&&!pp.chatting&&!pp.over){pp.vy=(pp.riding?10.5:8.2)*(POWER==='pw_boots'?1.35:1);if(pp.riding)ppAnim(pp.riding,['Jump']);sndPick()}};
+    const doJump=()=>{if((pp.airH||0)<=0.05&&!pp.driving&&!pp.flying&&!pp.dropping&&!pp.skyfall&&!pp.chatting&&!pp.over){pp.vy=(pp.riding?10.5:8.2)*(POWER==='pw_boots'?1.35:1);if(pp.riding)ppAnim(pp.riding,['Jump']);sndPick()}};
     const kd=e=>{
       keys[e.key]=true;
       const inField=/INPUT|TEXTAREA/.test(e.target?.tagName||'');
@@ -3522,6 +3620,12 @@ function ppBoot(){
       }else if(rec.mode==='dino'){
         const d3=ppSpawn(assets,PP_MODELS.dino,2.1);
         if(d3){rec.veh=d3;rec.root.add(d3);ppAnim(d3,A_IDLE)}
+      }else if(rec.mode==='drop'){
+        rec.av.visible=true; // skydiver under a golden chute
+        const ch=new THREE.Mesh(new THREE.SphereGeometry(1.9,12,8,0,Math.PI*2,0,Math.PI/2),
+          new THREE.MeshLambertMaterial({color:0xffe14d,side:THREE.DoubleSide}));
+        ch.position.y=2.6;
+        rec.veh=ch;rec.root.add(ch);
       }
     }
     gIval(async()=>{
@@ -3529,7 +3633,7 @@ function ppBoot(){
         const r=await api('/api/park/pos',{method:'POST',body:{
           x:player.position.x,z:player.position.z,ry:player.rotation.y,
           y:Math.round(player.position.y*10)/10,
-          mode:(pp.flying?'heli':pp.driving?'car':pp.riding?'dino':'walk'),
+          mode:((pp.dropping||pp.skyfall)?'drop':pp.flying?'heli':pp.driving?'car':pp.riding?'dino':'walk'),
           score:pp.score,hero:ppHero(),cfg:ppCfg()}});
         const alive=new Set();
         for(const o of (r.others||[])){alive.add(o.id);upsertOther(o)}
@@ -3586,6 +3690,33 @@ function ppBoot(){
         };
         snd.heliMe=mkHeli();
         snd.heliOthers=mkHeli();
+        // wind: airy noise for skydives, banana rides, and the open desert
+        {
+          const src=ctx.createBufferSource();src.buffer=nb;src.loop=true;
+          const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=900;bp.Q.value=0.4;
+          snd.wind=ctx.createGain();snd.wind.gain.value=0;
+          src.connect(bp);bp.connect(snd.wind);snd.wind.connect(ctx.destination);src.start();
+        }
+        // deep space drone for the moon base
+        {
+          const o1=ctx.createOscillator();o1.type='sine';o1.frequency.value=55;
+          const o2=ctx.createOscillator();o2.type='sine';o2.frequency.value=57.3;
+          snd.space=ctx.createGain();snd.space.gain.value=0;
+          o1.connect(snd.space);o2.connect(snd.space);snd.space.connect(ctx.destination);
+          o1.start();o2.start();
+        }
+        // the Great Banana's putt-putt motor
+        {
+          const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=62;
+          const lp2=ctx.createBiquadFilter();lp2.type='lowpass';lp2.frequency.value=180;
+          const chop2=ctx.createGain();chop2.gain.value=0.6;
+          const lfo2=ctx.createOscillator();lfo2.type='square';lfo2.frequency.value=9;
+          const lfoG2=ctx.createGain();lfoG2.gain.value=0.4;
+          lfo2.connect(lfoG2);lfoG2.connect(chop2.gain);
+          snd.ship=ctx.createGain();snd.ship.gain.value=0;
+          o.connect(lp2);lp2.connect(chop2);chop2.connect(snd.ship);snd.ship.connect(ctx.destination);
+          o.start();lfo2.start();
+        }
         snd.ready=true;
       }catch(e){}
     }
@@ -3644,6 +3775,38 @@ function ppBoot(){
           mistEl.style.opacity=(pp.mist*0.82).toFixed(2);
           if(inCloud>0.25&&!pp.mistIn){pp.mistIn=true;sfxNoise(0.5,0.12)}
           if(inCloud<=0.05)pp.mistIn=false;
+        }
+        // 🌬️ wind: skydive roar, banana breeze, desert gusts
+        {
+          let w3=0;
+          if(pp.skyfall)w3=pp.canopy?0.10:0.22;
+          else if(pp.dropping)w3=0.07;
+          else if(player.position.x>85&&!inSpace(player.position.z))w3=0.04+Math.sin(performance.now()/2600)*0.02;
+          snd.wind.gain.value+=(Math.max(0,w3)-snd.wind.gain.value)*Math.min(1,dt2*3);
+        }
+        // 🌌 moon-base drone
+        snd.space.gain.value+=((inSpace(player.position.z)?0.05:0)-snd.space.gain.value)*Math.min(1,dt2*2);
+        // 🍌 ship motor while aboard (and nearby as it sails off)
+        {
+          const near=drop.live?Math.max(0,1-drop.mesh.position.distanceTo(player.position)/60):0;
+          snd.ship.gain.value=pp.dropping?0.10:near*0.06;
+        }
+        // 🐦 day birds on the grass / 🦗 night crickets
+        snd.chirpT=(snd.chirpT||0)-dt2;
+        if(snd.chirpT<=0){
+          const night=window.__nightStars&&__nightStars.opacity>0.5;
+          const onGrass=player.position.x<72&&!inSpace(player.position.z)&&player.position.z<CANYON_Z;
+          if(onGrass&&!pp.dropping&&!pp.skyfall){
+            if(night){ // cricket pattern
+              snd.chirpT=1.6+Math.random()*2.4;
+              for(let i2=0;i2<3;i2++)sfxTone(4200,0.03,'sine',0.025,i2*0.09);
+            }else{ // songbird
+              snd.chirpT=5+Math.random()*9;
+              const base=1800+Math.random()*900;
+              sfxTone(base,0.09,'sine',0.05,0,base*1.4);
+              sfxTone(base*1.25,0.07,'sine',0.04,0.12,base*0.9);
+            }
+          }else snd.chirpT=2;
         }
         // other players' helicopters: proximity-based
         let og=0;
@@ -3715,7 +3878,9 @@ function ppBoot(){
       if(keys.a)vx=-1; if(keys.d)vx=1;
       if(keys.w)vz=-1; if(keys.s)vz=1;
       const mag=Math.hypot(vx,vz);
-      if(pp.flying){
+      if(pp.dropping){
+        // riding the Great Banana — enjoy the view
+      }else if(pp.flying){
         const h=pp.flying;
         h.rpm=Math.min(1,h.rpm+dt*.8);
         h.rotor.rotation.y+=h.rpm*dt*26;
@@ -3793,8 +3958,8 @@ function ppBoot(){
       }
       // vertical physics: pp.jumpY is absolute height; gravity pulls to whatever is underfoot
       {
-        const gY=pp.flying?0:groundAt(player.position.x,player.position.z);
-        if(!pp.flying){
+        const gY=(pp.flying||pp.dropping)?0:groundAt(player.position.x,player.position.z);
+        if(!pp.flying&&!pp.dropping){
           const grav=inSpace(player.position.z)?8:22; // 🌌 moon gravity!
           if(pp.jumpY>gY+0.001||pp.vy>0){
             pp.vy-=grav*dt;
@@ -3984,7 +4149,7 @@ function ppBoot(){
       if(!pp.over&&!pp.chatting){
         // wave machine: calm -> HUNT (2 min) -> burrow away -> bigger wave
         pp.wavePhase=pp.wavePhase||'calm';pp.waveT=(pp.waveT??10);pp.waveN=pp.waveN||0;
-        pp.waveT-=dt;
+        if(!pp.dropping&&!pp.skyfall)pp.waveT-=dt;
         if(pp.wavePhase==='calm'&&pp.waveT<=0){
           pp.waveN++;pp.wavePhase='hunt';pp.waveT=120;
           const count=Math.min(5,pp.waveN);
@@ -4008,6 +4173,11 @@ function ppBoot(){
             chompers[0].mesh.scale.setScalar(1.8);
           }
           sndBad();
+          // rising two-tone wave siren (deeper for boss waves)
+          const sf=bossWave?0.6:1;
+          sfxTone(392*sf,0.28,'square',0.16,0,523*sf);
+          sfxTone(392*sf,0.28,'square',0.16,0.36,523*sf);
+          if(bossWave)sfxTone(130,0.7,'sawtooth',0.14,0.75,98);
           const popEl=document.createElement('div');popEl.className='chomppop';
           popEl.style.color='#b45cff';
           popEl.textContent=bossWave?'👾👾 BOSS WAVE! MEGA CHOMPY TAKES 3 HITS!':'👾 WAVE '+pp.waveN+'! THE CHOMPERS ARE COMING!';
@@ -4208,7 +4378,7 @@ function ppBoot(){
           r2.position.x=rec.fx+(rec.tx-rec.fx)*k;
           r2.position.z=rec.fz+(rec.tz-rec.fz)*k;
           // helicopters glide in real 3D; everything else rides the terrain
-          r2.position.y=rec.mode==='heli'
+          r2.position.y=(rec.mode==='heli'||rec.mode==='drop')
             ? rec.fy+(rec.ty-rec.fy)*k
             : groundAt(r2.position.x,r2.position.z);
           let da=((rec.try-rec.fry+Math.PI*3)%(Math.PI*2))-Math.PI;
@@ -4265,6 +4435,7 @@ function ppBoot(){
       // never sink the camera into a hillside
       const camG=groundAt(target.x,target.z);
       if(target.y<camG+2.2)target.y=camG+2.2;
+      dropUpdate(dt);
       sun.position.set(player.position.x+30,52,player.position.z+18);
       sun.target.position.set(player.position.x,0,player.position.z);
       // 🗺️ minimap: you, the bad guys, and your friends
