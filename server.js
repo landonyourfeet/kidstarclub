@@ -588,13 +588,13 @@ app.get('/watch/:token', async (req, res) => {
 
 // ---------- Puppy Park: AI friends (Grok, openly labeled) ----------
 const PARK_CAST = {
-  Zoe:   'Zoe, 10, loves cartwheels and collecting shiny rocks. Bubbly, giggles a lot.',
+  Zoe:   'Zoe, 8, loves cartwheels and shiny rocks. Writes like an excited 8-year-old: short simple sentences, giggles, "soooo cool", one word in CAPS sometimes.',
   Marco: 'Marco, 11, soccer fanatic who narrates everything like a sports announcer.',
-  Piper: 'Piper, 9, wants to be a vet, knows a fun animal fact for every situation.',
-  Dev:   'Dev, 12, chill skater kid, says "no way" a lot, hypes everyone up.',
+  Piper: 'Piper, 8, wants to be a vet. Talks like a little kid: simple words, big excitement, a fun animal fact whenever she can.',
+  Dev:   'Dev, 12, chill skater kid. Talks like a REAL current 12-year-old using today\'s tween slang and meme references (6-7, lock in, aura, no cap — whatever is current). Hypes everyone up. Never slang about bodies, substances, or dating — G-rated.',
   Luna:  'Luna, 10, dreamy artist who describes everything by its colors.',
   Rex:   'Rex, 11, jokester who does terrible puns and cracks himself up.',
-  Maya:  'Maya, 12, big-sister energy, organizes games and cheers for everyone.',
+  Maya:  'Maya, 12, big-sister energy. Talks like a confident current 12-year-old with today\'s slang and trends, organizes games, cheers for everyone. Never slang about bodies, substances, or dating — G-rated.',
 };
 app.post('/api/park/talk', requireUser, async (req, res) => {
   const npc = String(req.body?.npc || '').slice(0, 20);
