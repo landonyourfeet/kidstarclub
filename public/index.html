@@ -220,6 +220,10 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   background:radial-gradient(circle,transparent 30%,rgba(226,0,60,.55));
   animation:chompfl .65s ease-out forwards}
 @keyframes chompfl{0%{opacity:1}100%{opacity:0}}
+.ppact{position:absolute;z-index:8;width:54px;height:54px;border-radius:50%;
+  font-size:24px;cursor:pointer;border:3px solid #fff;box-shadow:0 4px 0 rgba(13,2,16,.5)}
+.ppjump{bottom:14px;left:12px;background:var(--cyan)}
+.ppbonk{bottom:14px;left:76px;background:#ff8c1a;animation:pillnudge 1s ease-in-out infinite}
 .svscores{position:absolute;top:62px;right:10px;z-index:6;display:flex;flex-direction:column;
   gap:3px;pointer-events:none;max-width:46%}
 .svrow{font:800 11px var(--body);color:#fff;background:rgba(13,2,16,.62);
@@ -2054,6 +2058,8 @@ function ppNew(){
       <button class="ppback" onclick="document.body.classList.remove('fs-active');arcade()">← Arcade</button>
       <button id="ppTalk" class="pptalk hide"></button>
       <button id="ppDrive" class="pptalk ppdrive hide"></button>
+      <button id="ppJump" class="ppact ppjump">🦘</button>
+      <button id="ppBonk" class="ppact ppbonk hide">👊</button>
       <div id="ppChat" class="ppchat hide">
         <div class="ppchead"><span id="ppcName"></span><button class="act-mini" onclick="ppCloseChat()">✕</button></div>
         <div id="ppcMsgs" class="ppcmsgs"></div>
@@ -2061,7 +2067,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">Play together — club friends in Starville appear in YOUR world! 🧑‍🤝‍🧑 Fetch bones 🦴, dodge the CHOMPY pack 👾 (they eat ALL your bones — and more keep coming!), hide in clubhouses or cars 🚗!</p>
+    <p class="sbhint">Fetch bones 🦴 & grab flashing 💜 MEGA BONES (+50)! Dodge or 👊 BONK the CHOMPY pack (Space = jump 🦘, B = bonk on desktop). Club friends appear in your world! 🧑‍🤝‍🧑</p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2108,7 +2114,8 @@ function ppAnim(ent,names,fade=0.22){
   const u=ent?.userData;if(!u)return;
   if(u.blocky){
     const list=Array.isArray(names)?names:[names];
-    u.blocky.state=list===A_RUN||list[0]==='Run'||list.includes('Gallop')?'run'
+    u.blocky.state=list[0]==='Jump'?'jump'
+      :list===A_RUN||list[0]==='Run'||list.includes('Gallop')?'run'
       :list===A_WALK||list[0]==='Walk'?'walk':'idle';
     return;
   }
@@ -2190,6 +2197,11 @@ function ppBlocky(cfg){
 }
 function ppBlockyUpdate(ent,dt){
   const b=ent?.userData?.blocky;if(!b)return;
+  if(b.state==='jump'){
+    b.legL.rotation.x=b.legR.rotation.x=-.55;
+    b.armL.rotation.x=b.armR.rotation.x=-2.4;
+    return;
+  }
   const speed=b.state==='run'?11:b.state==='walk'?7:0;
   if(speed){
     b.phase+=dt*speed;
@@ -2414,6 +2426,33 @@ function ppBoot(){
       return g;
     }
     const chompers=[];
+    window.ppBonk=()=>{
+      if(pp.driving||pp.chatting||pp.over)return;
+      let nc=null,nd2=1e9;
+      for(const c of chompers){const d=c.mesh.position.distanceTo(player.position);if(d<nd2){nd2=d;nc=c}}
+      if(!nc||nd2>4.2)return;
+      const dir=nc.mesh.position.clone().sub(player.position).setY(0).normalize();
+      nc.stun=5;nc.cool=Math.max(nc.cool,1);
+      nc.mesh.position.add(dir.multiplyScalar(12));
+      nc.mesh.position.x=Math.max(-B+4,Math.min(B-4,nc.mesh.position.x));
+      nc.mesh.position.z=Math.max(-B+4,Math.min(B-4,nc.mesh.position.z));
+      ppAnim(player,['Punch','Punch_Left','Sword_Slash']);
+      setTimeout(()=>ppAnim(player,A_IDLE),350);
+      sndBlast&&sndBlast();
+      const popEl=document.createElement('div');popEl.className='chomppop';
+      popEl.style.color='#45d8ff';popEl.textContent='BONK!! 💫';
+      wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1100);
+    };
+    // 💜 mega bone: rare, flashing, big points, disappears if you dawdle
+    const mega={mesh:null,until:0,mat:null};
+    function megaBone(){
+      const g=boneMesh();g.scale.setScalar(1.7);
+      const m=new THREE.MeshPhongMaterial({color:0xb45cff,emissive:0x5a0a8a,shininess:60});
+      g.traverse(o=>{if(o.isMesh)o.material=m});
+      g.position.set((Math.random()-.5)*B*1.7,1.1,(Math.random()-.5)*B*1.7);
+      scene.add(g);
+      mega.mesh=g;mega.mat=m;mega.until=performance.now()+12000;
+    }
     function spawnChomper(announce){
       const m=buildChomper();
       // spawn far from the hero
@@ -2472,7 +2511,8 @@ function ppBoot(){
     for(let i=0;i<26;i++){const b=boneMesh();placeBone(b);scene.add(b);bones.push(b)}
 
     pp={score:0,time:120,over:false,vel:new THREE.Vector2(0,0),joy:null,
-      chatting:false,chatNpc:null,hist:[],driving:null};
+      chatting:false,chatNpc:null,hist:[],driving:null,
+      jumpY:0,vy:0,megaT:0};
     gIval(()=>{ if(pp.over||pp.chatting)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
@@ -2493,6 +2533,8 @@ function ppBoot(){
     }
     const el=renderer.domElement;
     el.style.touchAction='none';
+    const jb=$('#ppJump');if(jb)jb.onclick=doJump;
+    const kb=$('#ppBonk');if(kb)kb.onclick=()=>ppBonk();
     pp.zoom=parseFloat(localStorage.getItem('ksc_zoom')||'1');
     const ptrs=new Map();let pinch0=0,zoom0=1;
     el.addEventListener('pointerdown',e=>{
@@ -2526,9 +2568,13 @@ function ppBoot(){
       pp.zoom=Math.max(0.5,Math.min(2.6,pp.zoom*(1+e.deltaY*0.001)));
       localStorage.setItem('ksc_zoom',pp.zoom)},{passive:false});
     const keys={};
+    const doJump=()=>{if(pp.jumpY<=0&&!pp.driving&&!pp.chatting&&!pp.over){pp.vy=8.2;sndPick()}};
     const kd=e=>{
       keys[e.key]=true;
-      if(e.key.startsWith('Arrow')&&!/INPUT|TEXTAREA/.test(e.target?.tagName||'')&&document.body.contains(el))e.preventDefault();
+      const inField=/INPUT|TEXTAREA/.test(e.target?.tagName||'');
+      if(e.key.startsWith('Arrow')&&!inField&&document.body.contains(el))e.preventDefault();
+      if(e.key===' '&&!inField&&document.body.contains(el)){e.preventDefault();doJump()}
+      if((e.key==='b'||e.key==='B')&&!inField)window.ppBonk&&ppBonk();
     },ku=e=>{keys[e.key]=false};
     addEventListener('keydown',kd);addEventListener('keyup',ku);
     pp.camYaw=0;pp.camPitch=0.58; // default: behind the hero, slightly above
@@ -2692,10 +2738,51 @@ function ppBoot(){
         tryMove(player,mx*0.32,mz*0.32,.45);
         player.rotation.y=Math.atan2(mx,mz);
       }
+      // jump physics
+      if(pp.jumpY>0||pp.vy>0){
+        pp.vy-=22*dt;
+        pp.jumpY=Math.max(0,pp.jumpY+pp.vy*dt);
+        if(pp.jumpY===0)pp.vy=0;
+      }
       if(!pp.driving){
         player.visible=true;
         const moving=mag>0.05&&!pp.chatting;
-        ppAnim(player,moving?(mag>0.75?A_RUN:A_WALK):A_IDLE);
+        if(pp.jumpY>0)ppAnim(player,['Jump','Jump_Idle','Gallop_Jump']);
+        else ppAnim(player,moving?(mag>0.75?A_RUN:A_WALK):A_IDLE);
+        player.position.y=pp.jumpY+((pp.jumpY===0&&moving)?Math.abs(Math.sin(t*3))*0.05:0);
+      }
+      // 💜 mega bone lifecycle
+      if(!pp.over&&!pp.chatting){
+        pp.megaT+=dt;
+        if(!mega.mesh&&pp.megaT>16){pp.megaT=0;megaBone()}
+        if(mega.mesh){
+          const now2=performance.now();
+          if(now2>mega.until){scene.remove(mega.mesh);mega.mesh=null}
+          else{
+            mega.mesh.rotation.y+=dt*4;
+            const fl=(Math.sin(now2/90)+1)/2; // fast purple↔white flash
+            mega.mat.color.setRGB(.7+.3*fl,.36+.6*fl,1);
+            mega.mat.emissiveIntensity=.5+fl;
+            if(mega.mesh.position.distanceTo(player.position)<2.3){
+              pp.score+=50;const se=$('#ppscore');if(se)se.textContent=pp.score;
+              sndWin();burst('storm');
+              const popEl=document.createElement('div');popEl.className='chomppop';
+              popEl.style.color='#b45cff';popEl.textContent='+50 MEGA BONE! 💜';
+              wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+              scene.remove(mega.mesh);mega.mesh=null;
+            }
+          }
+        }
+      }
+      // bonk button shows when a chomper is in bopping range
+      {
+        const bb=$('#ppBonk');
+        if(bb){
+          let close=false;
+          if(!pp.driving&&!pp.chatting)for(const c of chompers)
+            if(!c.stun&&c.mesh.position.distanceTo(player.position)<4.2){close=true;break}
+          bb.classList.toggle('hide',!close);
+        }
       }
       // buddy
       if(buddy){
@@ -2736,6 +2823,14 @@ function ppBoot(){
         if(pp.chompT>30&&chompers.length<4){pp.chompT=0;spawnChomper(true)}
         for(const chomp of chompers){
         chomp.cool=Math.max(0,chomp.cool-dt);
+        if(chomp.stun>0){ // bonked silly: spin dizzy, jaws shut, no hunting
+          chomp.stun-=dt;
+          chomp.mesh.rotation.y+=dt*9;
+          chomp.mesh.position.y=Math.abs(Math.sin(t*6))*.3;
+          const j2=chomp.mesh.userData.jaws;
+          j2.jawTop.rotation.x*=.8;j2.jawBot.rotation.x*=.8;
+          continue;
+        }
         const cd=player.position.clone().sub(chomp.mesh.position);cd.y=0;
         const dist=cd.length();
         cd.normalize();
@@ -2749,7 +2844,7 @@ function ppBoot(){
         j.jawTop.rotation.x=-bite;j.jawBot.rotation.x=bite;
         const hop=Math.abs(Math.sin(t*2.2))*.18;
         chomp.mesh.position.y=hop;
-        if(dist<1.9&&!pp.driving&&chomp.cool<=0){
+        if(dist<1.9&&!pp.driving&&chomp.cool<=0&&pp.jumpY<1.1){
           chomp.cool=4;
           const loss=pp.score; // he eats EVERYTHING
           pp.score=0;const se=$('#ppscore');if(se)se.textContent=0;
