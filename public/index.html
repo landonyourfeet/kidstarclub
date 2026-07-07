@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1898,22 +1899,28 @@ function btEnd(){
 let pp={};
 const PP_NPCS=['Zoe','Marco','Piper','Dev','Luna','Rex','Maya'];
 const PP_HEROES={
-  mia:{file:'modular_women_Casual.glb',name:'Mia',emoji:'👧',donor:1},
-  ruby:{file:'modular_women_Punk.glb',name:'Ruby',emoji:'🎸',donor:1},
-  ella:{file:'modular_women_Formal.glb',name:'Ella',emoji:'👗',donor:1},
-  ivy:{file:'modular_women_Adventurer.glb',name:'Ivy',emoji:'🧭',donor:1},
-  willow:{file:'modular_women_Witch.glb',name:'Willow',emoji:'🪄',donor:1},
-  leo:{file:'modular_men_Casual.glb',name:'Leo',emoji:'👦',donor:1},
-  sam:{file:'modular_men_Casual2.glb',name:'Sam',emoji:'🧢',donor:1},
+  custom:{blocky:1,name:'My Kid',emoji:'✨'},
+  kid:{file:'hero_kid.glb',name:'Adventure Kid',emoji:'🧢'},
+  knight:{file:'hero_knight.glb',name:'Sir Knight',emoji:'⚔️'},
   shiba:{file:'animals_pack_ShibaInu.glb',name:'Shiba Pup',emoji:'🐶'},
   redpanda:{file:'hero_redpanda.glb',name:'Rae',emoji:'🦊'},
 };
-const PP_DONOR='hero_kid.glb'; // animation rig donor for the T-posed characters
+const PP_SKINS=['#f0cfae','#e8b98a','#c98a5b','#8d5a3b'];
+const PP_SWATCH={
+  hair:['#f5f0e8','#2a1a0f','#6b3f1f','#e8d44d','#ff5fb0','#45d8ff'],
+  top:['#fff0f4','#ff2ec4','#45d8ff','#ffe14d','#a78bfa','#4ade80'],
+  bottom:['#f3c9d8','#1a63c4','#0d0210','#7a0a5e','#3a5a2e','#ff8c1a']};
+const PP_HAIRSTYLES=['buns','pony','short','long'];
+function ppCfg(){
+  let c={};
+  try{c=JSON.parse(localStorage.getItem('ksc_avatar')||'{}')}catch(e){}
+  return {body:'girl',skin:PP_SKINS[0],hairstyle:'buns',hair:'#f5f0e8',top:'#fff0f4',bottom:'#f3c9d8',...c};
+}
+function ppSetAv(k,v){
+  const c=ppCfg();c[k]=v;localStorage.setItem('ksc_avatar',JSON.stringify(c));ppNew();
+}
 const PP_MODELS={
-  donor:'hero_kid.glb',kid:'hero_kid.glb',knight:'hero_knight.glb',
-  wmnCasual:'modular_women_Casual.glb',wmnPunk:'modular_women_Punk.glb',
-  wmnFormal:'modular_women_Formal.glb',wmnAdv:'modular_women_Adventurer.glb',
-  wmnWitch:'modular_women_Witch.glb',menCasual:'modular_men_Casual.glb',menCasual2:'modular_men_Casual2.glb',
+  kid:'hero_kid.glb',knight:'hero_knight.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
@@ -1943,6 +1950,11 @@ function loadWorldLibs(cb,failEl){
 function ppNew(){
   gReset();
   const hero=ppHero();
+  const cfg=ppCfg();
+  const sw=(kind,cur)=>PP_SWATCH[kind].map(c=>
+    `<button class="ppsw${c===cur?' on':''}" style="background:${c}" onclick="ppSetAv('${kind}','${c}')"></button>`).join('');
+  const opt=(kind,vals,cur,labels)=>vals.map((v,i)=>
+    `<button class="ppbody sm${v===cur?' on':''}" onclick="ppSetAv('${kind}','${v}')">${labels[i]}</button>`).join('');
   $('#gameArea').innerHTML=`
     <div class="sbtop">🦴 <span id="ppscore">0</span> · ⏱ <span id="pptime">120</span>s</div>
     <div class="ppstyle">
@@ -1952,6 +1964,14 @@ function ppNew(){
           `<button class="ppbody sm${k===hero?' on':''}" style="min-width:30%"
             onclick="localStorage.setItem('ksc_hero','${k}');ppNew()">${h.emoji} ${h.name.split(' ')[0]}</button>`).join('')}
       </div>
+      ${hero==='custom'?`
+      <div class="pprow">${opt('body',['girl','boy'],cfg.body,['👧 Girl','👦 Boy'])}</div>
+      <div class="pprow"><span class="pplbl">SKIN</span>${PP_SKINS.map(c=>
+        `<button class="ppsw${c===cfg.skin?' on':''}" style="background:${c}" onclick="ppSetAv('skin','${c}')"></button>`).join('')}</div>
+      <div class="pprow"><span class="pplbl">HAIR</span>${opt('hairstyle',PP_HAIRSTYLES,cfg.hairstyle,['🎀 Buns','💇 Pony','✂️ Short','👱 Long'])}</div>
+      <div class="pprow"><span class="pplbl"></span>${sw('hair',cfg.hair)}</div>
+      <div class="pprow"><span class="pplbl">TOP</span>${sw('top',cfg.top)}</div>
+      <div class="pprow"><span class="pplbl">BTM</span>${sw('bottom',cfg.bottom)}</div>`:''}
     </div>
     <div id="ppwrap" class="ppwrap"><div class="pphud" id="ppLoad">🌟 building Starville… <b id="ppPct">0%</b></div>
       <button id="ppFull" class="ppfull">⛶</button>
@@ -1987,7 +2007,7 @@ async function ppLoadAssets(onProgress){
   })));
   PP_CACHE=out;return out;
 }
-function ppSpawn(assets,file,targetH,donorFile){
+function ppSpawn(assets,file,targetH){
   const src=assets[file];if(!src)return null;
   const obj=THREE.SkeletonUtils?THREE.SkeletonUtils.clone(src.scene):src.scene.clone(true);
   const box=new THREE.Box3().setFromObject(obj);
@@ -1998,15 +2018,7 @@ function ppSpawn(assets,file,targetH,donorFile){
   obj.position.y=-box2.min.y;
   const root=new THREE.Group();root.add(obj);
   let mixer=null,actions={};
-  let clips=src.animations;
-  if(!clips.length&&donorFile&&assets[donorFile]){
-    // borrow the universal-rig clips, keeping only tracks whose bones exist here
-    const names=new Set();obj.traverse(n=>names.add(n.name));
-    clips=assets[donorFile].animations.map(c=>{
-      const tracks=c.tracks.filter(tr=>names.has(tr.name.split('.')[0]));
-      return tracks.length?new THREE.AnimationClip(c.name,c.duration,tracks):null;
-    }).filter(Boolean);
-  }
+  const clips=src.animations;
   if(clips.length){
     mixer=new THREE.AnimationMixer(obj);
     for(const clip of clips)actions[clip.name.split('|').pop()]=mixer.clipAction(clip);
@@ -2015,7 +2027,14 @@ function ppSpawn(assets,file,targetH,donorFile){
   return root;
 }
 function ppAnim(ent,names,fade=0.22){
-  const u=ent?.userData;if(!u||!u.mixer)return;
+  const u=ent?.userData;if(!u)return;
+  if(u.blocky){
+    const list=Array.isArray(names)?names:[names];
+    u.blocky.state=list===A_RUN||list[0]==='Run'||list.includes('Gallop')?'run'
+      :list===A_WALK||list[0]==='Walk'?'walk':'idle';
+    return;
+  }
+  if(!u.mixer)return;
   const list=Array.isArray(names)?names:[names];
   const pick=list.find(n=>u.actions[n]);
   if(!pick||u.current===pick)return;
@@ -2025,6 +2044,88 @@ function ppAnim(ent,names,fade=0.22){
   u.current=pick;
 }
 const A_IDLE=['Idle','Idle_Neutral','Idle_2'],A_WALK=['Walk','Walking'],A_RUN=['Run','Gallop','Walking','Walk'];
+function ppFaceTex(skin){
+  const cv=document.createElement('canvas');cv.width=cv.height=128;
+  const g=cv.getContext('2d');
+  g.fillStyle=skin;g.fillRect(0,0,128,128);
+  g.fillStyle='#1c1410';
+  for(const x of [44,84]){g.beginPath();g.ellipse(x,52,7,11,0,0,7);g.fill()}
+  g.fillStyle='#fff';
+  for(const x of [46,86]){g.beginPath();g.arc(x,48,2.6,0,7);g.fill()}
+  g.strokeStyle='#1c1410';g.lineWidth=4.5;g.lineCap='round';
+  g.beginPath();g.arc(64,68,17,0.35,Math.PI-0.35);g.stroke();
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  return t;
+}
+function ppBlocky(cfg){
+  const g=new THREE.Group();
+  const mm=c=>{const m=new THREE.MeshLambertMaterial({color:new THREE.Color(c)});m.color.convertSRGBToLinear();return m};
+  const skinM=mm(cfg.skin),hairM=mm(cfg.hair),topM=mm(cfg.top),botM=mm(cfg.bottom);
+  // classic blocky build: torso block, block limbs pivoted at the joint, face-decal head
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(.62,.72,.34),topM);torso.position.y=1.06;g.add(torso);
+  const mkLimb=(w,h,d,mtl,px,py,capM)=>{
+    const pivot=new THREE.Group();pivot.position.set(px,py,0);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mtl);m.position.y=-h/2;pivot.add(m);
+    if(capM){const cap=new THREE.Mesh(new THREE.BoxGeometry(w,h*.28,d),capM);cap.position.y=-h*.14;pivot.add(cap)}
+    g.add(pivot);return pivot;
+  };
+  const armL=mkLimb(.2,.66,.24,skinM,-.44,1.4,topM);
+  const armR=mkLimb(.2,.66,.24,skinM, .44,1.4,topM);
+  const legL=mkLimb(.24,.7,.28,botM,-.17,.72,null);
+  const legR=mkLimb(.24,.7,.28,botM, .17,.72,null);
+  if(cfg.body==='girl'){
+    const skirt=new THREE.Mesh(new THREE.CylinderGeometry(.28,.46,.3,10),botM);
+    skirt.position.y=.72;g.add(skirt);
+  }
+  // head with face decal on the front
+  const faceMat=new THREE.MeshLambertMaterial({map:ppFaceTex(cfg.skin)});
+  const mats=[skinM,skinM,skinM,skinM,faceMat,skinM];
+  const head=new THREE.Mesh(new THREE.BoxGeometry(.56,.56,.52),mats);
+  head.position.y=1.74;g.add(head);
+  // hair
+  const cap=new THREE.Mesh(new THREE.BoxGeometry(.62,.24,.58),hairM);cap.position.y=1.98;g.add(cap);
+  const fr=new THREE.Mesh(new THREE.BoxGeometry(.62,.14,.1),hairM);fr.position.set(0,1.92,.27);g.add(fr);
+  if(cfg.hairstyle==='buns'){
+    for(const sx of [-.34,.34]){
+      const bun=new THREE.Mesh(new THREE.SphereGeometry(.14,10,10),hairM);
+      bun.position.set(sx,2.08,0);g.add(bun);
+    }
+  }else if(cfg.hairstyle==='pony'){
+    const pony=new THREE.Mesh(new THREE.BoxGeometry(.16,.5,.16),hairM);
+    pony.position.set(0,1.78,-.34);pony.rotation.x=.3;g.add(pony);
+  }else if(cfg.hairstyle==='long'){
+    for(const sx of [-.36,.36]){
+      const lock=new THREE.Mesh(new THREE.BoxGeometry(.12,.6,.3),hairM);
+      lock.position.set(sx,1.6,-.08);g.add(lock);
+    }
+    const back=new THREE.Mesh(new THREE.BoxGeometry(.56,.5,.12),hairM);
+    back.position.set(0,1.66,-.3);g.add(back);
+  }
+  if(cfg.body==='girl'&&cfg.hairstyle!=='buns'){
+    const bow=new THREE.Mesh(new THREE.SphereGeometry(.07,6,6),mm('#ff9dc0'));
+    bow.scale.set(1.7,.8,.7);bow.position.set(.26,2.02,.18);g.add(bow);
+  }
+  g.traverse(m=>m.castShadow=true);
+  const root=new THREE.Group();root.add(g);
+  root.userData={mixer:null,actions:{},current:null,blocky:{armL,armR,legL,legR,body:g,phase:Math.random()*7,state:'idle'}};
+  return root;
+}
+function ppBlockyUpdate(ent,dt){
+  const b=ent?.userData?.blocky;if(!b)return;
+  const speed=b.state==='run'?11:b.state==='walk'?7:0;
+  if(speed){
+    b.phase+=dt*speed;
+    const sw2=Math.sin(b.phase)*(b.state==='run'?.95:.6);
+    b.legL.rotation.x=sw2;b.legR.rotation.x=-sw2;
+    b.armL.rotation.x=-sw2*.9;b.armR.rotation.x=sw2*.9;
+    b.body.position.y=Math.abs(Math.sin(b.phase))*.06;
+  }else{
+    for(const l of [b.legL,b.legR,b.armL,b.armR])l.rotation.x*=.82;
+    b.armL.rotation.z=.06+Math.sin(b.phase+=dt*1.6)*.03; // idle breathe
+    b.armR.rotation.z=-.06-Math.sin(b.phase)*.03;
+    b.body.position.y*=.8;
+  }
+}
 function ppBoot(){
   const wrap=$('#ppwrap');if(!wrap)return;
   wrap.querySelector('canvas')?.remove();
@@ -2189,7 +2290,8 @@ function ppBoot(){
 
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
-    const player=ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75,hero.donor?PP_DONOR:null);
+    const player=hero.blocky?ppBlocky(ppCfg())
+      :ppSpawn(assets,hero.file,hero.file.includes('ShibaInu')?1.0:1.75);
     player.position.set(-20,0,10);scene.add(player);
     ppAnim(player,A_IDLE);
     let buddy=ppSpawn(assets,PP_MODELS.shiba,0.85);
@@ -2202,9 +2304,10 @@ function ppBoot(){
     });
     wilds.forEach(w=>w.target.set(-B+10+Math.random()*70,0,(Math.random()-.5)*B*1.6));
     // AI friends on hero models
-    const NPC_FILES=['modular_women_Punk.glb','modular_men_Casual.glb','modular_women_Adventurer.glb','modular_men_Casual2.glb','modular_women_Witch.glb','hero_kid.glb','modular_women_Formal.glb'];
     const npcs=PP_NPCS.map((name,i)=>{
-      const mesh=ppSpawn(assets,NPC_FILES[i],1.7,PP_DONOR);
+      const mesh=ppBlocky({body:i%2?'boy':'girl',skin:PP_SKINS[i%4],
+        hairstyle:PP_HAIRSTYLES[i%4],hair:PP_SWATCH.hair[i%6],
+        top:PP_SWATCH.top[(i+2)%6],bottom:PP_SWATCH.bottom[(i+4)%6]});
       mesh.position.set((Math.random()-.5)*B*1.3,0,(Math.random()-.5)*B*1.3);
       scene.add(mesh);ppAnim(mesh,A_IDLE);
       return {name,mesh,target:new THREE.Vector3((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5),
@@ -2448,7 +2551,7 @@ function ppBoot(){
         const pd=n.mesh.position.distanceTo(player.position);
         if(pd<nd){nd=pd;nearest=n}
         if(pd<4&&!pp.chatting)n.mesh.lookAt(player.position.x,0,player.position.z);
-        n.mesh.userData.mixer?.update(dt);
+        n.mesh.userData.mixer?.update(dt);ppBlockyUpdate(n.mesh,dt);
       }
       const tb=$('#ppTalk');
       if(tb&&!pp.chatting&&!pp.driving){
@@ -2483,7 +2586,7 @@ function ppBoot(){
           sndDrop();burst('pop');placeBone(b);
         }
       }
-      player.userData.mixer?.update(dt);
+      player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
       buddy.userData.mixer?.update(dt);
       const z=pp.zoom||1;
       const r=(pp.driving?11.5:6.2)*z;
