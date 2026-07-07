@@ -2101,6 +2101,7 @@ const PP_MODELS={
   horse:'Horse.glb',cow:'Cow.glb',alpaca:'Alpaca.glb',donkey:'Donkey.glb',stag:'Stag.glb',
   cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
   ranger:'hero_ranger.glb',cyber:'hero_cyber.glb',mechrae:'hero_mech_rae.glb',mechfinn:'hero_mech_finn.glb',
+  gSpider:'Spider.glb',gRat:'Rat.glb',gWasp:'Wasp.glb',gSnake:'Snake_angry.glb',
   spDome:'space_GeodesicDome.glb',spBase:'space_Base_Large.glb',spHouse:'space_House_Cylinder.glb',spRover:'space_Rover_Round.glb',spShip:'space_Ship.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
@@ -2194,7 +2195,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-23';
+const SV_BUILD='SV-24';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3114,6 +3115,81 @@ function ppBoot(){
       banditGone(nb,'👊 BANDIT BONKED! +'+back+' ⭐','#45d8ff');
       return true;
     };
+    // 🕷️ GLOOM PATROL: creepy critters worth big points — destroy them!
+    const GLOOM={
+      gSpider:{name:'Gloom Spider',emoji:'🕷️',hp:1,pts:15,sc:1.7,speed:0.08},
+      gRat:   {name:'Gloom Rat',   emoji:'🐀',hp:1,pts:20,sc:1.5,speed:0.15},
+      gSnake: {name:'Gloom Snake', emoji:'🐍',hp:2,pts:25,sc:1.7,speed:0.09},
+      gWasp:  {name:'Gloom Wasp',  emoji:'🐝',hp:2,pts:30,sc:1.5,speed:0.11,fly:true},
+    };
+    const gloomies=[];
+    function spawnGloomWave(){
+      const n=2+Math.floor(Math.random()*3);
+      for(let i=0;i<n;i++){
+        const keys2=Object.keys(GLOOM);
+        const gk=keys2[Math.floor(Math.random()*keys2.length)];
+        const def=GLOOM[gk];
+        const m=ppSpawn(assets,PP_MODELS[gk],def.sc);
+        if(!m)continue;
+        const an3=Math.random()*6.3;
+        const gx=Math.max(-B+8,Math.min(B-8,player.position.x+Math.cos(an3)*(30+Math.random()*25)));
+        const gz=Math.max(-B+8,Math.min(B-8,player.position.z+Math.sin(an3)*(30+Math.random()*25)));
+        m.position.set(gx,def.fly?3.2:groundAt(gx,gz),gz);
+        scene.add(m);
+        ppAnim(m,def.fly?['Flying']:A_WALK);
+        gloomies.push({mesh:m,def,hp:def.hp,cool:0,born:performance.now()});
+      }
+      sndBad();
+      const popEl=document.createElement('div');popEl.className='chomppop';
+      popEl.style.color='#c084fc';popEl.textContent='🕷️ GLOOM PATROL! Blast them for ⭐!';
+      wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1500);
+    }
+    function hitGloom(gl,splash){
+      gl.hp--;
+      if(gl.hp>0){
+        gl.cool=1.2;sndBlast&&sndBlast();
+        gl.mesh.scale.multiplyScalar(0.88);
+        setTimeout(()=>gl.mesh.scale.multiplyScalar(1/0.88),200);
+        return;
+      }
+      pp.score+=gl.def.pts;const se4=$('#ppscore');if(se4)se4.textContent=pp.score;
+      sndCoin();burst(splash?'storm':'pop');
+      const popEl=document.createElement('div');popEl.className='chomppop';
+      popEl.style.color='#c084fc';popEl.textContent=gl.def.emoji+' DESTROYED! +'+gl.def.pts+' ⭐';
+      wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1100);
+      ppAnim(gl.mesh,['Death']);
+      const dead=gl.mesh;
+      setTimeout(()=>scene.remove(dead),650);
+      gloomies.splice(gloomies.indexOf(gl),1);
+    }
+    window.__bonkGloom=()=>{
+      let ng=null,nd4=1e9;
+      for(const gl of gloomies){
+        if(gl.def.fly)continue; // wasps must be SHOT
+        const d=gl.mesh.position.distanceTo(player.position);
+        if(d<nd4){nd4=d;ng=gl}
+      }
+      if(!ng||nd4>4.2)return false;
+      hitGloom(ng,false);
+      return true;
+    };
+    function splashAt(p4){
+      burst('storm');sfxTone(55,0.5,'sine',0.35,0,28);sfxNoise(0.4,0.3);
+      for(const c of chompers){
+        if(c.dead||c.waveOut)continue;
+        if(c.mesh.position.distanceTo(p4)<5.5){
+          if(c.boss>0){c.boss--;if(c.boss<=0){c.dead=performance.now()+600000;scene.remove(c.mesh);pp.score+=100}}
+          else{c.dead=performance.now()+120000;scene.remove(c.mesh)}
+        }
+      }
+      for(const bd of [...bandits])
+        if(bd.state!=='drop'&&bd.mesh.position.distanceTo(p4)<5.5){
+          const back=bd.loot?bd.loot:5;pp.score+=back;banditGone(bd,'💥 +'+back+' ⭐','#ff8c1a');
+        }
+      for(const gl of [...gloomies])
+        if(gl.mesh.position.distanceTo(p4)<5.5)hitGloom(gl,true);
+      const se5=$('#ppscore');if(se5)se5.textContent=pp.score;
+    }
     // 🚗 NPC traffic on the road + 🚁 air patrol
     const traffic=[];
     {
@@ -3222,6 +3298,35 @@ function ppBoot(){
         }
         ppBlockyUpdate(bd.mesh,dt3);
       }
+      // gloom patrol stalks, wasps orbit — 60s lifespan if ignored
+      pp.gloomT=(pp.gloomT??18)-dt3;
+      if(pp.gloomT<=0&&gloomies.length<6){pp.gloomT=30+Math.random()*15;spawnGloomWave()}
+      for(let i=gloomies.length-1;i>=0;i--){
+        const gl=gloomies[i];
+        if(performance.now()-gl.born>60000){scene.remove(gl.mesh);gloomies.splice(i,1);continue}
+        gl.cool=Math.max(0,gl.cool-dt3);
+        const d5=player.position.clone().sub(gl.mesh.position);d5.y=0;
+        const dist5=d5.length();d5.normalize();
+        if(gl.def.fly){
+          gl.mesh.position.x+=d5.x*gl.def.speed*(dist5>3?1:0);
+          gl.mesh.position.z+=d5.z*gl.def.speed*(dist5>3?1:0);
+          gl.mesh.position.y=groundAt(gl.mesh.position.x,gl.mesh.position.z)+3.2+Math.sin(performance.now()/300+i)*0.6;
+          gl.mesh.rotation.y=Math.atan2(d5.x,d5.z);
+        }else if(gl.cool<=0&&dist5>1.4){
+          tryMove(gl.mesh,d5.x*gl.def.speed,d5.z*gl.def.speed,.5);
+          gl.mesh.position.y=groundAt(gl.mesh.position.x,gl.mesh.position.z);
+          gl.mesh.rotation.y=Math.atan2(d5.x,d5.z);
+        }
+        // a nip if they reach you (ground crawlers only)
+        if(!gl.def.fly&&gl.cool<=0&&dist5<1.5&&!pp.driving&&!pp.flying&&(pp.airH||0)<1){
+          gl.cool=3;
+          const nip=Math.min(pp.score,5);
+          pp.score-=nip;const se6=$('#ppscore');if(se6)se6.textContent=pp.score;
+          sndBad();ppAnim(gl.mesh,['Attack']);
+          setTimeout(()=>{if(gloomies.includes(gl))ppAnim(gl.mesh,A_WALK)},600);
+        }
+        gl.mesh.userData.mixer?.update(dt3);
+      }
       // traffic cruises the road (pauses politely for the player)
       for(const tc of traffic){
         const ahead=tc.mesh.position.clone();ahead.z+=tc.dir*4;
@@ -3308,14 +3413,24 @@ function ppBoot(){
       g.traverse(m=>m.castShadow=true);
       return g;
     }
-    const blasters=[]; // pickups on the map
+    const WEAPONS={
+      blaster:{emoji:'⚡',name:'STAR BLASTER',shots:3,ring:0x45d8ff},
+      repeater:{emoji:'🌈',name:'RAINBOW REPEATER',shots:12,ring:0xff2ec4},
+      cannon:{emoji:'💥',name:'BOOM CANNON',shots:4,ring:0xff8c1a},
+    };
+    const blasters=[]; // weapon pickups on the map
     function spawnBlaster(){
+      const roll=Math.random();
+      const wt=roll<0.4?'blaster':roll<0.75?'repeater':'cannon';
       const g=new THREE.Group();
-      const gun=blasterMesh(1.4);gun.position.y=1.2;
+      const gun=blasterMesh(wt==='cannon'?1.9:1.4);gun.position.y=1.2;
+      if(wt==='cannon')gun.traverse(m=>{if(m.material&&m.material.color)m.material=m.material.clone(),m.material.color.set(0xff8c1a)});
+      if(wt==='repeater')gun.traverse(m=>{if(m.material&&m.material.color)m.material=m.material.clone(),m.material.color.setHSL(Math.random(),1,.6)});
       const ring=new THREE.Mesh(new THREE.TorusGeometry(.9,.06,8,24),
-        new THREE.MeshBasicMaterial({color:0x45d8ff}));
+        new THREE.MeshBasicMaterial({color:WEAPONS[wt].ring}));
       ring.rotation.x=Math.PI/2;ring.position.y=.1;
       g.add(gun,ring);
+      g.userData.wtype=wt;
       const bx=(Math.random()-.5)*B*1.7,bz=(Math.random()-.5)*B*1.7;
       g.position.set(bx,groundAt(bx,bz),bz);
       scene.add(g);blasters.push(g);
@@ -3323,7 +3438,8 @@ function ppBoot(){
     const bolts=[];
     const ammoUI=()=>{
       const pill=$('#ppAmmo'),sb=$('#ppShoot');
-      if(pill){pill.classList.toggle('hide',pp.ammo<=0);pill.querySelector('b').textContent=pp.ammo}
+      if(pill){pill.classList.toggle('hide',pp.ammo<=0);
+        pill.innerHTML=(WEAPONS[pp.wtype]?.emoji||'⚡')+' <b>'+pp.ammo+'</b>'}
       if(sb)sb.classList.toggle('hide',pp.ammo<=0);
     };
     window.ppShoot=()=>{
@@ -3348,13 +3464,32 @@ function ppBoot(){
         bolt.position.copy(player.position);bolt.position.y+=1.3;
       }
       scene.add(bolt);
-      bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:1.8});
+      if(pp.wtype==='cannon'){
+        bolt.scale.setScalar(2.6);
+        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:2.2,big:true});
+        sfxTone(90,0.3,'sine',0.3,0,45);
+      }else if(pp.wtype==='repeater'){
+        // triple burst with a little spread (each bolt costs ammo)
+        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:1.6});
+        for(const off of [-0.12,0.12]){
+          if(pp.ammo<=0)break;
+          pp.ammo--;ammoUI();
+          const b2=bolt.clone();
+          b2.traverse(m=>{if(m.material)m.material=m.material.clone()});
+          b2.children[0]?.material?.color.setHSL(Math.random(),1,.6);
+          scene.add(b2);
+          bolts.push({mesh:b2,dx:Math.sin(ry+off),dz:Math.cos(ry+off),dy,life:1.6});
+        }
+        sfxTone(880,0.05,'square',0.1,0.05);sfxTone(990,0.05,'square',0.1,0.1);
+      }else{
+        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:1.8});
+      }
     };
     window.ppBonk=()=>{
       if(pp.driving||pp.flying||pp.chatting||pp.over)return;
       let nc=null,nd2=1e9;
       for(const c of chompers){if(c.dead||c.waveOut)continue;const d=c.mesh.position.distanceTo(player.position);if(d<nd2){nd2=d;nc=c}}
-      if(!nc||nd2>4.2){window.__bonkBandit&&__bonkBandit();return}
+      if(!nc||nd2>4.2){if(!(window.__bonkBandit&&__bonkBandit()))window.__bonkGloom&&__bonkGloom();return}
       if(nc.boss>0){
         nc.boss--;
         if(nc.boss>0){
@@ -3468,7 +3603,7 @@ function ppBoot(){
     pp={score:0,time:600,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
       jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0,
-      dropping:true,skyfall:false,canopy:false};
+      dropping:true,skyfall:false,canopy:false,wtype:'blaster'};
     gIval(()=>{ if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
@@ -4092,6 +4227,8 @@ function ppBoot(){
               if(!c.dead&&!c.stun&&!c.waveOut&&c.mesh.position.distanceTo(player.position)<4.2){close=true;break}
             if(!close)for(const bd of bandits)
               if(bd.state!=='drop'&&bd.mesh.position.distanceTo(player.position)<4.2){close=true;break}
+            if(!close)for(const gl of gloomies)
+              if(!gl.def.fly&&gl.mesh.position.distanceTo(player.position)<4.2){close=true;break}
           }
           bb.classList.toggle('hide',!close);
         }
@@ -4140,9 +4277,11 @@ function ppBoot(){
           g.children[0].rotation.y+=dt*2.5;
           g.children[0].position.y=1.2+Math.sin(t*1.5+i)*.15;
           if(!pp.driving&&g.position.distanceTo(player.position)<(pp.flying?3.6:1.8)){
-            pp.ammo=3;ammoUI();sndWin();
+            const wt=g.userData.wtype||'blaster', W3=WEAPONS[wt];
+            pp.wtype=wt;pp.ammo=W3.shots;ammoUI();sndWin();
             const popEl=document.createElement('div');popEl.className='chomppop';
-            popEl.style.color='#45d8ff';popEl.textContent='⚡ STAR BLASTER! 3 shots!';
+            popEl.style.color='#'+W3.ring.toString(16).padStart(6,'0');
+            popEl.textContent=W3.emoji+' '+W3.name+'! '+W3.shots+' shots!';
             wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
             scene.remove(g);blasters.splice(i,1);
           }
@@ -4155,13 +4294,15 @@ function ppBoot(){
           bl.mesh.position.z+=bl.dz*38*dt;
           if(bl.dy)bl.mesh.position.y+=bl.dy*38*dt;
           if(bl.mesh.position.y<groundAt(bl.mesh.position.x,bl.mesh.position.z)+0.15){
-            bl.life=0;burst('pop'); // ground splash
+            bl.life=0;
+            if(bl.big)splashAt(bl.mesh.position.clone());else burst('pop');
           }
           let hit=false;
           for(const c of chompers){
             if(c.dead||c.waveOut)continue;
-            if(c.mesh.position.distanceTo(bl.mesh.position)<(c.boss?2.6:1.9)){
+            if(c.mesh.position.distanceTo(bl.mesh.position)<(bl.big?3.2:c.boss?2.6:1.9)){
               hit=true;
+              if(bl.big){splashAt(bl.mesh.position.clone());break}
               if(c.boss>0){
                 c.boss--;
                 if(c.boss>0){
@@ -4185,6 +4326,15 @@ function ppBoot(){
               const popEl=document.createElement('div');popEl.className='chomppop';
               popEl.style.color='#ffe14d';popEl.textContent='ZAPPED! 💥 gone for 2 min!';
               wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
+              break;
+            }
+          }
+          if(!hit)for(const gl of [...gloomies]){
+            const rr=(bl.big?2.8:gl.def.fly?2.3:1.8);
+            if(gl.mesh.position.distanceTo(bl.mesh.position)<rr){
+              hit=true;
+              if(bl.big)splashAt(bl.mesh.position.clone());
+              else hitGloom(gl,false);
               break;
             }
           }
@@ -4558,6 +4708,11 @@ function ppBoot(){
             g5.strokeStyle=g5.fillStyle='#ff8c1a';
             g5.beginPath();g5.arc(bx3,bz3,2.2,0,7);
             bd.state==='drop'?g5.stroke():g5.fill();
+          }
+          // gloom patrol (violet)
+          g5.fillStyle='#c084fc';
+          for(const gl of gloomies){
+            g5.beginPath();g5.arc(mx2(gl.mesh.position.x),mz2(gl.mesh.position.z),2,0,7);g5.fill();
           }
           // other human players (cyan)
           g5.fillStyle='#45d8ff';
