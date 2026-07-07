@@ -254,12 +254,13 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   border-radius:999px;padding:14px 30px;cursor:pointer;
   box-shadow:0 6px 20px rgba(255,225,77,.55);animation:pillnudge .9s ease-in-out infinite}
 .ppdropjump.hide{display:none}
-.ppmap{position:absolute;bottom:74px;right:10px;z-index:6;pointer-events:none;
+.ppmap{position:absolute;bottom:74px;right:10px;z-index:40;pointer-events:none;display:block!important;
   width:132px!important;height:132px!important;border-radius:12px;border:2px solid rgba(255,255,255,.35);
   background:rgba(7,7,26,.55);box-shadow:0 3px 12px rgba(0,0,0,.4)}
 .pphpwrap{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;
   width:190px;height:15px;border:2px solid rgba(255,255,255,.8);border-radius:999px;
   background:rgba(7,7,26,.65);overflow:hidden;pointer-events:none}
+#ppHp{height:100%}
 #ppHp i{display:block;height:100%;border-radius:999px;transition:width .25s,background .25s;
   background:linear-gradient(90deg,#4ade80,#a3e635)}
 #ppHp i.low{background:linear-gradient(90deg,#ff5f5f,#ff8c1a);animation:pillnudge .5s ease-in-out infinite}
@@ -2201,7 +2202,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-26';
+const SV_BUILD='SV-27';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -4039,6 +4040,7 @@ function ppBoot(){
     }
     el.addEventListener('pointerdown',sndBoot);
     if(pp.dropping)$('#ppDropJump')?.classList.remove('hide'); // world's ready — NOW you can jump
+    setTimeout(()=>window.__drawMap&&__drawMap(),50); // map appears immediately
     addEventListener('keydown',sndBoot,{once:false});
     let biteTick=0;
     function sndFrame(dt2){
@@ -4750,7 +4752,7 @@ function ppBoot(){
           :(mag>0.05?player.rotation.y+Math.PI:null);
         if(want!==null){
           const dd=((want-pp.camYaw+Math.PI*3)%(Math.PI*2))-Math.PI;
-          pp.camYaw+=dd*Math.min(1,dt*2.6);
+          pp.camYaw+=dd*Math.min(1,dt*3.6);
         }
       }
       // slope-driven camera: climbing flattens the pitch AND zooms out for a wider view
@@ -4787,6 +4789,9 @@ function ppBoot(){
       pp.mapT=(pp.mapT||0)-dt;
       if(pp.mapT<=0){
         pp.mapT=0.12;
+        drawMiniMap();
+      }
+      function drawMiniMap(){try{
         const mc=$('#ppMap');
         if(mc){
           const g5=mc.getContext('2d'), S2=132, k2=S2/(B*2);
@@ -4842,10 +4847,11 @@ function ppBoot(){
           g5.beginPath();g5.moveTo(0,-4.6);g5.lineTo(3.2,3.6);g5.lineTo(-3.2,3.6);g5.closePath();g5.fill();
           g5.restore();
         }
-      }
+      }catch(e){console.error('[map]',e)}}
+      window.__drawMap=drawMiniMap;
       worldEvents(dt);
       sndFrame(dt);
-      cam.position.lerp(target,0.08);
+      cam.position.lerp(target,Math.min(1,dt*9)); // fast follow, framerate-independent
       cam.lookAt(player.position.x,(pp.flying||pp.dropping||pp.skyfall)?player.position.y+1:1.3*z,player.position.z);
       renderer.render(scene,cam);
       __raf=requestAnimationFrame(loop);
