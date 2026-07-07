@@ -2468,7 +2468,7 @@ function ppBoot(){
     for(let i=0;i<6;i++){
       const cz=-62+i*25, hh=7+(i>2?3:0), hx=(i%2)?62:23, hr=(i%2)?-Math.PI/2:Math.PI/2;
       put(HOUSES[i],hx,cz,hh,hr,4.2,hh);
-      ROOFS.push({x:hx,z:cz,hw:3.4,hd:3.4,h:hh*0.9}); // landable rooftop
+      ROOFS.push({x:hx,z:cz,hw:3.4,hd:3.4,h:hh+0.15}); // landable rooftop (skids clear the peak)
     }
     for(let i=0;i<4;i++)put('lamp',33.5,-70+i*46,5.5,Math.PI/2,.3,6);
     put('traffic',51,-4,4.5,Math.PI, .3,5);
@@ -2484,7 +2484,7 @@ function ppBoot(){
         m.position.set(px,H/2,pz);m.castShadow=true;g.add(m);parts.walls.push(m);
         COLL.push({x:cx+px,z:cz+pz,hw:w/2+.1,hd:d/2+.1,h:H});
       }
-      ROOFS.push({x:cx,z:cz,hw:S/2-.4,hd:S/2-.4,h:H+1.4});
+      ROOFS.push({x:cx,z:cz,hw:S/2-.4,hd:S/2-.4,h:H+2.7}); // above the cone peak
       wallSeg(S,.3,0,-doorSide*S/2);
       wallSeg(.3,S,-S/2,0);wallSeg(.3,S,S/2,0);
       wallSeg(2.6,.3,-2.6,doorSide*S/2);wallSeg(2.6,.3,2.6,doorSide*S/2);
