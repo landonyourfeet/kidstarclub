@@ -1539,6 +1539,15 @@ function sfxNoise(dur,vol=0.25,when=0){
   }catch(e){}
 }
 const sndPick =()=>sfxTone(660,0.07,'square',0.12);
+let __coinAt=0,__coinStep=0;
+function sndCoin(){ // bright two-note chime; combo pitch climbs on quick pickups
+  const now=Date.now();
+  __coinStep=(now-__coinAt<1800)?Math.min(7,__coinStep+1):0;
+  __coinAt=now;
+  const k=Math.pow(1.0595,__coinStep*2); // up a whole step per combo
+  sfxTone(988*k,0.06,'square',0.16);
+  sfxTone(1319*k,0.30,'square',0.15,0.062);
+}
 const sndDrop =()=>{sfxTone(220,0.09,'sine',0.3);sfxNoise(0.06,0.14)};
 const sndBad  =()=>sfxTone(140,0.18,'sawtooth',0.16);
 function sndBlast(lines){
@@ -2948,14 +2957,14 @@ function ppBoot(){
       rec.dur=Math.max(350,Math.min(1600,now-rec.lastAt));
       rec.t0=now;rec.lastAt=now;
       rec.seg=Math.hypot(rec.tx-rec.fx,rec.tz-rec.fz);
-      rec.score=o.score||0;rec.name=o.name;
+      rec.score=o.score||0;rec.name=o.name;rec.fly=!!o.fly;
       rec.seen=Date.now();
     }
     gIval(async()=>{
       try{
         const r=await api('/api/park/pos',{method:'POST',body:{
           x:player.position.x,z:player.position.z,ry:player.rotation.y,
-          score:pp.score,hero:ppHero(),cfg:ppCfg()}});
+          fly:!!pp.flying,score:pp.score,hero:ppHero(),cfg:ppCfg()}});
         const alive=new Set();
         for(const o of (r.others||[])){alive.add(o.id);upsertOther(o)}
         for(const [id,rec] of others)
@@ -2970,6 +2979,96 @@ function ppBoot(){
         .sort((a2,b2)=>b2.score-a2.score);
       el2.innerHTML=rows.map((r2,i)=>
         `<div class="svrow${r2.me?' me':''}">${i===0&&r2.score>0?'👑 ':''}${esc(r2.name)} <b>${r2.score}</b> ⭐</div>`).join('');
+    }
+
+    // ---- Starville ambient sound engine (WebAudio, gain-driven by proximity) ----
+    const snd={ready:false};
+    function sndBoot(){
+      if(snd.ready||!audioCtx)return;
+      try{
+        const ctx=audioCtx;
+        // Chompy growl: low wobbling saw through a lowpass
+        const gOsc=ctx.createOscillator();gOsc.type='sawtooth';gOsc.frequency.value=52;
+        const gLfo=ctx.createOscillator();gLfo.frequency.value=5.2;
+        const gLfoG=ctx.createGain();gLfoG.gain.value=14;
+        gLfo.connect(gLfoG);gLfoG.connect(gOsc.frequency);
+        const gFilt=ctx.createBiquadFilter();gFilt.type='lowpass';gFilt.frequency.value=240;
+        snd.growl=ctx.createGain();snd.growl.gain.value=0;
+        gOsc.connect(gFilt);gFilt.connect(snd.growl);snd.growl.connect(ctx.destination);
+        gOsc.start();gLfo.start();
+        // helicopter: looped noise chopped by an LFO + low rotor hum
+        const nb=ctx.createBuffer(1,ctx.sampleRate,ctx.sampleRate);
+        const nd=nb.getChannelData(0);
+        for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
+        const mkHeli=()=>{
+          const src=ctx.createBufferSource();src.buffer=nb;src.loop=true;
+          const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=380;bp.Q.value=0.8;
+          const chop=ctx.createGain();chop.gain.value=0.5;
+          const lfo=ctx.createOscillator();lfo.frequency.value=13;
+          const lfoG=ctx.createGain();lfoG.gain.value=0.5;
+          lfo.connect(lfoG);lfoG.connect(chop.gain);
+          const hum=ctx.createOscillator();hum.type='triangle';hum.frequency.value=85;
+          const humG=ctx.createGain();humG.gain.value=0.35;
+          const out=ctx.createGain();out.gain.value=0;
+          src.connect(bp);bp.connect(chop);chop.connect(out);
+          hum.connect(humG);humG.connect(out);
+          out.connect(ctx.destination);
+          src.start();lfo.start();hum.start();
+          return {out,lfo,bp};
+        };
+        snd.heliMe=mkHeli();
+        snd.heliOthers=mkHeli();
+        snd.ready=true;
+      }catch(e){}
+    }
+    el.addEventListener('pointerdown',sndBoot);
+    addEventListener('keydown',sndBoot,{once:false});
+    let biteTick=0;
+    function sndFrame(dt2){
+      if(!snd.ready)return;
+      try{
+        // growl volume from the NEAREST hunting chomper
+        let nearD=1e9;
+        for(const c of chompers){
+          if(c.dead||c.stun>0)continue;
+          const d=c.mesh.position.distanceTo(player.position);
+          if(d<nearD)nearD=d;
+        }
+        const prox=Math.max(0,1-nearD/30);
+        snd.growl.gain.value=prox*prox*0.4;
+        // chomp SNAPS speed up as he closes in
+        if(prox>0.15){
+          biteTick-=dt2;
+          if(biteTick<=0){
+            biteTick=1.2-prox*0.85;
+            sfxTone(90,0.05,'square',0.10+prox*0.15);
+            sfxNoise(0.04,0.05+prox*0.12);
+          }
+        }
+        // own heli: rpm drives volume + blade chop rate
+        const h=pp.flying;
+        if(h){
+          snd.heliMe.out.gain.value=0.10+h.rpm*0.30;
+          snd.heliMe.lfo.frequency.value=9+h.rpm*9+Math.abs(h.vel.y)*0.6;
+          snd.heliMe.bp.frequency.value=340+h.rpm*160;
+        }else{
+          // parked rotors winding down are audible nearby
+          let g2=0;
+          for(const hh of helis)if(hh.rpm>0){
+            const d=hh.mesh.position.distanceTo(player.position);
+            g2=Math.max(g2,hh.rpm*Math.max(0,1-d/40));
+          }
+          snd.heliMe.out.gain.value=g2*0.25;
+        }
+        // other players' helicopters: proximity-based
+        let og=0;
+        for(const rec of others.values()){
+          if(!rec.fly)continue;
+          const d=rec.root.position.distanceTo(player.position);
+          og=Math.max(og,Math.max(0,1-d/55));
+        }
+        snd.heliOthers.out.gain.value=og*0.28;
+      }catch(e){}
     }
 
     const clock=new THREE.Clock();
@@ -3387,7 +3486,7 @@ function ppBoot(){
         b.rotation.y+=dt*2.4;b.position.y=0.9+Math.sin(t+b.position.x)*0.15;
         if(!pp.over&&!pp.chatting&&b.position.distanceTo(player.position)<((pp.flying?3.2:pp.driving?2.6:1.9)*(POWER==='pw_magnet'?2:1))){
           pp.score+=10;const se=$('#ppscore');if(se)se.textContent=pp.score;
-          sndDrop();burst('pop');placeBone(b);
+          sndCoin();burst('pop');placeBone(b);
         }
       }
       {
@@ -3423,6 +3522,7 @@ function ppBoot(){
         player.position.x+Math.sin(pp.camYaw)*hor,
         player.position.y+r*Math.sin(pp.camPitch),
         player.position.z+Math.cos(pp.camYaw)*hor);
+      sndFrame(dt);
       cam.position.lerp(target,0.08);
       cam.lookAt(player.position.x,pp.flying?player.position.y+1:1.3*z,player.position.z);
       renderer.render(scene,cam);
