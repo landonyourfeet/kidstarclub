@@ -2194,7 +2194,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-22';
+const SV_BUILD='SV-23';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2970,7 +2970,7 @@ function ppBoot(){
       wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1200);
     }
     { const jb2=$('#ppDropJump'); if(jb2)jb2.onclick=dropJump; }
-    function dropUpdate(dt4){
+    function dropUpdate(dt4,vx,vz,mag){
       if(!drop.live)return;
       drop.prop.rotation.x+=dt4*20;
       if(pp.dropping){
@@ -4519,7 +4519,7 @@ function ppBoot(){
       // never sink the camera into a hillside
       const camG=groundAt(target.x,target.z);
       if(target.y<camG+2.2)target.y=camG+2.2;
-      dropUpdate(dt);
+      dropUpdate(dt,vx,vz,mag);
       sun.position.set(player.position.x+30,52,player.position.z+18);
       sun.target.position.set(player.position.x,0,player.position.z);
       // 🗺️ minimap: you, the bad guys, and your friends
