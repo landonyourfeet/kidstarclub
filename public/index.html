@@ -2312,7 +2312,13 @@ function ppBoot(){
   sun.shadow.bias=-0.0004;
   scene.add(sun,new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9),new THREE.AmbientLight(0xffffff,0.1));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
-  const B=100, COLL=[];
+  const B=100, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  function groundAt(x,z){
+    let g=0;
+    for(const r of ROOFS)
+      if(Math.abs(x-r.x)<r.hw&&Math.abs(z-r.z)<r.hd&&r.h>g)g=r.h;
+    return g;
+  }
   let grassTex;{
     const cv=document.createElement('canvas');cv.width=256;cv.height=256;
     const g2=cv.getContext('2d');
@@ -2352,11 +2358,11 @@ function ppBoot(){
     if(assets.__failed?.length)
       console.warn('[starville] failed assets:',assets.__failed.join(', '));
     $('#ppLoad')?.remove();
-    const put=(key,x,z,h,ry=0,collide=0)=>{
+    const put=(key,x,z,h,ry=0,collide=0,blockH=999)=>{
       const o=ppSpawn(assets,PP_MODELS[key],h);
       if(!o)return null;
       o.position.set(x,0,z);o.rotation.y=ry;scene.add(o);
-      if(collide)COLL.push({x,z,hw:collide,hd:collide});
+      if(collide)COLL.push({x,z,hw:collide,hd:collide,h:blockH});
       return o;
     };
     // forest + park dressing (real trees)
@@ -2364,21 +2370,21 @@ function ppBoot(){
     for(let i=0;i<46;i++){
       const x=-B+8+Math.random()*(B-14), z=(Math.random()-.5)*B*1.9;
       if(Math.hypot(x-(-55),z-(-25))<14)continue;
-      put(TREES[i%TREES.length],x,z,6+Math.random()*4,Math.random()*6.3,.7);
+      put(TREES[i%TREES.length],x,z,6+Math.random()*4,Math.random()*6.3,.7,9);
     }
     for(let i=0;i<40;i++)put(i%2?'flowers':'grass',(Math.random()-.5)*B*1.9,(Math.random()-.5)*B*1.9,.7+Math.random()*.4,Math.random()*6.3);
-    for(let i=0;i<14;i++)put('bush',(Math.random()-.5)*B*1.8,(Math.random()-.5)*B*1.8,1.1,Math.random()*6.3,.6);
-    for(let i=0;i<10;i++)put('rock',(Math.random()-.5)*B*1.8,(Math.random()-.5)*B*1.8,.8,Math.random()*6.3,.5);
+    for(let i=0;i<14;i++)put('bush',(Math.random()-.5)*B*1.8,(Math.random()-.5)*B*1.8,1.1,Math.random()*6.3,.6,2);
+    for(let i=0;i<10;i++)put('rock',(Math.random()-.5)*B*1.8,(Math.random()-.5)*B*1.8,.8,Math.random()*6.3,.5,1.4);
     // city street: real houses (fancy fronts) + props
     const HOUSES=['house1','house2','house3','house4','house5','house6'];
     for(let i=0;i<6;i++){
-      const cz=-62+i*25;
-      if(i%2)put(HOUSES[i],62,cz,7+(i>2?3:0),-Math.PI/2,4.2);
-      else   put(HOUSES[i],23,cz,7+(i>2?3:0), Math.PI/2,4.2);
+      const cz=-62+i*25, hh=7+(i>2?3:0), hx=(i%2)?62:23, hr=(i%2)?-Math.PI/2:Math.PI/2;
+      put(HOUSES[i],hx,cz,hh,hr,4.2,hh);
+      ROOFS.push({x:hx,z:cz,hw:3.4,hd:3.4,h:hh*0.9}); // landable rooftop
     }
-    for(let i=0;i<4;i++)put('lamp',33.5,-70+i*46,5.5,Math.PI/2,.3);
-    put('traffic',51,-4,4.5,Math.PI, .3);
-    put('stopsign',33.5,20,2.6,Math.PI/2,.2);
+    for(let i=0;i<4;i++)put('lamp',33.5,-70+i*46,5.5,Math.PI/2,.3,6);
+    put('traffic',51,-4,4.5,Math.PI, .3,5);
+    put('stopsign',33.5,20,2.6,Math.PI/2,.2,3);
     // 3 enterable clubhouses (walk right in — roof lifts away)
     const houses=[];
     function clubhouse(cx,cz,doorSide,colr,roofC){
@@ -2388,8 +2394,9 @@ function ppBoot(){
       function wallSeg(w,d,px,pz){
         const m=new THREE.Mesh(new THREE.BoxGeometry(w,H,d),wallM);
         m.position.set(px,H/2,pz);m.castShadow=true;g.add(m);parts.walls.push(m);
-        COLL.push({x:cx+px,z:cz+pz,hw:w/2+.1,hd:d/2+.1});
+        COLL.push({x:cx+px,z:cz+pz,hw:w/2+.1,hd:d/2+.1,h:H});
       }
+      ROOFS.push({x:cx,z:cz,hw:S/2-.4,hd:S/2-.4,h:H+1.4});
       wallSeg(S,.3,0,-doorSide*S/2);
       wallSeg(.3,S,-S/2,0);wallSeg(.3,S,S/2,0);
       wallSeg(2.6,.3,-2.6,doorSide*S/2);wallSeg(2.6,.3,2.6,doorSide*S/2);
@@ -2677,16 +2684,18 @@ function ppBoot(){
         submitScore('puppy',pp.score).then(x=>setTimeout(()=>alert('Good round!! 🌟 '+pp.score+' points'+x),300))}
     },1000);
 
-    function hitC(x,z,r){
-      for(const c of COLL)if(Math.abs(x-c.x)<c.hw+r&&Math.abs(z-c.z)<c.hd+r)return true;
+    function hitC(x,z,r,y){
+      for(const c of COLL)
+        if(y<(c.h||999)-0.05&&Math.abs(x-c.x)<c.hw+r&&Math.abs(z-c.z)<c.hd+r)return true;
       return false;
     }
     function tryMove(obj,dx,dz,r){
+      const y=obj.position.y||0;
       const nx=Math.max(-B+2,Math.min(B-2,obj.position.x+dx));
       const nz=Math.max(-B+2,Math.min(B-2,obj.position.z+dz));
-      if(!hitC(nx,nz,r)){obj.position.x=nx;obj.position.z=nz;return true}
-      if(!hitC(nx,obj.position.z,r)){obj.position.x=nx;return true}
-      if(!hitC(obj.position.x,nz,r)){obj.position.z=nz;return true}
+      if(!hitC(nx,nz,r,y)){obj.position.x=nx;obj.position.z=nz;return true}
+      if(!hitC(nx,obj.position.z,r,y)){obj.position.x=nx;return true}
+      if(!hitC(obj.position.x,nz,r,y)){obj.position.z=nz;return true}
       return false;
     }
     const el=renderer.domElement;
@@ -2739,7 +2748,7 @@ function ppBoot(){
       pp.zoom=Math.max(0.5,Math.min(2.6,pp.zoom*(1+e.deltaY*0.001)));
       localStorage.setItem('ksc_zoom',pp.zoom)},{passive:false});
     const keys={};
-    const doJump=()=>{if(pp.jumpY<=0&&!pp.driving&&!pp.flying&&!pp.chatting&&!pp.over){pp.vy=pp.riding?10.5:8.2;if(pp.riding)ppAnim(pp.riding,['Jump']);sndPick()}};
+    const doJump=()=>{if((pp.airH||0)<=0.05&&!pp.driving&&!pp.flying&&!pp.chatting&&!pp.over){pp.vy=pp.riding?10.5:8.2;if(pp.riding)ppAnim(pp.riding,['Jump']);sndPick()}};
     const kd=e=>{
       keys[e.key]=true;
       const inField=/INPUT|TEXTAREA/.test(e.target?.tagName||'');
@@ -2905,14 +2914,10 @@ function ppBoot(){
           h.vel.y+= (liftIn>0?10:liftIn<0?-9:-5.5)*dt*h.rpm;
           h.vel.y=Math.max(-7,Math.min(6,h.vel.y));h.vel.y*=1-0.8*dt;
           const m=h.mesh;
-          if(m.position.y>2.4){ // above the rooftops: free flight inside the hedge walls
-            m.position.x=Math.max(-B+2,Math.min(B-2,m.position.x+h.vel.x*dt));
-            m.position.z=Math.max(-B+2,Math.min(B-2,m.position.z+h.vel.z*dt));
-          }else{
-            if(!tryMove(m,h.vel.x*dt,h.vel.z*dt,1.6)){h.vel.x*=-.25;h.vel.z*=-.25}
-          }
-          m.position.y=Math.max(0,Math.min(42,m.position.y+h.vel.y*dt));
-          if(m.position.y===0&&h.vel.y<0)h.vel.y=0;
+          if(!tryMove(m,h.vel.x*dt,h.vel.z*dt,1.6)){h.vel.x*=-.25;h.vel.z*=-.25}
+          const floor=groundAt(m.position.x,m.position.z);
+          m.position.y=Math.max(floor,Math.min(42,m.position.y+h.vel.y*dt));
+          if(m.position.y===floor&&h.vel.y<0)h.vel.y=0; // touched down (ground OR rooftop)
           const sp=Math.hypot(h.vel.x,h.vel.z);
           if(sp>0.6)m.rotation.y+=(((Math.atan2(h.vel.x,h.vel.z)-m.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*3);
           // bank & pitch with the motion
@@ -2968,20 +2973,26 @@ function ppBoot(){
         tryMove(player,mx*0.32,mz*0.32,.45);
         player.rotation.y=Math.atan2(mx,mz);
       }
-      // jump physics
-      if(pp.jumpY>0||pp.vy>0){
-        pp.vy-=22*dt;
-        pp.jumpY=Math.max(0,pp.jumpY+pp.vy*dt);
-        if(pp.jumpY===0)pp.vy=0;
+      // vertical physics: pp.jumpY is absolute height; gravity pulls to whatever is underfoot
+      {
+        const gY=pp.flying?0:groundAt(player.position.x,player.position.z);
+        if(!pp.flying){
+          if(pp.jumpY>gY+0.001||pp.vy>0){
+            pp.vy-=22*dt;
+            pp.jumpY=Math.max(gY,pp.jumpY+pp.vy*dt);
+            if(pp.jumpY===gY)pp.vy=0;
+          }else pp.jumpY=gY;
+        }
+        pp.airH=pp.jumpY-gY;
       }
       if(!pp.driving&&!pp.riding&&!pp.flying){
         player.visible=true;
         const moving=mag>0.05&&!pp.chatting;
         player.userData.armed=pp.ammo>0;
-        if(pp.jumpY>0)ppAnim(player,['Jump','Jump_Idle','Gallop_Jump']);
+        if(pp.airH>0.03)ppAnim(player,['Jump','Jump_Idle','Gallop_Jump']);
         else if(pp.ammo>0)ppAnim(player,moving?(mag>0.75?['Run_Gun','Run','Gallop']:['Walk_Gun','Walk','Walking']):['Idle_Gun','Idle','Idle_Neutral']);
         else ppAnim(player,moving?(mag>0.75?A_RUN:A_WALK):A_IDLE);
-        player.position.y=pp.jumpY+((pp.jumpY===0&&moving)?Math.abs(Math.sin(t*3))*0.05:0);
+        player.position.y=pp.jumpY+((pp.airH<=0.03&&moving)?Math.abs(Math.sin(t*3))*0.05:0);
       }
       // 💜 mega bone lifecycle
       if(!pp.over&&!pp.chatting){
@@ -3149,7 +3160,7 @@ function ppBoot(){
         j.jawTop.rotation.x=-bite;j.jawBot.rotation.x=bite;
         const hop=Math.abs(Math.sin(t*2.2))*.18;
         chomp.mesh.position.y=hop;
-        if(dist<1.9&&!pp.driving&&!pp.flying&&chomp.cool<=0&&pp.jumpY<1.1){
+        if(dist<1.9&&!pp.driving&&!pp.flying&&chomp.cool<=0&&(pp.airH||0)<1.1){
           chomp.cool=4;
           const loss=pp.score; // he eats EVERYTHING
           pp.score=0;const se=$('#ppscore');if(se)se.textContent=0;
@@ -3223,13 +3234,17 @@ function ppBoot(){
       const fb2=$('#ppFly');
       if(fb2){
         if(pp.flying){
-          const low=pp.flying.mesh.position.y<0.6;
+          const hm=pp.flying.mesh.position;
+          const low=(hm.y-groundAt(hm.x,hm.z))<0.6;
           fb2.textContent=low?'⏬ Land & hop out':'⬇️ get low to land!';
           fb2.classList.remove('hide');
           fb2.onclick=low?()=>{
             const h=pp.flying;pp.flying=null;pp.lift=0;
             h.tilt.rotation.set(0,0,0);
-            player.position.set(h.mesh.position.x+2.4,0,h.mesh.position.z);
+            const ex=h.mesh.position.x+2.4, ez=h.mesh.position.z;
+            const eg=groundAt(ex,ez);
+            player.position.set(ex,eg,ez);
+            pp.jumpY=eg;pp.vy=0; // step out onto the roof (or the ground)
             player.visible=true;sndPick();
           }:null;
         }else{
@@ -3294,7 +3309,8 @@ function ppBoot(){
       buddy?.userData.mixer?.update(dt);
       for(const h of helis)if(h!==pp.flying&&h.rpm>0){h.rpm=Math.max(0,h.rpm-dt*.4);h.rotor.rotation.y+=h.rpm*dt*26}
       if(!keys.Shift){ // ease the camera around behind the player/car
-        const want=pp.driving?pp.driving.mesh.rotation.y+Math.PI
+        const want=pp.flying?pp.flying.mesh.rotation.y+Math.PI
+          :pp.driving?pp.driving.mesh.rotation.y+Math.PI
           :(mag>0.05?player.rotation.y+Math.PI:null);
         if(want!==null){
           const dd=((want-pp.camYaw+Math.PI*3)%(Math.PI*2))-Math.PI;
