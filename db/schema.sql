@@ -202,3 +202,12 @@ CREATE TABLE IF NOT EXISTS club_events (
   payload    JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- v15: crew badges (emoji next to screen name, inherited from invite code)
+ALTER TABLE invite_codes ADD COLUMN IF NOT EXISTS badge TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS badge TEXT;
+UPDATE users SET badge='🔥🏀' WHERE lower(username)='elikai' AND badge IS NULL;
+UPDATE invite_codes SET badge='🔥🏀' WHERE lower(code)='elikai' AND badge IS NULL;
+-- retroactive: anyone who already joined on a badged code gets the badge
+UPDATE users u SET badge=ic.badge FROM invite_codes ic
+  WHERE upper(u.joined_code)=upper(ic.code) AND ic.badge IS NOT NULL AND u.badge IS NULL;
