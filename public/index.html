@@ -237,6 +237,9 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   background-size:300% 100%;animation:svbmove 3s linear infinite;
   box-shadow:0 3px 14px rgba(255,46,196,.55)}
 .svbanner b{color:#ffe14d}
+.svbanner.mn{background:linear-gradient(90deg,#0a5a7a,var(--cyan),#7ae8ff,var(--cyan),#0a5a7a);
+  background-size:300% 100%;color:#062030;box-shadow:0 3px 14px rgba(69,216,255,.55)}
+.svbanner.mn b{color:#c4108f}
 @keyframes svbmove{0%{background-position:0 0}100%{background-position:300% 0}}
 .gametile.live{border-color:var(--magenta);animation:livepulse 1.1s ease-in-out infinite}
 @keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(255,46,196,.0)}
@@ -1359,12 +1362,33 @@ function svApplyWho(){
     }else chip?.remove();
   }
 }
+function mnApply(m){
+  let bn=$('#mnBanner');
+  if(!bn){
+    bn=document.createElement('button');bn.id='mnBanner';bn.className='svbanner mn hide';
+    document.body.appendChild(bn);
+  }
+  const seen=localStorage.getItem('ksc_mn_seen')||'0';
+  const inChat=document.querySelector('#v-chat')&&!$('#v-chat').classList.contains('hide');
+  if(!m||String(m.id)===seen){bn.classList.add('hide');return}
+  if(inChat){localStorage.setItem('ksc_mn_seen',String(m.id));bn.classList.add('hide');return}
+  bn.innerHTML=`💬 <b>${esc(m.from)}</b> mentioned you: “${esc(m.text)}” — tap to open chat!`;
+  bn.onclick=()=>{localStorage.setItem('ksc_mn_seen',String(m.id));bn.classList.add('hide');go('chat')};
+  bn.classList.remove('hide');
+  // stack below the Starville banner if both are up
+  const sv=$('#svBanner');
+  bn.style.top=(sv&&!sv.classList.contains('hide'))?sv.offsetHeight+'px':'0';
+}
 setInterval(async()=>{
   try{
     const r=await api('/api/park/who');
     window.__svWho={count:r.count||0,names:r.names||[]};
   }catch(e){window.__svWho={count:0,names:[]}}
   svApplyWho();
+  try{
+    const mr=await api('/api/chat/mymentions');
+    mnApply(mr.mention);
+  }catch(e){}
 },12000);
 // ---- arcade chat dock ----
 let dockPoll=null,dockLast=0,dockOpen=false;
