@@ -1934,7 +1934,7 @@ const PP_MODELS={
   lamp:'Streetlight_Double.glb',traffic:'TrafficLight.glb',stopsign:'Sign_Stop.glb',
   bed:'Bed_Single.glb',couch:'Couch_Medium1.glb',table:'Table_RoundSmall.glb',chair:'Chair_1.glb',
 };
-function ppHero(){const h=localStorage.getItem('ksc_hero');return PP_HEROES[h]?h:'mia'}
+function ppHero(){const h=localStorage.getItem('ksc_hero');return PP_HEROES[h]?h:'custom'}
 function loadWorldLibs(cb,failEl){
   const seq=['/vendor/GLTFLoader.js','/vendor/DRACOLoader.js','/vendor/SkeletonUtils.js'];
   loadThree(()=>{
