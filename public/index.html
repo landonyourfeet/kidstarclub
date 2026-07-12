@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2145,6 +2146,18 @@ const PP_MODELS={
   cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
   ranger:'hero_ranger.glb',cyber:'hero_cyber.glb',mechrae:'hero_mech_rae.glb',mechfinn:'hero_mech_finn.glb',
   gSpider:'Spider.glb',gRat:'Rat.glb',gWasp:'Wasp.glb',gSnake:'Snake_angry.glb',
+  cty_shop1:'cty_shop1.glb',cty_shop2:'cty_shop2.glb',cty_shop3:'cty_shop3.glb',cty_shop4:'cty_shop4.glb',
+  cty_off1:'cty_off1.glb',cty_off2:'cty_off2.glb',cty_offL:'cty_offL.glb',cty_round:'cty_round.glb',
+  cty_sq1:'cty_sq1.glb',cty_sq2:'cty_sq2.glb',cty_hall:'cty_hall.glb',
+  cty_traffic:'cty_traffic.glb',cty_hydrant:'cty_hydrant.glb',cty_bench:'cty_bench.glb',
+  cty_busstop:'cty_busstop.glb',cty_stopsign:'cty_stopsign.glb',cty_billboard:'cty_billboard.glb',
+  cty_tree1:'cty_tree1.glb',cty_tree2:'cty_tree2.glb',cty_palm:'cty_palm.glb',
+  trp_palm1:'trp_palm1.glb',trp_palm2:'trp_palm2.glb',trp_palm3:'trp_palm3.glb',
+  trp_banana1:'trp_banana1.glb',trp_banana2:'trp_banana2.glb',
+  trp_forest1:'trp_forest1.glb',trp_forest2:'trp_forest2.glb',trp_bush:'trp_bush.glb',
+  trp_fern1:'trp_fern1.glb',trp_fern2:'trp_fern2.glb',trp_flower1:'trp_flower1.glb',trp_flower2:'trp_flower2.glb',
+  trp_rock1:'trp_rock1.glb',trp_rock2:'trp_rock2.glb',trp_cliff1:'trp_cliff1.glb',trp_cliff2:'trp_cliff2.glb',
+  trp_dock:'trp_dock.glb',trp_ropebridge:'trp_ropebridge.glb',
   medInn:'med_Inn.glb',medSmith:'med_Blacksmith.glb',medH1:'med_House_1.glb',medH2:'med_House_2.glb',
   medH3:'med_House_3.glb',medH4:'med_House_4.glb',medBell:'med_Bell_Tower.glb',medMill:'med_Mill.glb',
   medStand1:'med_MarketStand_1.glb',medStand2:'med_MarketStand_2.glb',medGazebo:'med_Gazebo.glb',
@@ -2246,7 +2259,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-39';
+const SV_BUILD='SV-41';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2306,7 +2319,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">🏝️ NEW: cross the great bridge to the FANTASY ISLE — meet the King & Queen of Starhaven! Desert, canyons, moon base, Chompy waves 👾, day & night 🌙. Friends join your world 🧑‍🤝‍🧑 <span style="opacity:.4">${SV_BUILD}</span></p>
+    <p class="sbhint">🏝️ You wake in STARHAVEN on the tropical Isle — meet the King, then cross the great bridge to the mainland: downtown city, desert, canyons & moon base! Desert, canyons, moon base, Chompy waves 👾, day & night 🌙. Friends join your world 🧑‍🤝‍🧑 <span style="opacity:.4">${SV_BUILD}</span></p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2323,6 +2336,20 @@ async function ppLoadAssets(onProgress){
     if(!f){done++;onProgress(done,names.length);return res()}
     loader.load('/assets/'+f,g=>{
       g.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=false}});
+      if(f.startsWith('trp_')||f.startsWith('cty_')){ // Synty env: tint unmapped mats, leaves double-sided
+        g.scene.traverse(m=>{
+          if(!m.isMesh||!m.material)return;
+          const mats=Array.isArray(m.material)?m.material:[m.material];
+          for(const mm of mats){
+            const nm=(mm.name||'').toLowerCase();
+            if(f.startsWith('trp_')&&/leaf|palm|fern|flower|bush|frond/.test(nm)){mm.side=THREE.DoubleSide;if(mm.map)mm.alphaTest=0.35}
+            if(!mm.map&&mm.color){
+              if(/leaf|palm|fern|flower|bush|frond|lambert/.test(nm))mm.color.setHex(0x4fae4a);
+              else if(/bark|trunk|wood/.test(nm))mm.color.setHex(0x7a5a3a);
+            }
+          }
+        });
+      }
       out[f]={scene:g.scene,animations:g.animations||[]};
       done++;onProgress(done,names.length);res();
     },undefined,err=>{out.__failed.push(f);console.error('[starville asset]',f,err);
@@ -2475,7 +2502,7 @@ function ppBoot(){
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.outputEncoding=THREE.sRGBEncoding;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.1;
+  renderer.toneMappingExposure=1.03;
   renderer.setClearColor(0x87d8ff,1); // sky, not black, while the world loads
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
@@ -2908,12 +2935,43 @@ function ppBoot(){
       put('cactusF',80+Math.random()*(B-88),(Math.random()-.5)*B*1.8,1.4,Math.random()*6.3,.4,2);
     for(let i=0;i<18;i++)
       put('rockD',78+Math.random()*(B-86),(Math.random()-.5)*B*1.8,1.0+Math.random(),Math.random()*6.3,.6,2);
-    // the Isle's woods (outside the city walls)
-    for(let i=0;i<16;i++){
-      const an4=Math.random()*6.3, rr4=32+Math.random()*30;
-      const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
-      if(inOcean(tx4,tz4))continue;
-      put(TREES[i%TREES.length],tx4,tz4,5+Math.random()*3,Math.random()*6.3,.7,9);
+    // 🌴 the Isle goes TROPICAL: palms, banana trees, jungle, cliffs, a dock
+    {
+      const PALMS=['trp_palm1','trp_palm2','trp_palm3'];
+      for(let i=0;i<12;i++){ // palms lean over the beaches
+        const an4=Math.random()*6.3, rr4=48+Math.random()*18;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        if(inOcean(tx4,tz4))continue;
+        put(PALMS[i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.45,9);
+      }
+      for(let i=0;i<6;i++){ // jungle interior
+        const an4=Math.random()*6.3, rr4=30+Math.random()*14;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        put(i%2?'trp_forest1':'trp_forest2',tx4,tz4,7+Math.random()*2,Math.random()*6.3,.7,10);
+      }
+      for(let i=0;i<4;i++){ // 🍌 banana groves (of course)
+        const an4=1.1+i*0.5, rr4=36+Math.random()*10;
+        put(i%2?'trp_banana1':'trp_banana2',IC.x+Math.cos(an4)*rr4,IC.z+Math.sin(an4)*rr4,4.5,Math.random()*6.3,.5,6);
+      }
+      for(let i=0;i<16;i++){ // undergrowth: ferns, bushes, flowers (walk right through)
+        const an4=Math.random()*6.3, rr4=28+Math.random()*38;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        if(inOcean(tx4,tz4))continue;
+        put(['trp_fern1','trp_fern2','trp_bush','trp_flower1','trp_flower2'][i%5],tx4,tz4,1.2+Math.random()*0.9,Math.random()*6.3,0,0);
+      }
+      for(let i=0;i<5;i++){ // shoreline boulders
+        const an4=Math.random()*6.3, rr4=60+Math.random()*7;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        put(i%2?'trp_rock1':'trp_rock2',tx4,tz4,1.6+Math.random()*1.6,Math.random()*6.3,1.2,2.5);
+      }
+      // dramatic sea cliffs on the north-east point
+      put('trp_cliff1',IC.x+52,IC.z-44,9,2.4,3.5,9);
+      put('trp_cliff2',IC.x+60,IC.z-30,7,1.1,3,7);
+      put('trp_cliff1',IC.x+62,IC.z+26,8,-0.8,3.2,8);
+      // a wooden dock on the south beach
+      put('trp_dock',IC.x-8,IC.z+64,3.2,Math.PI,1.6,1.4);
+      // rope bridge up the watch-hill trail (scenery)
+      put('trp_ropebridge',IC.x+2,IC.z-30,4.5,0.9,0,0);
     }
     // canyon dressing: giant red rocks along the rims
     for(let i=0;i<22;i++)
@@ -2927,16 +2985,29 @@ function ppBoot(){
     put('spHouse',130,SPACE_Z-60,6,-Math.PI/4,4,6);
     put('spRover',10,SPACE_Z-40,2.4,Math.PI/2,1.4,3);
     // (the starfighter is built as a flyable vehicle below)
-    // city street: real houses (fancy fronts) + props
-    const HOUSES=['house1','house2','house3','house4','house5','house6'];
+    // 🏙️ DOWNTOWN STARVILLE: POLYGON City skyline — shops west, offices east
+    const WEST=[['cty_shop1',8],['cty_hall',11],['cty_shop2',8],['cty_shop3',8],['cty_off1',12],['cty_shop4',8]];
+    const EAST=[['cty_off2',12],['cty_round',16],['cty_sq1',14],['cty_offL',15],['cty_sq2',14],['cty_shop3',8]];
     for(let i=0;i<6;i++){
-      const cz=-62+i*25, hh=7+(i>2?3:0), hx=(i%2)?62:23, hr=(i%2)?-Math.PI/2:Math.PI/2;
-      put(HOUSES[i],hx,cz,hh,hr,4.2,hh);
-      ROOFS.push({x:hx,z:cz,hw:3.4,hd:3.4,h:hh+0.15}); // landable rooftop (skids clear the peak)
+      const cz=-62+i*25;
+      const [wk,wh]=WEST[i];
+      put(wk,23,cz,wh,Math.PI/2,5.2,wh);
+      ROOFS.push({x:23,z:cz,hw:4.2,hd:4.2,h:wh*0.99}); // rooftop landings
+      const [ek,eh]=EAST[i];
+      put(ek,62,cz,eh,-Math.PI/2,5.6,eh);
+      ROOFS.push({x:62,z:cz,hw:4.6,hd:4.6,h:eh*0.99});
     }
+    // street furniture: lights, hydrants, benches, bus stop, billboard
     for(let i=0;i<4;i++)put('lamp',33.5,-70+i*46,5.5,Math.PI/2,.3,6);
-    put('traffic',51,-4,4.5,Math.PI, .3,5);
-    put('stopsign',33.5,20,2.6,Math.PI/2,.2,3);
+    put('cty_traffic',51,-4,5,Math.PI,.3,5.5);
+    put('cty_traffic',33.5,-40,5,0,.3,5.5);
+    put('cty_stopsign',33.5,20,2.8,Math.PI/2,.2,3);
+    for(const hz of [-55,-5,45])put('cty_hydrant',32.8,hz,1.1,Math.PI/2,.3,1.3);
+    put('cty_busstop',52.5,-30,3.4,-Math.PI/2,1.8,3.6);
+    for(const bz of [-18,-30])put('cty_bench',33.2,bz,1.1,Math.PI/2,.9,1.2);
+    put('cty_billboard',56,75,7,-Math.PI/2+0.3,1.5,8);
+    for(let i=0;i<5;i++)put(i%2?'cty_tree1':'cty_tree2',(i%2)?34.2:50.8,-66+i*31,5.5,Math.random()*6.3,.5,7);
+    for(let i=0;i<4;i++)put('cty_palm',54+(i%2)*8,150+i*26,7,Math.random()*6.3,.4,8); // palms toward the coast road
     // 3 enterable clubhouses (walk right in — roof lifts away)
     const houses=[];
     function clubhouse(cx,cz,doorSide,colr,roofC){
@@ -3218,12 +3289,10 @@ function ppBoot(){
       {key:'mini_queen',  name:'Mara',    dx:2,  dz:-1,  s:2.4},
       {key:'mini_wizard', name:'Wizzo',   dx:-9, dz:-12, s:2.3},
       {key:'mini_witch',  name:'Hazel',   dx:-13,dz:9,   s:2.3},
-      {key:'mini_bard',   name:'Lute',    dx:3,  dz:3,   s:2.2},
       {key:'mini_knight', name:'SirPots', dx:-23,dz:-2,  s:2.4},
       {key:'mini_dame',   name:'Ivy',     dx:-23,dz:5,   s:2.4},
       {key:'mini_smith',  name:'Bjorn',   dx:-9, dz:15,  s:2.4},
       {key:'mini_freya',  name:'Freya',   dx:20, dz:-4,  s:2.3},
-      {key:'mini_goblin', name:'Grub',    dx:7,  dz:6,   s:2.0},
       {key:'mini_shaman', name:'Zizzy',   dx:8,  dz:-6,  s:2.0},
       {key:'mini_druid',  name:'Fern',    dx:-30,dz:24,  s:2.3},
       {key:'mini_baker',  name:'Marigold',dx:-4, dz:-16, s:2.2},
@@ -3238,6 +3307,19 @@ function ppBoot(){
       scene.add(m);
       m.userData.isleIdle=Math.random()*6.3;
       npcs.push({name:f2.name,mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
+    }
+    // 🎗️ ambassadors of Starhaven: Lute busks and Grub trades at the PARK plaza,
+    // so the new faces greet kids the moment they spawn
+    for(const amb of [
+      {key:'mini_bard',  name:'Lute', x:7,  z:-19, s:2.2},
+      {key:'mini_goblin',name:'Grub', x:-2, z:-29, s:2.0},
+    ]){
+      const m=ppSpawn(assets,PP_MODELS[amb.key],amb.s);
+      if(!m)continue;
+      m.position.set(amb.x,groundAt(amb.x,amb.z),amb.z);
+      m.rotation.y=Math.random()*6.3;
+      scene.add(m);m.userData.isleIdle=Math.random()*6.3;
+      npcs.push({name:amb.name,mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
     }
     // Capt. Plank guards the bridge landing
     {
@@ -3503,7 +3585,7 @@ function ppBoot(){
         popEl.textContent='💫 KNOCKED OUT! back to base…';
         wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1600);
         setTimeout(()=>{
-          player.position.set(-36,groundAt(-36,16),16);
+          player.position.set(IC.x-14,groundAt(IC.x-14,IC.z+2),IC.z+2); // back to Starhaven
           pp.jumpY=player.position.y;pp.vy=0;
           pp.hp=60;updateHp();
         },1200);
@@ -3524,8 +3606,12 @@ function ppBoot(){
       chute.position.y=2.9;
       g.add(box,star,chute);
       g.traverse(m=>m.castShadow=true);
-      const cx3=Math.max(-B+8,Math.min(B-8,player.position.x+(Math.random()-.5)*50));
-      const cz3=Math.max(-B+8,Math.min(B-8,player.position.z+(Math.random()-.5)*50));
+      let cx3=0,cz3=0;
+      for(let k9=0;k9<10;k9++){
+        cx3=Math.max(-B+8,Math.min(B-8,player.position.x+(Math.random()-.5)*50));
+        cz3=Math.max(-B+8,Math.min(B-8,player.position.z+(Math.random()-.5)*50));
+        if(!inOcean(cx3,cz3))break;
+      }
       g.position.set(cx3,38,cz3);
       scene.add(g);
       crates.push({mesh:g,chute,landed:0});
@@ -4019,7 +4105,14 @@ function ppBoot(){
       const m=buildChomper();
       // spawn far from the hero
       const px=player?player.position.x:0, pz=player?player.position.z:0;
-      m.position.set(Math.max(-B+8,Math.min(B-8,px+(px>0?-60:60))),0,Math.max(-B+8,Math.min(B-8,pz+(pz>0?-60:60))));
+      let cx9=0,cz9=0;
+      for(let k9=0;k9<10;k9++){
+        const an9=Math.random()*6.3;
+        cx9=Math.max(-B+8,Math.min(B-8,px+Math.cos(an9)*62));
+        cz9=Math.max(-B+8,Math.min(B-8,pz+Math.sin(an9)*62));
+        if(!inOcean(cx9,cz9))break;
+      }
+      m.position.set(cx9,0,cz9);
       scene.add(m);
       chompers.push({mesh:m,cool:announce?2:0,speed:0.145});
       if(announce){
@@ -4034,7 +4127,7 @@ function ppBoot(){
     // ---- animated cast ----
     const hero=PP_HEROES[ppHero()];
     let player=(hero.blocky?null:ppSpawn(assets,hero.file,hero.scale||1.75))||ppBlocky(ppCfg());
-    player.position.set(-36,0,16);scene.add(player);
+    player.position.set(IC.x-14,3,IC.z+2);scene.add(player); // wake up inside the city gate
     ppAnim(player,A_IDLE);
     spawnChomper(false);
     const petKey=PP_PETFILE[ppEquip().pet];
@@ -4093,7 +4186,7 @@ function ppBoot(){
     pp={score:0,time:600,over:false,vel:new THREE.Vector2(0,0),joy:null,
       chatting:false,chatNpc:null,hist:[],driving:null,
       jumpY:0,vy:0,megaT:0,ammo:0,blsT:12,riding:null,flying:null,lift:0,
-      dropping:true,skyfall:false,canopy:false,wtype:'blaster',hp:100,lastHit:0,inv:0};
+      dropping:false,skyfall:false,canopy:false,wtype:'blaster',hp:100,lastHit:0,inv:0}; // rounds begin in Starhaven
     gIval(()=>{ if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       pp.time--;const el=$('#pptime');if(el)el.textContent=pp.time;
       if(pp.time<=0){pp.over=true;sndWin();
@@ -4491,7 +4584,7 @@ function ppBoot(){
       st.setProperty('border-radius','12px','important');
       st.setProperty('border','2px solid rgba(255,255,255,.35)','important');
       st.setProperty('background','rgba(7,7,26,.55)','important');
-      st.setProperty('opacity','0','important');            // hidden during the banana ride…
+      st.setProperty('opacity',pp.dropping?'0':'1','important'); // radar live from the start (banana rides still fade it in)
       st.setProperty('transition','opacity 1.4s ease','important'); // …fades in at touchdown
       wrap.appendChild(mc);
     }
@@ -5418,7 +5511,7 @@ function ppBoot(){
         if(!isFinite(pp.jumpY)||!isFinite(pp.vy))bads.push('vert');
         if(!isFinite(cam.position.x+cam.position.y+cam.position.z))bads.push('cam');
         if(bads.length){
-          if(bads.includes('player')){player.position.set(-36,groundAt(-36,16),16)}
+          if(bads.includes('player')){player.position.set(IC.x-14,groundAt(IC.x-14,IC.z+2),IC.z+2)}
           pp.camPitch=0.58;pp.camYaw=0;pp.zoomBoost=0;
           pp.jumpY=isFinite(pp.jumpY)?pp.jumpY:groundAt(player.position.x,player.position.z);
           pp.vy=0;
