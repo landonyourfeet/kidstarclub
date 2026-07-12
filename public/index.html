@@ -1609,8 +1609,11 @@ addEventListener('pointerdown',e=>{
     return;
   }
   if(!__inspect||!window.scene||!window.cam)return;
-  const cv=document.querySelector('.ppwrap canvas.game3d')||document.querySelector('.ppwrap canvas');
-  if(!cv||e.target!==cv)return;
+  const cv=e.target;
+  if(!(cv instanceof HTMLCanvasElement))return;      // must tap the 3D view itself
+  if(!cv.closest('.ppwrap'))return;
+  if(cv.width<220)return;                            // that's the minimap, not the world
+  if(!__insRay||!__insRay.setFromCamera)__insRay=new THREE.Raycaster(); // lazy init after THREE loads
   const r=cv.getBoundingClientRect();
   const nx=((e.clientX-r.left)/r.width)*2-1, ny=-(((e.clientY-r.top)/r.height)*2-1);
   __insRay.setFromCamera({x:nx,y:ny},cam);
@@ -1622,8 +1625,14 @@ addEventListener('pointerdown',e=>{
       const d=document.createElement('div');d.className='pphud';d.style.cssText='z-index:9;top:36%;background:#fff7d6;color:#5a4310;font-size:13px;font-weight:800';
       d.textContent='🔍 '+key+' ('+(PP_MODELS[key]||'?')+')';
       document.querySelector('.ppwrap')?.appendChild(d);setTimeout(()=>d.remove(),4000);
-      break;
+      return;
     }
+  }
+  { // hit something untagged (terrain, sky, procedural) — say so instead of silence
+    const top=hits.find(h2=>h2.object.visible);
+    const d=document.createElement('div');d.className='pphud';d.style.cssText='z-index:9;top:36%;background:#ffe3e3;color:#7a2020;font-size:12px';
+    d.textContent=top?('🔍 untagged: '+(top.object.name||top.object.type)+(top.object.material?.name?' / mat: '+top.object.material.name:'')):'🔍 nothing hit';
+    document.querySelector('.ppwrap')?.appendChild(d);setTimeout(()=>d.remove(),3500);
   }
 },true);
 // ---- 🎙️ IN-GAME VOICE CHAT (WebRTC mesh; server is signaling-only) ----
@@ -2481,7 +2490,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-57';
+const SV_BUILD='SV-58';
 function ppNew(){
   gReset();
   const hero=ppHero();
