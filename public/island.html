@@ -47,7 +47,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD/arrows run · SPACE jump · F/⚔️ attack · E/🎉 emote · ⭐ collect · 🎙️ talk</div>
-<div class="hud" id="tag">ISL-16</div>
+<div class="hud" id="tag">ISL-17</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
@@ -308,7 +308,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-16'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-17'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -928,6 +928,7 @@ function vcNewPeer(id,name){
     au.autoplay=true;au.playsInline=true;au.srcObject=e.streams[0];au.volume=0.82;
     au.style.display='none';document.body.appendChild(au);pr.audio=au;
     au.play().catch(()=>{VC.needsUnlock=true}); // autoplay policy: retry on next tap
+    toast('🔊 Voice connected: '+(pr.name||'friend'));
     try{
       VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
       const src=VC.ctx.createMediaStreamSource(e.streams[0]);
@@ -1012,18 +1013,29 @@ async function voiceToggle(){
         VC.stream=await navigator.mediaDevices.getUserMedia({audio:true});
       }
       toast('🎙️ Mic LIVE — friends can hear you!');
+      for(const tr of VC.stream.getAudioTracks())tr.enabled=true; // open until the gate proves it works
+      VC.lastVoice=performance.now();
       VC.state='live';
       try{ // VAD gate: only transmit while talking (kills same-room echo loops)
         VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
         const src=VC.ctx.createMediaStreamSource(VC.stream);
         VC.meter=VC.ctx.createAnalyser();VC.meter.fftSize=256;src.connect(VC.meter);
+        VC.meterAlive=0;VC.gateBypass=false;
         VC.gateT=setInterval(()=>{
           if(VC.state!=='live'||!VC.stream)return;
+          try{VC.ctx&&VC.ctx.state==='suspended'&&VC.ctx.resume()}catch(e){}
+          if(VC.gateBypass){for(const tr of VC.stream.getAudioTracks())tr.enabled=true;return}
           const buf=new Uint8Array(128);VC.meter.getByteFrequencyData(buf);
           let lvl=0;for(let i=0;i<buf.length;i++)lvl+=buf[i];lvl/=buf.length;
           const now=performance.now();
-          if(lvl>15)VC.lastVoice=now;
-          const open=now-VC.lastVoice<700;
+          if(lvl>1)VC.meterAlive=now;
+          if(now-(VC.meterAlive||0)>4000){ // meter is dead — FAIL OPEN: always transmit, never silence
+            VC.gateBypass=true;
+            for(const tr of VC.stream.getAudioTracks())tr.enabled=true;
+            return;
+          }
+          if(lvl>9)VC.lastVoice=now;
+          const open=now-VC.lastVoice<900;
           for(const tr of VC.stream.getAudioTracks())tr.enabled=open;
         },120);
       }catch(e){}
