@@ -9,8 +9,9 @@
     -webkit-user-select:none;user-select:none;touch-action:none}
   #c{position:fixed;inset:0;width:100%;height:100%;display:block}
   /* ---------- loading / title ---------- */
-  #title{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    background:linear-gradient(180deg,#0c2a52 0%,#1a6aa8 55%,#3ec9b0 100%);color:#fff;text-align:center;transition:opacity .6s}
+  #title{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:5vh;
+    background:linear-gradient(180deg,rgba(12,42,82,.88) 0%,rgba(26,106,168,.42) 45%,rgba(62,201,176,0) 78%);color:#fff;text-align:center;transition:opacity .6s;pointer-events:none}
+  #title h1,#title p,#picker,#playBtn,#loadBar,#loadPct,#hero{pointer-events:auto}
   #title h1{font-size:clamp(34px,8vw,72px);margin:0;letter-spacing:.06em;text-shadow:0 4px 0 rgba(0,0,0,.25)}
   #title p{opacity:.9;margin:10px 0 26px;font-size:15px}
   #playBtn{font-size:20px;font-weight:800;padding:16px 40px;border-radius:999px;border:3px solid #fff;cursor:pointer;
@@ -45,14 +46,16 @@
   <div id="loadBar"><i></i></div><div id="loadPct">0%</div>
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
-<div class="hud" id="hint">WASD/arrows to run · drag to look · SPACE jump · collect ⭐ · tap 🎙️ to talk</div>
-<div class="hud" id="tag">ISL-9</div>
+<div class="hud" id="hint">WASD/arrows run · SPACE jump · F/⚔️ attack · E/🎉 emote · ⭐ collect · 🎙️ talk</div>
+<div class="hud" id="tag">ISL-13</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
 <div id="vchips" style="position:fixed;left:14px;top:108px;z-index:11;display:flex;flex-direction:column;gap:4px;pointer-events:none"></div>
 <div id="joy"><i></i></div>
-<button id="emote" style="position:fixed;right:26px;bottom:124px;z-index:11;width:60px;height:60px;border-radius:50%;border:2px solid #fff;background:rgba(157,92,255,.85);font-size:26px">🎉</button>
+<button id="emote" style="position:fixed;right:26px;bottom:124px;z-index:11;width:56px;height:56px;border-radius:50%;border:2px solid #fff;background:rgba(157,92,255,.85);font-size:24px">🎉</button>
+<button id="atk" style="position:fixed;right:108px;bottom:44px;z-index:11;width:74px;height:74px;border-radius:50%;border:3px solid #fff;background:rgba(232,72,63,.9);font-size:32px">⚔️</button>
+<div class="hud" id="hearts" style="left:14px;top:158px;font-size:20px;text-shadow:0 2px 2px rgba(0,0,0,.4)">❤️❤️❤️</div>
 <div id="jump">⬆︎</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -82,8 +85,8 @@ renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
 const scene=new THREE.Scene();
-scene.fog=new THREE.FogExp2(lin(0xaad6f2),0.0038); // tropical haze (key-art softness)
-const cam=new THREE.PerspectiveCamera(50,1,0.1,900);
+scene.fog=new THREE.FogExp2(lin(0xaad6f2),0.0019); // tropical haze (key-art softness)
+const cam=new THREE.PerspectiveCamera(50,1,0.1,1600);
 
 function resize(){
   const w=innerWidth,h=innerHeight;
@@ -97,8 +100,8 @@ const sun=new THREE.DirectionalLight(lin(0xffe2a8),1.05);
 sun.position.set(60,90,40);
 sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
-sun.shadow.camera.left=-120;sun.shadow.camera.right=120;
-sun.shadow.camera.top=120;sun.shadow.camera.bottom=-120;
+sun.shadow.camera.left=-200;sun.shadow.camera.right=200;
+sun.shadow.camera.top=200;sun.shadow.camera.bottom=-200;
 sun.shadow.camera.far=400;sun.shadow.bias=-0.0006;
 const hemi=new THREE.HemisphereLight(lin(0x9ecfff),lin(0x3e7a36),0.5);
 scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
@@ -133,27 +136,27 @@ scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
 /* ============================================================
    THE ISLAND · heightfield (lobed coast, volcano, terrace)
    ============================================================ */
-const IC={x:0,z:0,R:78};
-const VOLC={x:8,z:-44,R:20,H:24};
-function isleR(a){return IC.R+Math.sin(a*3+1.2)*8+Math.sin(a*7+0.5)*3.5}
+const IC={x:0,z:0,R:156}; // 4x the island, same soul
+const VOLC={x:16,z:-88,R:36,H:34};
+function isleR(a){return IC.R+Math.sin(a*3+1.2)*16+Math.sin(a*7+0.5)*7}
 function groundAt(x,z){
   const dx=x-IC.x,dz=z-IC.z,d=Math.hypot(dx,dz);
   let h=0;
   if(d<IC.R+14){
     const R=isleR(Math.atan2(dz,dx));
     if(d<R){
-      h=Math.max(0.15,3.4*(1-Math.pow(d/R,1.6)));           // gentle dome
-      if(dz<-4&&dx>-14){                                     // NE jungle terrace
-        const s=Math.min(1,Math.max(0,(40-d)/4))*Math.min(1,Math.max(0,(d-24)/4));
-        h=Math.max(h,3.2+s*2.4);
+      h=Math.max(0.15,4.2*(1-Math.pow(d/R,1.6)));           // gentle dome
+      if(dz<-8&&dx>-28){                                     // NE jungle terrace
+        const s=Math.min(1,Math.max(0,(80-d)/8))*Math.min(1,Math.max(0,(d-48)/8));
+        h=Math.max(h,4.0+s*3.0);
       }
-      if(d>R-11)h*=Math.max(.06,(R-d)/11);                   // beach taper
+      if(d>R-22)h*=Math.max(.06,(R-d)/22);                   // beach taper
     }
   }
   const vd=Math.hypot(x-VOLC.x,z-VOLC.z);                    // the volcano
   if(vd<VOLC.R){
     const t=1-vd/VOLC.R;
-    h=Math.max(h,Math.pow(t,1.35)*VOLC.H*(vd<3.4?0.86:1));   // crater dip at the top
+    h=Math.max(h,Math.pow(t,1.35)*VOLC.H*(vd<6?0.86:1));   // crater dip at the top
   }
   return h;
 }
@@ -161,7 +164,7 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
 
 /* ---------- island mesh with painted vertex colours ---------- */
 {
-  const S=200,SEG=110;
+  const S=400,SEG=150;
   const g=new THREE.PlaneGeometry(S,S,SEG,SEG);
   g.rotateX(-Math.PI/2);
   const pos=g.attributes.position;
@@ -191,7 +194,7 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
 /* ---------- the sea: depth-gradient, gentle swell, shore foam ---------- */
 let ocean,oceanPos,oceanPhase;
 {
-  const g=new THREE.PlaneGeometry(1400,1400,90,90);
+  const g=new THREE.PlaneGeometry(2400,2400,110,110);
   g.rotateX(-Math.PI/2);
   oceanPos=g.attributes.position;
   oceanPhase=new Float32Array(oceanPos.count);
@@ -201,7 +204,7 @@ let ocean,oceanPos,oceanPhase;
     const x=oceanPos.getX(i),z=oceanPos.getZ(i);
     const R=isleR(Math.atan2(z-IC.z,x-IC.x));
     const dd=Math.max(0,Math.hypot(x-IC.x,z-IC.z)-R);
-    c.copy(shallow).lerp(deep,Math.pow(Math.min(1,dd/34),0.72));
+    c.copy(shallow).lerp(deep,Math.pow(Math.min(1,dd/58),0.72));
     cols[i*3]=c.r;cols[i*3+1]=c.g;cols[i*3+2]=c.b;
     oceanPhase[i]=Math.random()*6.28;
   }
@@ -234,7 +237,7 @@ let ocean,oceanPos,oceanPhase;
   ocean.position.y=0.42;
   scene.add(ocean);
   // seabed
-  const bed=new THREE.Mesh(new THREE.PlaneGeometry(1400,1400),
+  const bed=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),
     new THREE.MeshLambertMaterial({color:lin(0xd9c08c)}));
   bed.rotation.x=-Math.PI/2;bed.position.y=-0.7;scene.add(bed);
   // foam ring following the lobed shoreline
@@ -283,12 +286,13 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-9'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-13'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
   bush:'Bush_1.glb',flowers:'Flowers.glb',grass:'Grass.glb',
   rock1:'Rock_1.glb',rock2:'Rock_Moss_1.glb',
+  kkSkel:'kk_skel.glb',
   kkKnight:'kk_knight.glb',kkBarb:'kk_barb.glb',kkMage:'kk_mage.glb',kkRogue:'kk_rogue.glb',kkHood:'kk_hood.glb',
   shiba:'animals_pack_ShibaInu.glb',
   deer:'Deer.glb',stag:'Stag.glb',flamingo:'hero_flamingo.glb',
@@ -410,7 +414,9 @@ function nativeActions(root,anims){ // Quaternius clips ship inside the GLB — 
   }
   const prefer={Idle:['Idle','Unarmed_Idle'],Walk:['Walking_A','Walk','Walking_B'],
     Run:['Running_A','Run','Running_B'],Jump:['Jump_Full_Short','Jump_Full_Long','Jump'],
-    Cheer:['Cheer'],Sit:['Sit_Floor_Idle'],Magic:['Spellcast_Shoot','Spellcasting','Interact']};
+    Cheer:['Cheer'],Sit:['Sit_Floor_Idle'],Magic:['Spellcast_Shoot','Spellcasting','Interact'],
+    Attack:['1H_Melee_Attack_Slice_Diagonal','2H_Melee_Attack_Chop','1H_Melee_Attack_Stab','1H_Melee_Attack_Chop','Spellcast_Shoot'],
+    Hit:['Hit_A','Hit_B'],Down:['Death_A']};
   for(const want in prefer){
     for(const cand of prefer[want])if(byName[cand]){acts[want]=byName[cand];break}
     if(!acts[want])for(const k in byName)if(k.includes(want)){acts[want]=byName[k];break}
@@ -620,58 +626,63 @@ function tickCritters(dt){
    ============================================================ */
 function buildWorld(){
   // 🌴 palm rings on every beach (procedural — the signature silhouette)
-  for(let i=0;i<30;i++){
+  for(let i=0;i<70;i++){
     const a=Math.random()*6.28,R=isleR(a);
-    const r=R-5-Math.random()*8;
+    const r=R-8-Math.random()*16;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.3)continue;
     putPalm(x,z,5.5+Math.random()*3.5);
   }
   // 🌳 jungle interior: the proven CC0 canopy
-  for(let i=0;i<34;i++){
-    const a=Math.random()*6.28,r=12+Math.random()*40;
+  for(let i=0;i<85;i++){
+    const a=Math.random()*6.28,r=20+Math.random()*88;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.9)continue;
     if(Math.hypot(x-VOLC.x,z-VOLC.z)<10)continue;
     put(['tree1','tree2','tree3','birch','willow'][i%5],x,z,6+Math.random()*3.5);
   }
   // pines climb the terrace + volcano skirt
-  for(let i=0;i<10;i++){
-    const a=Math.random()*6.28,r=18+Math.random()*20;
+  for(let i=0;i<24;i++){
+    const a=Math.random()*6.28,r=30+Math.random()*36;
     const x=VOLC.x+Math.cos(a)*r,z=VOLC.z+Math.sin(a)*r;
     const g=groundAt(x,z);
     if(g<2.4||g>9)continue;
     put(i%2?'pine1':'pine2',x,z,5+Math.random()*3);
   }
   // 🌿 undergrowth: bushes, flowers, grass tufts
-  for(let i=0;i<80;i++){
-    const a=Math.random()*6.28,r=8+Math.random()*56;
+  for(let i=0;i<180;i++){
+    const a=Math.random()*6.28,r=14+Math.random()*126;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.8)continue;
     put(['bush','flowers','grass','grass','flowers'][i%5],x,z,0.8+Math.random()*0.9);
   }
   // 🪨 boulders
-  for(let i=0;i<16;i++){
-    const a=Math.random()*6.28,r=14+Math.random()*46;
+  for(let i=0;i<36;i++){
+    const a=Math.random()*6.28,r=24+Math.random()*104;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.6)continue;
     put(i%2?'rock1':'rock2',x,z,1+Math.random()*2.2);
   }
   // 🪸 reef gardens in the shallows
-  for(let i=0;i<36;i++){
+  for(let i=0;i<80;i++){
     const a=Math.random()*6.28,R=isleR(a);
-    const r=R+2+Math.random()*13;
+    const r=R+3+Math.random()*24;
     putCoral(IC.x+Math.cos(a)*r,IC.z+Math.sin(a)*r,0.8+Math.random()*1.1);
   }
   // 🏝️ the cove story set — all hand-made
-  makeDock(-46,32,2.1);
-  makeBoat(-51,40,1.0);
-  makeWhaleBones(26,64,-0.6);
+  makeDock(-92,64,2.1);
+  makeBoat(-100,78,1.0);
+  makeWhaleBones(52,128,-0.6);
+  // ☠️ skeleton raiders haunt the shipwreck cove — first swords to cross!
+  addSkel(-24,116);addSkel(-36,124);addSkel(-16,128);
   // 🦌 the islanders: deer family + a stag + a flamingo by the water
-  addCritter('deer',18,26,1.5);
-  addCritter('deer',22,30,1.4);
-  addCritter('stag',26,24,1.9);
-  const fl=addCritter('flamingo',-30,52,1.6);
+  addCritter('deer',36,52,1.5);
+  addCritter('deer',44,60,1.4);
+  addCritter('deer',-60,-40,1.45);
+  addCritter('stag',52,48,1.9);
+  addCritter('stag',-70,20,1.9);
+  addCritter('flamingo',-60,104,1.6);
+  addCritter('flamingo',96,60,1.6);
   // 🐕 your Shiba comes along
   buddy=addCritter('shiba',P.x+2,P.z+2,0.85);
   if(buddy)buddy.isBuddy=true;
@@ -686,7 +697,7 @@ const starGeo=new THREE.OctahedronGeometry(0.55);
 const starMat=new THREE.MeshLambertMaterial({color:lin(0xffd94d),emissive:lin(0x8a5f00)});
 function starSpot(){
   for(let t=0;t<40;t++){
-    const a=Math.random()*6.28,r=8+Math.random()*62;
+    const a=Math.random()*6.28,r=14+Math.random()*136;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     const g=groundAt(x,z);
     if(g>0.3&&Math.hypot(x-VOLC.x,z-VOLC.z)>7)return {x,z,g};
@@ -700,7 +711,7 @@ function makeStar(){
   m.userData.spin=0.6+Math.random();
   scene.add(m);stars.push(m);
 }
-for(let i=0;i<40;i++)makeStar();
+for(let i=0;i<80;i++)makeStar();
 let sndCtx=null;
 function ping(){
   try{
@@ -777,7 +788,14 @@ async function presenceTick(){
       let rm=remotes.get(o.name);
       if(rm&&rm.hero!==o.hero){scene.remove(rm.root);remotes.delete(o.name);rm=null}
       if(!rm){rm=spawnRemote(o);if(!rm)continue;remotes.set(o.name,rm)}
-      rm.tx=o.x;rm.tz=o.z;rm.ty=o.y||0;rm.tr=o.ry||0;rm.last=performance.now();
+      { // snapshot interpolation: glide between updates instead of sprint-and-freeze
+        const now3=performance.now();
+        rm.fx=rm.root.position.x;rm.fz=rm.root.position.z;
+        rm.gx=o.x;rm.gz=o.z;rm.ty=o.y||0;rm.tr=o.ry||0;
+        rm.dur=Math.min(1900,Math.max(500,now3-(rm.last||now3-1200)));
+        rm.t0=now3;rm.last=now3;
+        rm.spd=Math.hypot(rm.gx-rm.fx,rm.gz-rm.fz)/(rm.dur/1000);
+      }
     }
     for(const [nm,rm] of remotes)
       if(!seen.has(nm)&&performance.now()-rm.last>12000){scene.remove(rm.root);remotes.delete(nm)}
@@ -785,14 +803,17 @@ async function presenceTick(){
 }
 setInterval(presenceTick,1200);
 function tickRemotes(dt){
+  const now3=performance.now();
   for(const rm of remotes.values()){
-    const dx=rm.tx-rm.root.position.x,dz=rm.tz-rm.root.position.z;
-    const dist=Math.hypot(dx,dz);
-    const k=Math.min(1,dt*6);
-    rm.root.position.x+=dx*k;rm.root.position.z+=dz*k;
+    if(rm.t0){ // constant-velocity glide across the update window
+      const k=Math.min(1.15,(now3-rm.t0)/rm.dur); // slight overshoot window extrapolates through late packets
+      rm.root.position.x=rm.fx+(rm.gx-rm.fx)*k;
+      rm.root.position.z=rm.fz+(rm.gz-rm.fz)*k;
+    }
     rm.root.position.y=groundAt(rm.root.position.x,rm.root.position.z)+(rm.ty||0);
-    rm.root.rotation.y+=(((rm.tr-rm.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*k;
-    remoteAnim(rm,dist>2.4?'Run':dist>0.25?'Walk':'Idle');
+    rm.root.rotation.y+=(((rm.tr-rm.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*7);
+    const spd=rm.spd||0;
+    remoteAnim(rm,spd>6?'Run':spd>0.4?'Walk':'Idle');
     rm.mixer&&rm.mixer.update(dt);
   }
 }
@@ -801,7 +822,13 @@ function tickRemotes(dt){
    🎙️ VOICE · WebRTC mesh over the club's signaling mailbox
    states: off → live (green) → muted (tap=leave · hold=unmute) · listen
    ============================================================ */
-const VC={state:'off',peers:new Map(),stream:null,timer:null,gateT:null,ctx:null,meter:null,lastVoice:0};
+const VC={state:'off',peers:new Map(),stream:null,timer:null,gateT:null,ctx:null,meter:null,lastVoice:0,needsUnlock:false};
+addEventListener('pointerdown',()=>{ // any tap unlocks blocked audio (browser autoplay policy)
+  try{VC.ctx&&VC.ctx.state==='suspended'&&VC.ctx.resume()}catch(e){}
+  if(!VC.needsUnlock)return;
+  VC.needsUnlock=false;
+  for(const pr of VC.peers.values())pr.audio&&pr.audio.play().catch(()=>{VC.needsUnlock=true});
+},true);
 const micBtn=document.getElementById('mic'),chipsEl=document.getElementById('vchips');
 function vcUI(){
   micBtn.textContent=VC.state==='live'?'🎙️':VC.state==='muted'?'🔇':VC.state==='listen'?'🎧':'🎙️';
@@ -828,6 +855,7 @@ function vcNewPeer(id,name){
     const au=document.createElement('audio');
     au.autoplay=true;au.playsInline=true;au.srcObject=e.streams[0];au.volume=0.82;
     au.style.display='none';document.body.appendChild(au);pr.audio=au;
+    au.play().catch(()=>{VC.needsUnlock=true}); // autoplay policy: retry on next tap
     try{
       VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
       const src=VC.ctx.createMediaStreamSource(e.streams[0]);
@@ -957,6 +985,8 @@ addEventListener('keydown',e=>{keys[normKey(e.key)]=true;if(e.key===' '||e.key.s
 addEventListener('keyup',e=>{keys[normKey(e.key)]=false});
 let camYaw=2.6,camPitch=0.32,camDist=9.5,dragId=null,lx=0,ly=0;
 let slopeTilt=0,lookReleasedAt=0;
+let smBoom=9.5,smLead=0,followRamp=0;
+const lookTarget=new THREE.Vector3(0,2,20);
 let pinchId2=null,pinchD0=0,pinchDist0=0;
 addEventListener('wheel',e=>{camDist=Math.max(5.5,Math.min(16,camDist+e.deltaY*0.01))},{passive:true});
 let joyId=null,jx=0,jy=0;
@@ -1010,16 +1040,138 @@ document.getElementById('emote').addEventListener('pointerdown',e=>{
 addEventListener('keydown',e=>{if(e.key==='e'||e.key==='E')document.getElementById('emote').dispatchEvent(new Event('pointerdown'))});
 
 /* ============================================================
+   ⚔️ STAR DUELS · phase 1: class attacks + skeleton raiders
+   defeat = a burst of stars, never anything scary
+   ============================================================ */
+let hearts=3,attackUntil=0,hurtUntil=0,downUntil=0;
+function heartsUI(){document.getElementById('hearts').textContent=hearts>0?'❤️'.repeat(hearts):'💫'}
+function starBurst(x,y,z,n){
+  for(let i=0;i<n;i++){
+    const st=new THREE.Mesh(starGeo,starMat);
+    st.position.set(x,y,z);st.scale.setScalar(0.5);
+    st.userData.vx=(Math.random()-0.5)*7;st.userData.vy=4+Math.random()*4;st.userData.vz=(Math.random()-0.5)*7;
+    st.userData.burst=1.4;
+    scene.add(st);bursts.push(st);
+  }
+}
+const bursts=[];
+function tickBursts(dt){
+  for(let i=bursts.length-1;i>=0;i--){
+    const b=bursts[i];
+    b.userData.vy-=14*dt;
+    b.position.x+=b.userData.vx*dt;b.position.y+=b.userData.vy*dt;b.position.z+=b.userData.vz*dt;
+    b.rotation.y+=dt*7;b.userData.burst-=dt;
+    if(b.userData.burst<=0||b.position.y<0){scene.remove(b);bursts.splice(i,1)}
+  }
+}
+/* skeleton raiders haunt the shipwreck */
+const skels=[];
+function addSkel(x,z){
+  const root=spawn(FILES.kkSkel,1.8);
+  if(!root)return;
+  root.position.set(x,groundAt(x,z),z);
+  const na=nativeActions(root.userData.inner,assets[FILES.kkSkel].animations);
+  root.traverse(m=>{if(m.isMesh)m.castShadow=true});
+  scene.add(root);
+  skels.push({root,...na,cur:null,hp:2,home:{x,z},atkCd:0,hitFlash:0,state:'idle'});
+}
+function skAnim(sk,name){
+  if(sk.cur===name||!sk.acts[name])return;
+  if(sk.cur&&sk.acts[sk.cur])sk.acts[sk.cur].fadeOut(0.15);
+  sk.acts[name].reset().fadeIn(0.15).play();
+  sk.cur=name;
+}
+function tickSkels(dt){
+  for(let i=skels.length-1;i>=0;i--){
+    const sk=skels[i];
+    const dx=P.x-sk.root.position.x,dz=P.z-sk.root.position.z;
+    const dist=Math.hypot(dx,dz);
+    sk.atkCd=Math.max(0,sk.atkCd-dt);
+    if(sk.hitFlash>0){sk.hitFlash-=dt}
+    if(dist<14&&dist>1.9&&downUntil<performance.now()){ // stalk the hero
+      const ny=Math.atan2(dx,dz);
+      sk.root.rotation.y+=(((ny-sk.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*6);
+      sk.root.position.x+=Math.sin(ny)*2.2*dt;
+      sk.root.position.z+=Math.cos(ny)*2.2*dt;
+      skAnim(sk,'Walk');
+    }else if(dist<=1.9&&sk.atkCd<=0&&downUntil<performance.now()){ // bonk!
+      skAnim(sk,'Attack');sk.atkCd=1.6;
+      setTimeout(()=>{
+        if(Math.hypot(P.x-sk.root.position.x,P.z-sk.root.position.z)<2.4)playerHurt();
+      },420);
+    }else if(sk.cur!=='Attack'||sk.atkCd<1.1){
+      skAnim(sk,'Idle');
+    }
+    sk.root.position.y=groundAt(sk.root.position.x,sk.root.position.z);
+    sk.mixer.update(dt);
+  }
+}
+function playerHurt(){
+  if(performance.now()<hurtUntil||performance.now()<downUntil)return;
+  hearts--;heartsUI();hurtUntil=performance.now()+900;
+  playAnim('Hit',0.08);ping();
+  if(hearts<=0){ // burst into stars, respawn on the beach
+    downUntil=performance.now()+2600;
+    starBurst(P.x,groundAt(P.x,P.z)+1.2,P.z,Math.min(6,starCount));
+    starCount=Math.max(0,starCount-3);
+    document.getElementById('stars').textContent='⭐ '+starCount;
+    playAnim('Down',0.1);
+    setTimeout(()=>{
+      P.x=-60;P.z=88;hearts=3;heartsUI();playAnim('Idle',0.1);
+    },2500);
+  }
+}
+function doAttack(){
+  const now=performance.now();
+  if(now<attackUntil||now<downUntil)return;
+  attackUntil=now+700;
+  playAnim('Attack',0.07);
+  setTimeout(()=>{ // the swing lands mid-animation
+    const fx=Math.sin(P.yaw),fz=Math.cos(P.yaw);
+    for(const sk of skels){
+      const dx=sk.root.position.x-P.x,dz=sk.root.position.z-P.z;
+      const d=Math.hypot(dx,dz);
+      if(d<2.6&&(dx*fx+dz*fz)/Math.max(0.01,d)>0.35){
+        sk.hp--;sk.hitFlash=0.3;ping();
+        // knockback
+        sk.root.position.x+=fx*1.2;sk.root.position.z+=fz*1.2;
+        if(sk.hp<=0){
+          starBurst(sk.root.position.x,sk.root.position.y+1.2,sk.root.position.z,4);
+          for(let k=0;k<2;k++)setTimeout(makeStar,400*k); // loot!
+          scene.remove(sk.root);
+          skels.splice(skels.indexOf(sk),1);
+          setTimeout(()=>addSkel(-28+Math.random()*16,116+Math.random()*20),15000); // a new raider rises
+        }else skAnim(sk,'Hit');
+      }
+    }
+  },260);
+}
+document.getElementById('atk').addEventListener('pointerdown',e=>{e.stopPropagation();doAttack()});
+addEventListener('keydown',e=>{if(e.key==='f'||e.key==='F'||e.key==='Enter')doAttack()});
+
+/* ============================================================
    GAME STATE + MAIN LOOP
    ============================================================ */
-const P={x:-30,z:44,vy:0,air:0,yaw:0};   // spawn on the cove beach by the dock
+const P={x:-60,z:88,vy:0,air:0,yaw:0};   // spawn on the cove beach by the dock
 let started=false,last=performance.now();
 
+let lobby=false;
 function loop(){
   requestAnimationFrame(loop);
   const now=performance.now();
   const dt=Math.min(0.05,(now-last)/1000);last=now;
-  if(!started)return;
+  if(!started){
+    if(lobby&&player){ // 🎭 hero showcase: the world is the backdrop, your pick struts on the beach
+      mixer&&mixer.update(dt);
+      const orb=now/1000*0.35;
+      const ox=P.x+Math.sin(orb)*6.5, oz=P.z+Math.cos(orb)*6.5;
+      cam.position.lerp(new THREE.Vector3(ox,groundAt(P.x,P.z)+2.6,oz),Math.min(1,dt*4));
+      cam.lookAt(P.x,groundAt(P.x,P.z)+1.3,P.z);
+      player.position.set(P.x,groundAt(P.x,P.z),P.z);
+      renderer.render(scene,cam);
+    }
+    return;
+  }
 
   // input vector (keys or joystick), camera-relative
   let ix=(keys.d?1:0)-(keys.a?1:0)+jx;
@@ -1051,25 +1203,32 @@ function loop(){
   player.position.set(P.x,py,P.z);
   player.rotation.y+=(((P.yaw-player.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*10);
   // animation state
-  const emoting=performance.now()<emoteUntil&&mag<0.05&&P.air<=0.05;
-  if(P.air>0.05)playAnim('Jump',0.08);
-  else if(mag>0.85)playAnim('Run');
-  else if(mag>0.05)playAnim('Walk');
-  else if(!emoting)playAnim('Idle');
+  const now2=performance.now();
+  const emoting=now2<emoteUntil&&mag<0.05&&P.air<=0.05;
+  const fighting=now2<attackUntil||now2<hurtUntil||now2<downUntil;
+  if(!fighting){
+    if(P.air>0.05)playAnim('Jump',0.08);
+    else if(mag>0.85)playAnim('Run');
+    else if(mag>0.05)playAnim('Walk');
+    else if(!emoting)playAnim('Idle');
+  }
   mixer&&mixer.update(dt);
 
   // 🎥 follow-camera brain: swing behind on direction change · flow back after free-look · tilt on slopes
   {
     const lookHeld=dragId!==null;
     const easeAng=(from,to,k)=>from+(((to-from+Math.PI*3)%(Math.PI*2))-Math.PI)*k;
-    if(!lookHeld){
-      // flow back behind the hero — faster while running, gentle when idle,
-      // with a short grace period after releasing free-look so it feels intentional
+    {
+      // flow back behind the hero — rate ramps in softly, angular speed capped
       const since=performance.now()-lookReleasedAt;
       const grace=mag>0.05?0:600;
-      if(since>grace){
-        const rate=mag>0.85?3.2:mag>0.05?2.4:1.2;
-        camYaw=easeAng(camYaw,P.yaw,Math.min(1,dt*rate));
+      if(since>grace)followRamp=Math.min(1,followRamp+dt*2.2); // rate fades in — no kick
+      else followRamp=0;
+      if(followRamp>0&&!lookHeld){
+        const rate=(mag>0.85?3.0:mag>0.05?2.2:1.1)*followRamp;
+        const step=(((P.yaw-camYaw+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*rate);
+        const cap=2.6*dt; // angular speed ceiling: hard reversals sweep, never snap
+        camYaw+=Math.max(-cap,Math.min(cap,step));
       }
     }
     // slope tilt: look up hills you're climbing, down slopes you're descending
@@ -1091,12 +1250,17 @@ function loop(){
       if(g+0.9>sy){boom=Math.min(boom,camDist*tt-0.6);}
     }
     boom=Math.max(3.4,boom);
-    let cx=P.x+dirX*boom, cz=P.z+dirZ*boom;
-    let cy=py+1.7+(ch-1.7)*(boom/camDist);
+    smBoom+=(boom-smBoom)*Math.min(1,dt*(boom<smBoom?11:2.6)); // in fast (no clipping) · out slow (no lurch)
+    let cx=P.x+dirX*smBoom, cz=P.z+dirZ*smBoom;
+    let cy=py+1.7+(ch-1.7)*(smBoom/camDist);
     cy=Math.max(cy,groundAt(cx,cz)+1.5);
-    cam.position.lerp(new THREE.Vector3(cx,cy,cz),Math.min(1,dt*8));
-    const lead=mag>0.05?1.8:0;
-    cam.lookAt(P.x+Math.sin(P.yaw)*lead,py+1.7+slopeTilt*3,P.z+Math.cos(P.yaw)*lead);
+    cam.position.lerp(new THREE.Vector3(cx,cy,cz),Math.min(1,dt*6.5));
+    smLead+=((mag>0.05?1.8:0)-smLead)*Math.min(1,dt*3.5);
+    lookTarget.lerp(new THREE.Vector3(
+      P.x+Math.sin(P.yaw)*smLead,
+      py+1.7+slopeTilt*3,
+      P.z+Math.cos(P.yaw)*smLead),Math.min(1,dt*9));
+    cam.lookAt(lookTarget);
   }
 
   // world life
@@ -1115,6 +1279,8 @@ function loop(){
   tickStars(dt,t);
   tickRemotes(dt);
   tickCritters(dt);
+  tickSkels(dt);
+  tickBursts(dt);
 
   renderer.render(scene,cam);
 }
@@ -1140,6 +1306,7 @@ loadAll((n,total)=>{
     playAnim('Idle');
   };
   swapHero();
+  lobby=true; // lights, camera — the showcase begins
   pct.textContent='ready!';
   { // build the hero picker
     const pk=document.getElementById('picker');
