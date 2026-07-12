@@ -685,6 +685,20 @@ app.post('/api/park/talk', requireUser, async (req, res) => {
 
 const parkPresence=new Map(); // userId -> {name,x,z,ry,hero,cfg,ts}
 const islandHits=new Map();   // targetName -> [{from,dmg,ts}] — STAR DUELS hit relay
+const islandEvents=[];        // broadcast feed: score celebrations, explosions
+let islandEventId=1;
+app.post('/api/island/event', requireUser, (req, res) => {
+  const kind=['swish','boom'].includes(req.body?.kind)?req.body.kind:null;
+  if(!kind)return res.json({ok:false});
+  const from=(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30);
+  islandEvents.push({id:islandEventId++,kind,from,
+    pts:Math.max(0,Math.min(50,parseInt(req.body?.pts,10)||0)),
+    x:Math.max(-600,Math.min(600,Number(req.body?.x)||0)),
+    z:Math.max(-600,Math.min(600,Number(req.body?.z)||0)),
+    ts:Date.now()});
+  while(islandEvents.length>40)islandEvents.shift();
+  res.json({ok:true});
+});
 app.post('/api/island/hit', requireUser, (req, res) => {
   const to=String(req.body?.to||'').slice(0,30);
   const dmg=Math.max(1,Math.min(3,parseInt(req.body?.dmg,10)||1));
@@ -711,6 +725,16 @@ app.post('/api/park/pos', requireUser, (req, res) => {
     y:Math.max(0,Math.min(80,parseFloat(b.y)||0)),
     hero:String(b.hero||'custom').slice(0,20), cfg:safeCfg, ts:Date.now(),
     game:b.game==='island'?'island':'classic',
+    ball:(b.ball&&typeof b.ball==='object')?{
+      m:['carried','flying'].includes(b.ball.m)?b.ball.m:null,
+      x:Math.max(-600,Math.min(600,Number(b.ball.x)||0)),
+      y:Math.max(0,Math.min(120,Number(b.ball.y)||0)),
+      z:Math.max(-600,Math.min(600,Number(b.ball.z)||0)),
+      vx:Math.max(-60,Math.min(60,Number(b.ball.vx)||0)),
+      vy:Math.max(-60,Math.min(60,Number(b.ball.vy)||0)),
+      vz:Math.max(-60,Math.min(60,Number(b.ball.vz)||0)),
+      t:Date.now(),
+    }:null,
   });
   const now=Date.now(), others=[];
   const myName=(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30);
@@ -720,7 +744,9 @@ app.post('/api/park/pos', requireUser, (req, res) => {
     if(now-p2.ts>8000){parkPresence.delete(id);continue}
     if(id!==req.user.id)others.push({id,...p2});
   }
-  res.json({others,you:myName,hits:myHits});
+  const evAfter=parseInt(req.body?.evAfter,10)||0;
+  const events=islandEvents.filter(e=>e.id>evAfter&&Date.now()-e.ts<8000);
+  res.json({others,you:myName,hits:myHits,events});
 });
 app.get('/api/chat/mymentions', requireUser, async (req, res) => {
   const me='@'+String(req.user.display_name||'').toLowerCase();
