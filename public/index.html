@@ -2451,7 +2451,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-46';
+const SV_BUILD='SV-49';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2513,7 +2513,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">🏝️ You wake in STARHAVEN on the tropical Isle — meet the King, then cross the great bridge to the mainland: downtown city, desert, canyons & moon base! Desert, canyons, moon base, Chompy waves 👾, day & night 🌙. Friends join your world 🧑‍🤝‍🧑 <span style="opacity:.4">${SV_BUILD}</span></p>
+    <p class="sbhint">🏝️ You wake in STARHAVEN on the volcano Isle — surf, reefs & jungle! Cross the great bridge to the seafront downtown, castle kingdom & canyons. Desert, canyons, moon base, Chompy waves 👾, day & night 🌙. Friends join your world 🧑‍🤝‍🧑 <span style="opacity:.4">${SV_BUILD}</span></p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2538,7 +2538,7 @@ async function ppLoadAssets(onProgress){
             const nm=(mm.name||'').toLowerCase();
             if(f.startsWith('trp_')&&/leaf|palm|fern|flower|bush|frond/.test(nm)){mm.side=THREE.DoubleSide;if(mm.map)mm.alphaTest=0.35}
             if(!mm.map&&mm.color){
-              if(/leaf|palm|fern|flower|bush|frond|lambert/.test(nm))mm.color.setHex(0x4fae4a);
+              if(/leaf|palm|fern|flower|bush|frond|lambert|tree|foliage|leaves|plant/.test(nm))mm.color.setHex(0x3f9e46);
               else if(/bark|trunk|wood/.test(nm))mm.color.setHex(0x7a5a3a);
             }
           }
@@ -2696,12 +2696,12 @@ function ppBoot(){
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.outputEncoding=THREE.sRGBEncoding;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.03;
+  renderer.toneMappingExposure=1.0;
   renderer.setClearColor(0x87d8ff,1); // sky, not black, while the world loads
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
-  scene.fog=new THREE.Fog(0xbfe3ff,130,560);
-  const cam=new THREE.PerspectiveCamera(55,1,0.1,1000);
+  scene.fog=new THREE.Fog(0xcfe9ff,320,1500); // sized for the big world — distance stays SATURATED
+  const cam=new THREE.PerspectiveCamera(55,1,0.1,1700);
   // ✨ post stack: filmic bloom (emissives glow — the Great Star, crystals, bolts, neon skins)
   let fx=null;
   try{
@@ -2723,7 +2723,7 @@ function ppBoot(){
     const cv=document.createElement('canvas');cv.width=32;cv.height=256;
     const g2=cv.getContext('2d');
     const gr=g2.createLinearGradient(0,0,0,256);
-    gr.addColorStop(0,'#2f8fff');gr.addColorStop(.55,'#8cc8ff');gr.addColorStop(1,'#dff0ff');
+    gr.addColorStop(0,'#1f7dfa');gr.addColorStop(.55,'#7cc0ff');gr.addColorStop(1,'#dcefff');
     g2.fillStyle=gr;g2.fillRect(0,0,32,256);
     const skyTex=new THREE.CanvasTexture(cv);skyTex.encoding=THREE.sRGBEncoding;
     window.__skyMat=new THREE.MeshBasicMaterial({map:skyTex,side:THREE.BackSide,fog:false});
@@ -2767,32 +2767,54 @@ function ppBoot(){
   const hemi=new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9);
   scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.1));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
-  const B=600, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  const B=400, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
   // 🏝️ THE FANTASY ISLE: an island kingdom across the eastern sea
-  const OCEAN_X=452, IC={x:548,z:8,R:72};
+  const OCEAN_X=74, IC={x:170,z:8,R:72}; // the sea begins at the downtown boardwalk
+  const ISLETS=[ // little sister islands off the south coast (heli hops!)
+    {x:IC.x-44,z:IC.z+56,R:13,h:1.9},
+    {x:IC.x+50,z:IC.z+50,R:9,h:1.5},
+  ];
+  function isleR(ax){ // lobed coastline: bays and headlands instead of a perfect circle
+    return IC.R + Math.sin(ax*3+1.2)*7 + Math.sin(ax*7+0.5)*3;
+  }
   function islandAt(x,z){
-    const d=Math.hypot(x-IC.x,z-IC.z);
-    if(d>IC.R)return 0;
-    if(d<26)return 3;                                 // the city plateau
-    if(d<45)return 3+ (1-(d-26)/19)*0 + Math.max(0,Math.sin((45-d)/19*Math.PI))*1.1; // rolling shoulder
-    return Math.max(0.15,3*(1-(d-45)/(IC.R-45)))*(d<58?1:Math.max(0.08,(IC.R-d)/(IC.R-58)*0.4+0.1)); // beach taper
+    const dx=x-IC.x, dz=z-IC.z, d=Math.hypot(dx,dz);
+    let h=0;
+    if(d<IC.R+12){
+      const R=isleR(Math.atan2(dz,dx));
+      if(d<R){
+        if(d<26)h=3;                                  // the city plateau
+        else if(d<45)h=3+Math.max(0,Math.sin((45-d)/19*Math.PI))*1.1;
+        else h=Math.max(0.12,3*(1-(d-45)/Math.max(6,R-45)))*(d<R-14?1:Math.max(0.08,(R-d)/14*0.5+0.08));
+        // 🪨 terraced jungle shelf on the north-east quarter (ramped, climbable)
+        if(dz<-6&&dx>-10){
+          const shelf=Math.min(1,Math.max(0,(38-d)/3))*Math.min(1,Math.max(0,(d-27)/3));
+          h=Math.max(h,3+shelf*2.6);
+        }
+      }
+    }
+    for(const il of ISLETS){
+      const d2=Math.hypot(x-il.x,z-il.z);
+      if(d2<il.R)h=Math.max(h,Math.cos(d2/il.R*Math.PI/2)*il.h);
+    }
+    return h;
   }
   const inOcean=(x,z)=>x>OCEAN_X&&islandAt(x,z)<=0.05;
   const onBridge=(x,z)=>Math.abs(z-8)<2.3&&x>OCEAN_X-8&&x<IC.x-IC.R+14;
   // 🏜️ zones: dune desert (east band), 🏔️ red canyons (south), 🌌 moon base (north)
   const CANYON_Z=240, SPACE_Z=-240;
   function canyonAt(x,z){
-    if(z<CANYON_Z||x>430)return 0; // canyons end at the coast
+    if(z<CANYON_Z||x>58)return 0; // canyons live south of the mainland only
     const e=Math.min(1,(z-CANYON_Z)/34);
     const ridge=Math.pow(Math.max(0,Math.sin(x*0.055)+0.25),1.35);
     const cross=0.75+0.25*Math.sin(z*0.03+x*0.01);
     return ridge*cross*10*e;
   }
-  const inSpace=z=>z<SPACE_Z;
+  const inSpace=z=>false; // (the moon zone retired — one quality island world)
   // 🏜️ rolling dunes east of the city (x > 72), blended in from the grass
   function duneAt(x,z){
-    if(x<72||x>448||z>CANYON_Z-10||z<SPACE_Z+10)return 0;
-    const e=Math.min(1,(x-72)/22,(448-x)/26)*Math.min(1,(CANYON_Z-10-z)/30,(z-(SPACE_Z+10))/30);
+    return 0; // desert retired
+    const e=0*Math.min(1,(x-72)/22,(448-x)/26)*Math.min(1,(CANYON_Z-10-z)/30,(z-(SPACE_Z+10))/30);
     const h=(Math.sin(x*0.075)+Math.sin(z*0.09+x*0.028)+Math.sin((x+z)*0.045))/3;
     return Math.max(0,h*0.5+0.5)*4.6*e;
   }
@@ -2813,18 +2835,10 @@ function ppBoot(){
     // northern highlands (between the city and the moon base)
     {x:-80,z:-180,R:32,P:6,H:13},
     {x:-8,z:-195,R:24,P:4,H:10},
-    // desert buttes rising from the dunes
-    {x:160,z:-120,R:30,P:8,H:13},
-    {x:230,z:60,R:36,P:9,H:15},
-    {x:150,z:170,R:26,P:6,H:11},
-    {x:330,z:-60,R:32,P:8,H:12},
-    // moon mountains
-    {x:-260,z:-330,R:36,P:7,H:14},
-    {x:250,z:-340,R:40,P:8,H:16},
     // far-south sierra beyond the canyons
     {x:-120,z:330,R:34,P:6,H:12},
-    {x:120,z:360,R:38,P:7,H:14},
-    {x:548,z:-42,R:15,P:2,H:8} // 🏝️ the Isle's watch-hill
+    {x:-210,z:350,R:38,P:7,H:14},
+    {x:176,z:-36,R:19,P:3.4,H:21} // 🌋 MOUNT STARVILLE — the Isle's volcano
   ];
   // break the perfect cones: every big lone peak grows 2-3 satellite ridges
   {
@@ -2974,9 +2988,26 @@ function ppBoot(){
     const og=new THREE.PlaneGeometry(B-OCEAN_X+8,B*2,26,80);
     og.rotateX(-Math.PI/2);
     window.__oceanPos=og.attributes.position;
-    window.__ocean=new THREE.Mesh(og,new THREE.MeshPhongMaterial({color:0x1e7ec8,shininess:170,
-      specular:0xbfe6ff,transparent:true,opacity:.88}));
+    { // 🏝️ postcard water: pale turquoise shallows deepening to open-sea blue
+      const shallow=new THREE.Color(0x8fe9da), deep=new THREE.Color(0x1266a8), oc=new THREE.Color();
+      const ocols=new Float32Array(__oceanPos.count*3);
+      const ocx=(OCEAN_X+B)/2;
+      for(let i=0;i<__oceanPos.count;i++){
+        const wx=ocx+__oceanPos.getX(i), wz=0+__oceanPos.getZ(i);
+        const dIsle=Math.max(0,Math.hypot(wx-IC.x,wz-IC.z)-IC.R);
+        const dCoast=Math.max(0,wx-OCEAN_X);
+        const t9=Math.min(1,Math.min(dIsle,dCoast)/30);
+        oc.copy(shallow).lerp(deep,Math.pow(t9,0.7));
+        ocols[i*3]=oc.r;ocols[i*3+1]=oc.g;ocols[i*3+2]=oc.b;
+      }
+      og.setAttribute('color',new THREE.BufferAttribute(ocols,3));
+    }
+    window.__ocean=new THREE.Mesh(og,new THREE.MeshPhongMaterial({color:0xffffff,vertexColors:true,shininess:170,
+      specular:0xbfe6ff,transparent:true,opacity:.9}));
     __ocean.position.set((OCEAN_X+B)/2,.42,0);scene.add(__ocean);
+    window.__coastFoam=new THREE.Mesh(new THREE.PlaneGeometry(2.4,B*2),
+      new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.24,depthWrite:false}));
+    __coastFoam.rotation.x=-Math.PI/2;__coastFoam.position.set(OCEAN_X+1.4,.5,0);scene.add(__coastFoam);
     // the great bridge to the Isle
     const bx0=OCEAN_X-6, bx1=IC.x-IC.R+12, bw=(bx1-bx0);
     const deck=new THREE.Mesh(new THREE.BoxGeometry(bw,.22,4),mat(0x8a5a2b));
@@ -2993,7 +3024,7 @@ function ppBoot(){
     }
     ROOFS.push({x:(bx0+bx1)/2,z:8,hw:bw/2,hd:2.1,h:1.06}); // walkable deck
     // the Isle: one vertex-colored mesh — golden beaches melting into green
-    const ig=new THREE.PlaneGeometry(IC.R*2+10,IC.R*2+10,52,52);
+    const ig=new THREE.PlaneGeometry(IC.R*2+28,IC.R*2+28,58,58);
     ig.rotateX(-Math.PI/2);
     const ip=ig.attributes.position;
     const cols=new Float32Array(ip.count*3);
@@ -3010,28 +3041,6 @@ function ppBoot(){
     ig.computeVertexNormals();
     const isle=new THREE.Mesh(ig,new THREE.MeshLambertMaterial({vertexColors:true}));
     isle.position.set(IC.x,0,IC.z);isle.receiveShadow=true;scene.add(isle);
-  }
-  // 🏜️ the dune sea: displaced sand mesh matching the walkable heightfield
-  {
-    const cv2=document.createElement('canvas');cv2.width=256;cv2.height=256;
-    const g3=cv2.getContext('2d');
-    g3.fillStyle='#e3c98e';g3.fillRect(0,0,256,256);
-    for(let i=0;i<2200;i++){
-      g3.fillStyle=['#d9bd7e','#eed7a2','#cfb272','#f0dcac'][i%4];
-      g3.fillRect(Math.random()*256,Math.random()*256,2,2+Math.random()*2);
-    }
-    const sandTex=new THREE.CanvasTexture(cv2);
-    sandTex.encoding=THREE.sRGBEncoding;
-    sandTex.wrapS=sandTex.wrapT=THREE.RepeatWrapping;sandTex.repeat.set(22,58);
-    const DW=B-70, cx2=72+DW/2;
-    const sgeo2=new THREE.PlaneGeometry(DW,B*2,64,150);
-    sgeo2.rotateX(-Math.PI/2);
-    const pos2=sgeo2.attributes.position;
-    for(let i=0;i<pos2.count;i++)
-      pos2.setY(i,duneAt(cx2+pos2.getX(i),pos2.getZ(i))+0.05);
-    sgeo2.computeVertexNormals();
-    const sand=new THREE.Mesh(sgeo2,new THREE.MeshLambertMaterial({map:sandTex}));
-    sand.position.x=cx2;sand.receiveShadow=true;scene.add(sand);
   }
   // 🏔️ CANYON zone (south): red-rock ridges you can walk the rims of
   {
@@ -3055,34 +3064,6 @@ function ppBoot(){
     const cmesh=new THREE.Mesh(cgeo,new THREE.MeshLambertMaterial({map:rockTex}));
     cmesh.position.z=ccz;cmesh.receiveShadow=true;scene.add(cmesh);
   }
-  // 🌌 MOON BASE zone (north): dark ground, craters, glowing crystals — low gravity!
-  {
-    const mgeo=new THREE.PlaneGeometry(B*2,B-Math.abs(SPACE_Z));
-    const moon=new THREE.Mesh(mgeo,new THREE.MeshLambertMaterial({color:new THREE.Color(0x2a2440)}));
-    moon.material.color.convertSRGBToLinear();
-    moon.rotation.x=-Math.PI/2;
-    moon.position.set(0,.03,SPACE_Z-(B-Math.abs(SPACE_Z))/2);
-    moon.receiveShadow=true;scene.add(moon);
-    for(let i=0;i<14;i++){ // craters
-      const cr=new THREE.Mesh(new THREE.TorusGeometry(2+Math.random()*4,.5,8,20),
-        new THREE.MeshLambertMaterial({color:0x1c1830}));
-      cr.rotation.x=-Math.PI/2;cr.scale.y=.5;
-      cr.position.set((Math.random()-.5)*B*1.8,.15,SPACE_Z-14-Math.random()*(B-Math.abs(SPACE_Z)-24));
-      scene.add(cr);
-    }
-    for(let i=0;i<16;i++){ // glowing crystals
-      const c2=new THREE.Group();
-      for(let j=0;j<3;j++){
-        const cr2=new THREE.Mesh(new THREE.ConeGeometry(.3+Math.random()*.3,1.4+Math.random()*1.8,5),
-          new THREE.MeshPhongMaterial({color:0x8a5cff,emissive:0x5a2ad8,emissiveIntensity:.8}));
-        cr2.position.set((Math.random()-.5)*1.2,.7,(Math.random()-.5)*1.2);
-        cr2.rotation.z=(Math.random()-.5)*.5;
-        c2.add(cr2);
-      }
-      c2.position.set((Math.random()-.5)*B*1.8,0,SPACE_Z-12-Math.random()*(B-Math.abs(SPACE_Z)-24));
-      scene.add(c2);
-    }
-  }
 
   // load everything with a progress readout, then build the world
   ppLoadAssets((n,total)=>{
@@ -3102,16 +3083,30 @@ function ppBoot(){
         UpperLeg_L:'thigh_l',LowerLeg_L:'calf_l',Ankle_L:'foot_l',Ball_L:'ball_l',
         UpperLeg_R:'thigh_r',LowerLeg_R:'calf_r',Ankle_R:'foot_r',Ball_R:'ball_r'};
       const MINI_CLIPS=[];
+      // rest-pose bridge: the anim rig and the minis share bone STRUCTURE but not rest orientations —
+      // per-bone correction A = miniRest * inv(animRest), baked into every keyframe (else characters tip flat)
+      let refMini=null;
+      for(const k in PP_MODELS){if(k.startsWith('mini_')&&assets[PP_MODELS[k]]){refMini=assets[PP_MODELS[k]].scene;break}}
       for(const [nm,file] of [['Idle','anim_idle.glb'],['Walk','anim_walk.glb'],['Run','anim_run.glb'],['Jump','anim_jump.glb']]){
         const src=assets[file];
-        if(!src||!src.animations.length)continue;
+        if(!src||!src.animations.length||!refMini)continue;
         const c=src.animations[0].clone();
         c.tracks=c.tracks.filter(tr=>{
           const bone=tr.name.split('.')[0];
-          return REN[bone]&&!tr.name.endsWith('.position')&&!tr.name.endsWith('.scale');
+          return REN[bone]&&tr.name.endsWith('.quaternion');
         }).map(tr=>{
-          const dot=tr.name.indexOf('.');
-          tr.name=REN[tr.name.slice(0,dot)]+tr.name.slice(dot);
+          const bone=tr.name.split('.')[0], dst=REN[bone];
+          const aRest=src.scene.getObjectByName(bone)?.quaternion;
+          const mRest=refMini.getObjectByName(dst)?.quaternion;
+          if(aRest&&mRest){
+            const A=mRest.clone().multiply(aRest.clone().invert());
+            const v=tr.values, q=new THREE.Quaternion();
+            for(let i2=0;i2<v.length;i2+=4){
+              q.set(v[i2],v[i2+1],v[i2+2],v[i2+3]).premultiply(A);
+              v[i2]=q.x;v[i2+1]=q.y;v[i2+2]=q.z;v[i2+3]=q.w;
+            }
+          }
+          tr.name=dst+'.quaternion';
           return tr;
         });
         c.name=nm;
@@ -3155,16 +3150,7 @@ function ppBoot(){
       put('bush',bx2,bz2,1.1,Math.random()*6.3,.6,2);
     }
     for(let i=0;i<24;i++)put('rock',-B+8+Math.random()*(B-16),(Math.random()-.5)*B*1.8,.8,Math.random()*6.3,.5,1.4);
-    // 🌵 the desert: cacti, flowering cacti, sun-baked rocks
-    const CACTI=['cactus1','cactus2','cactus3'];
-    for(let i=0;i<42;i++){
-      const dx2=80+Math.random()*(B-88), dz2=(Math.random()-.5)*B*1.85;
-      put(CACTI[i%3],dx2,dz2,2.4+Math.random()*1.6,Math.random()*6.3,.5,4);
-    }
-    for(let i=0;i<13;i++)
-      put('cactusF',80+Math.random()*(B-88),(Math.random()-.5)*B*1.8,1.4,Math.random()*6.3,.4,2);
-    for(let i=0;i<18;i++)
-      put('rockD',78+Math.random()*(B-86),(Math.random()-.5)*B*1.8,1.0+Math.random(),Math.random()*6.3,.6,2);
+
     // 🌴 the Isle goes TROPICAL: palms, banana trees, jungle, cliffs, a dock
     {
       const PALMS=['trp_palm1','trp_palm2','trp_palm3'];
@@ -3206,7 +3192,7 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=28+Math.random()*40;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(i%2?'trp_grass1':'trp_grass2',tx4,tz4,0.9+Math.random()*0.7,Math.random()*6.3,0,0);
+        put(['trp_fern1','trp_fern2','trp_bush'][i%3],tx4,tz4,0.9+Math.random()*0.7,Math.random()*6.3,0,0); // ferns read better than grass cards
       }
       // 🪸 THE REEF GARDENS: corals & seaweed in the shallows, visible through the water —
       // by day a sunken rainbow, by night they GLOW (bioluminescence system below)
@@ -3265,6 +3251,42 @@ function ppBoot(){
         __plankton.frustumCulled=false;
         scene.add(__plankton);
       }
+      // 🌋 the crater: dark maw, ember glow, drifting smoke
+      {
+        const VX=176,VZ=-36,VH=21;
+        const maw=new THREE.Mesh(new THREE.CircleGeometry(3.1,14),mat(0x241a18));
+        maw.rotation.x=-Math.PI/2;maw.position.set(VX,VH+0.06,VZ);scene.add(maw);
+        const ember=new THREE.Mesh(new THREE.CircleGeometry(1.5,12),
+          new THREE.MeshBasicMaterial({color:0xff5a1a,transparent:true,opacity:.85}));
+        ember.rotation.x=-Math.PI/2;ember.position.set(VX,VH+0.1,VZ);scene.add(ember);
+        window.__craterGlow=new THREE.PointLight(0xff6a22,0.4,34);
+        __craterGlow.position.set(VX,VH+3,VZ);scene.add(__craterGlow);
+        window.__smoke=[];
+        const scv=document.createElement('canvas');scv.width=64;scv.height=64;
+        const sg=scv.getContext('2d');
+        const sgr=sg.createRadialGradient(32,32,4,32,32,30);
+        sgr.addColorStop(0,'rgba(90,84,86,.9)');sgr.addColorStop(1,'rgba(90,84,86,0)');
+        sg.fillStyle=sgr;sg.fillRect(0,0,64,64);
+        const smokeTex=new THREE.CanvasTexture(scv);
+        for(let i=0;i<5;i++){
+          const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeTex,transparent:true,opacity:.5,depthWrite:false}));
+          sp.position.set(VX,VH+2+i*3,VZ);
+          sp.scale.setScalar(4+i*2);
+          sp.userData.ph=i/5;
+          scene.add(sp);__smoke.push(sp);
+        }
+      }
+      // 🪨 terrace cliff faces sell the NE shelf
+      for(const ta of [-0.3,-0.7,-1.1,-1.5]){
+        const tx4=IC.x+Math.cos(ta)*37.5, tz4=IC.z+Math.sin(ta)*37.5;
+        put(Math.cos(ta*5)>0?'trp_cliff1':'trp_cliff2',tx4,tz4,5.5,ta+Math.PI/2,2.6,5.5);
+      }
+      // 🏝️ the sister islets: castaway palms
+      for(const il of ISLETS){
+        put('trp_palm1',il.x-2,il.z+1,6,Math.random()*6.3,.4,8);
+        put('trp_palm3',il.x+3,il.z-2,5,Math.random()*6.3,.4,7);
+        put('trp_rock1',il.x+1,il.z+4,1.6,Math.random()*6.3,1,2);
+      }
       // dramatic sea cliffs on the north-east point
       put('trp_cliff1',IC.x+52,IC.z-44,9,2.4,3.5,9);
       put('trp_cliff2',IC.x+60,IC.z-30,7,1.1,3,7);
@@ -3276,15 +3298,9 @@ function ppBoot(){
     }
     // canyon dressing: giant red rocks along the rims
     for(let i=0;i<22;i++)
-      put('rockD',(Math.random()-.5)*B*1.9,CANYON_Z+16+Math.random()*(B-CANYON_Z-28),2.2+Math.random()*2.4,Math.random()*6.3,1.2,5);
+      put('rockD',-B+8+Math.random()*(58+B-16),CANYON_Z+16+Math.random()*(B-CANYON_Z-28),2.2+Math.random()*2.4,Math.random()*6.3,1.2,5);
     for(let i=0;i<12;i++)
-      put(['cactus1','cactus2','cactus3'][i%3],(Math.random()-.5)*B*1.8,CANYON_Z+14+Math.random()*(B-CANYON_Z-26),2+Math.random()*1.4,Math.random()*6.3,.5,4);
-    // moon base: dome, hab modules, rover, a landed ship
-    put('spDome',-40,SPACE_Z-70,10,0,6,10);
-    put('spBase',60,SPACE_Z-110,8,Math.PI/3,7,8);
-    put('spHouse',-120,SPACE_Z-140,6,Math.PI/5,4,6);
-    put('spHouse',130,SPACE_Z-60,6,-Math.PI/4,4,6);
-    put('spRover',10,SPACE_Z-40,2.4,Math.PI/2,1.4,3);
+      put(['cactus1','cactus2','cactus3'][i%3],-B+8+Math.random()*(58+B-16),CANYON_Z+14+Math.random()*(B-CANYON_Z-26),2+Math.random()*1.4,Math.random()*6.3,.5,4);
     // (the starfighter is built as a flyable vehicle below)
     // 🏙️ DOWNTOWN STARVILLE: POLYGON City skyline — shops west, offices east
     const WEST=[['cty_shop1',8],['cty_hall',11],['cty_shop2',8],['cty_shop3',8],['cty_off1',12],['cty_shop4',8]];
@@ -3306,9 +3322,8 @@ function ppBoot(){
     for(const hz of [-55,-5,45])put('cty_hydrant',32.8,hz,1.1,Math.PI/2,.3,1.3);
     put('cty_busstop',52.5,-30,3.4,-Math.PI/2,1.8,3.6);
     for(const bz of [-18,-30])put('cty_bench',33.2,bz,1.1,Math.PI/2,.9,1.2);
-    put('cty_billboard',56,75,7,-Math.PI/2+0.3,1.5,8);
-    for(let i=0;i<5;i++)put(i%2?'cty_tree1':'cty_tree2',(i%2)?34.2:50.8,-66+i*31,5.5,Math.random()*6.3,.5,7);
-    for(let i=0;i<4;i++)put('cty_palm',54+(i%2)*8,150+i*26,7,Math.random()*6.3,.4,8); // palms toward the coast road
+    for(let i=0;i<5;i++)put(TREES[i%TREES.length],(i%2)?34.2:50.8,-66+i*31,5.5,Math.random()*6.3,.5,7); // our proven street trees
+    for(let i=0;i<4;i++)put('trp_palm2',54+(i%2)*8,150+i*26,7,Math.random()*6.3,.4,8); // tropical palms toward the coast
     // 3 enterable clubhouses (walk right in — roof lifts away)
     const houses=[];
     function clubhouse(cx,cz,doorSide,colr,roofC){
@@ -3346,8 +3361,7 @@ function ppBoot(){
     {
       // one grassy cone per peak = a natural multi-summit silhouette
       const zoneMat=m=>{
-        if(Math.hypot(m.x-IC.x,m.z-IC.z)<IC.R+6)return new THREE.MeshLambertMaterial({map:grassTex}); // isle peaks are green
-        if(m.z<SPACE_Z+20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0x3a3454)}); // moon rock
+        if(Math.hypot(m.x-IC.x,m.z-IC.z)<IC.R+6)return new THREE.MeshLambertMaterial({color:new THREE.Color(m.H>=18?0xc9a486:0x67b467)}); // volcano rock / green hills
         if(m.x>110)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xd9bd7e)});        // desert butte
         if(m.z>CANYON_Z-20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xb5502e)});// red rock
         return new THREE.MeshLambertMaterial({map:grassTex});
@@ -3518,7 +3532,7 @@ function ppBoot(){
     }
     makeHeli(0,-72,0xff2ec4);
     makeHeli(-62,42,0x45d8ff);
-    makeHeli(112,-36,0xff8c1a); // desert bird
+    makeHeli(IC.x+38,IC.z+34,0xff8c1a); // island hopper (east beach)
     makeHeli(IC.x-30,IC.z+44,0xa78bfa); // the Isle ferry-bird
 
     // ---- 🏰 STARHAVEN: the fantasy city at the heart of the Isle ----
@@ -3649,10 +3663,10 @@ function ppBoot(){
         const glow=new THREE.PointLight(0xff8c1a,0,20);
         glow.position.set(0,1.2,-3);tilt.add(glow);
         const g=new THREE.Group();g.add(tilt);
-        const sy=groundAt(-200,SPACE_Z-100);
+        const sy=groundAt(IC.x+36,IC.z-40);
         const pad=new THREE.Mesh(new THREE.CircleGeometry(6,24),mat(0x1c1830));
-        pad.rotation.x=-Math.PI/2;pad.position.set(-200,sy+.05,SPACE_Z-100);scene.add(pad);
-        g.position.set(-200,sy,SPACE_Z-100);
+        pad.rotation.x=-Math.PI/2;pad.position.set(IC.x+36,sy+.05,IC.z-40);scene.add(pad); // at the volcano's feet
+        g.position.set(IC.x+36,sy,IC.z-40);
         scene.add(g);
         helis.push({mesh:g,tilt,rotor:new THREE.Group(),vel:new THREE.Vector3(),rpm:0,ship:true,glow});
       }
@@ -5093,9 +5107,14 @@ function ppBoot(){
         // 🌌 BIOLUMINESCENCE: the reef, flowers and lagoon ignite at night
         const glowAmt=Math.max(0,(0.55-f))/0.55; // 0 by day → 1 at deep night
         if(window.__GLOW)for(const gm of __GLOW)gm.emissiveIntensity=glowAmt*1.35;
-        if(window.__shoreGlow){
-          __shoreGlow.material.opacity=glowAmt*(0.32+Math.sin(performance.now()/700)*0.1);
+        if(window.__shoreGlow){ // white surf foam by day, cyan biolum by night
+          __shoreGlow.material.color.setHex(glowAmt>0.35?0x27e6ff:0xffffff);
+          __shoreGlow.material.opacity=glowAmt>0.35
+            ? glowAmt*(0.32+Math.sin(performance.now()/700)*0.1)
+            : 0.24+Math.sin(performance.now()/900)*0.06;
         }
+        if(window.__coastFoam)__coastFoam.material.opacity=(1-glowAmt)*(0.2+Math.sin(performance.now()/1100)*0.05)+glowAmt*0.08;
+        if(window.__craterGlow)__craterGlow.intensity=0.35+glowAmt*1.3+Math.random()*0.15;
         if(window.__plankton){
           __plankton.material.opacity=glowAmt*0.85;
           __plankton.rotation.y+=0.0004;
@@ -5424,6 +5443,16 @@ function ppBoot(){
           n.mesh.rotation.y+=dr*Math.min(1,dt*3);
         }else n.mesh.rotation.y+=Math.sin(t*0.35+u3.isleIdle)*dt*0.12;
       }
+      // 🌋 smoke drifts, embers breathe brighter at night
+      if(window.__smoke)for(const sp of __smoke){
+        sp.userData.ph=(sp.userData.ph+dt*0.12)%1;
+        const ph=sp.userData.ph;
+        sp.position.y=21+2+ph*17;
+        sp.position.x=176+Math.sin(ph*9)*1.6+ph*3;
+        sp.scale.setScalar(4+ph*11);
+        sp.material.opacity=0.42*(1-ph);
+      }
+      if(window.__craterGlow)__craterGlow.intensity=0.35+Math.random()*0.15;
       // 🔥 the gate fires flicker
       for(const fl3 of ISLE_FIRES)fl3.intensity=0.9+Math.sin(performance.now()/90+fl3.position.z)*0.25+Math.random()*0.12;
       // 🌊 the sea rolls
@@ -5785,14 +5814,12 @@ function ppBoot(){
           const mx2=w2=>(w2+B)*k2, mz2=w2=>(w2+B)*k2;
           g5.clearRect(0,0,S2,S2);
           // zone tints
-          g5.fillStyle='rgba(227,201,142,.20)';g5.fillRect(mx2(72),0,S2-mx2(72),S2);            // desert
           g5.fillStyle='rgba(30,126,200,.5)';g5.fillRect(mx2(OCEAN_X),0,S2-mx2(OCEAN_X),S2);    // the sea
           g5.fillStyle='rgba(67,178,67,.75)';
           g5.beginPath();g5.arc(mx2(IC.x),mz2(IC.z),IC.R*(S2/(B*2)),0,7);g5.fill();             // the Isle
           g5.fillStyle='#ffd24a';
           g5.beginPath();g5.arc(mx2(IC.x),mz2(IC.z),2.4,0,7);g5.fill();                          // Starhaven
           g5.fillStyle='rgba(181,80,46,.25)';g5.fillRect(0,mz2(CANYON_Z),S2,S2-mz2(CANYON_Z)); // canyons
-          g5.fillStyle='rgba(90,60,180,.28)';g5.fillRect(0,0,S2,mz2(SPACE_Z));                 // moon base
           // road + castle beacon
           g5.fillStyle='rgba(255,255,255,.18)';g5.fillRect(mx2(33),0,mx2(51)-mx2(33),S2);
           g5.fillStyle='#ffd24a';
