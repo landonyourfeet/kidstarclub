@@ -49,15 +49,25 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-19</div>
+<div class="hud" id="tag">ISL-21</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
 <div id="vchips" style="position:fixed;left:14px;top:108px;z-index:11;display:flex;flex-direction:column;gap:4px;pointer-events:none"></div>
+<div id="chatfeed" style="position:fixed;left:14px;bottom:170px;z-index:11;display:flex;flex-direction:column;gap:5px;max-width:250px"></div>
+<div id="chatbox" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:14;background:rgba(6,20,40,.92);border:2px solid rgba(79,216,255,.5);border-radius:16px;padding:10px;width:min(86vw,380px)">
+  <div style="display:flex;gap:8px">
+    <input id="chatin" maxlength="200" placeholder="Say something to the club…" style="flex:1;border:none;border-radius:10px;padding:10px;font-size:14px;background:rgba(255,255,255,.92)">
+    <button id="chatsend" style="border:none;border-radius:10px;padding:0 16px;font-weight:800;background:#2bd9ff;color:#06283f;font-size:14px">Send</button>
+  </div>
+</div>
 <div id="joy"><i></i></div>
 <button id="emote" style="position:fixed;right:26px;bottom:124px;z-index:11;width:56px;height:56px;border-radius:50%;border:2px solid #fff;background:rgba(157,92,255,.85);font-size:24px">🎉</button>
 <button id="atk" style="position:fixed;right:108px;bottom:44px;z-index:11;width:74px;height:74px;border-radius:50%;border:3px solid #fff;background:rgba(232,72,63,.9);font-size:32px">⚔️</button>
+<div id="pwrwrap" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:110px;z-index:11;width:220px;height:16px;border-radius:999px;background:rgba(6,20,40,.7);border:2px solid rgba(255,255,255,.5);overflow:hidden">
+  <div id="pwr" style="height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#facc15,#fb923c,#ef4444);box-shadow:0 0 12px rgba(250,204,21,.8)"></div>
+</div>
 <div class="hud" id="hpwrap" style="left:14px;top:158px;width:150px;height:16px;border-radius:999px;background:rgba(6,20,40,.65);border:2px solid rgba(255,255,255,.5);overflow:hidden">
   <div id="hpbar" style="height:100%;width:100%;background:linear-gradient(90deg,#4ade80,#a3e635);border-radius:999px;transition:width .18s"></div>
 </div>
@@ -311,7 +321,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-19'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-21'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -699,6 +709,7 @@ function buildWorld(){
   makeBoat(-100,78,1.0);
   makeWhaleBones(52,128,-0.6);
   raidStart(); // ⛵ the first raid ship appears on the horizon
+  makeHoop();makeBall(); // 🏀 Elikai's court on the west beach
   // 🦌 the islanders: deer family + a stag + a flamingo by the water
   addCritter('deer',36,52,1.5);
   addCritter('deer',44,60,1.4);
@@ -840,7 +851,7 @@ async function presenceTick(){
   if(!started)return;
   try{
     const r=await fetch('/api/park/pos',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:heroKey,mode:'walk',score:starCount})
+      body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:heroKey,mode:'walk',score:starCount,game:'island'})
     }).then(x=>x.json());
     if(r.you)myName=r.you; // the server tells us exactly who we are
     { // 🏆 live leaderboard: everyone sees everyone's diamonds
@@ -910,6 +921,69 @@ function tickRemotes(dt){
     rm.mixer&&rm.mixer.update(dt);
   }
 }
+
+/* ============================================================
+   💬 CLUB CHAT · the group chat flows into the island —
+   tap any bubble (or press T) to reply without leaving the game
+   ============================================================ */
+let chatAfter=0,chatBoot=true;
+async function chatPoll(){
+  if(!started)return;
+  try{
+    const r=await fetch('/api/chat?after='+chatAfter).then(x=>x.json());
+    const msgs=(r&&r.messages)||r||[];
+    if(!Array.isArray(msgs))return;
+    for(const m of msgs){
+      if(m.id>chatAfter)chatAfter=m.id;
+      if(chatBoot)continue; // don't replay history on entry
+      chatBubble((m.user_name||m.cast_name||'Star')+(m.cast_name?' 🤖':''),m.body||(m.has_image?'📷 photo':''));
+    }
+    chatBoot=false;
+  }catch(e){}
+}
+setInterval(chatPoll,3500);
+function chatBubble(who,body){
+  if(!body)return;
+  const feed=document.getElementById('chatfeed');
+  const d=document.createElement('div');
+  d.style.cssText='background:rgba(6,20,40,.78);border:1.5px solid rgba(79,216,255,.4);color:#fff;border-radius:12px;padding:7px 11px;font-size:12px;line-height:1.4;cursor:pointer;animation:none;transition:opacity .5s';
+  d.innerHTML='<b style="color:#6fe0ff">'+String(who).replace(/[<>&]/g,'')+'</b> '+String(body).replace(/[<>&]/g,'').slice(0,140);
+  d.onclick=()=>openChatBox();
+  feed.appendChild(d);
+  while(feed.children.length>3)feed.removeChild(feed.firstChild);
+  setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),600)},7000);
+}
+function openChatBox(){
+  document.getElementById('chatbox').style.display='block';
+  document.getElementById('chatin').focus();
+}
+function closeChatBox(){
+  document.getElementById('chatbox').style.display='none';
+  document.getElementById('chatin').blur();
+}
+async function chatSend(){
+  const inp=document.getElementById('chatin');
+  const body=inp.value.trim();
+  if(!body){closeChatBox();return}
+  inp.value='';
+  closeChatBox();
+  chatBubble('You',body);
+  try{await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body})})}
+  catch(e){toast('💬 message didn\'t send — try again')}
+}
+document.getElementById('chatsend').addEventListener('click',chatSend);
+document.getElementById('chatin').addEventListener('keydown',e=>{
+  e.stopPropagation(); // typing never moves the hero
+  if(e.key==='Enter')chatSend();
+  if(e.key==='Escape')closeChatBox();
+});
+document.getElementById('chatin').addEventListener('keyup',e=>e.stopPropagation());
+addEventListener('keydown',e=>{
+  if(e.key==='t'||e.key==='T'){
+    if(document.activeElement&&document.activeElement.id==='chatin')return;
+    e.preventDefault();openChatBox();
+  }
+});
 
 /* ============================================================
    🎙️ VOICE · WebRTC mesh over the club's signaling mailbox
@@ -1115,8 +1189,12 @@ async function voiceToggle(){
 const keys={};
 const KEYMAP={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'};
 const normKey=k=>{k=k.toLowerCase();return KEYMAP[k]||k};
-addEventListener('keydown',e=>{keys[normKey(e.key)]=true;if(e.key===' '||e.key.startsWith('Arrow'))e.preventDefault()});
-addEventListener('keyup',e=>{keys[normKey(e.key)]=false});
+addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='INPUT')return; // typing in chat, not steering
+  keys[normKey(e.key)]=true;if(e.key===' '||e.key.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keyup',e=>{
+  if(e.target&&e.target.tagName==='INPUT')return;
+  keys[normKey(e.key)]=false});
 let camYaw=2.6,camPitch=0.32,camDist=9.5,dragId=null,lx=0,ly=0;
 let slopeTilt=0,lookReleasedAt=0;
 let smBoom=9.5,smLead=0,followRamp=0;
@@ -1172,6 +1250,134 @@ document.getElementById('emote').addEventListener('pointerdown',e=>{
   if(actions[em]){playAnim(em,0.12);emoteUntil=performance.now()+(em==='Sit'?4000:1800)}
 });
 addEventListener('keydown',e=>{if(e.key==='e'||e.key==='E')document.getElementById('emote').dispatchEvent(new Event('pointerdown'))});
+
+/* ============================================================
+   🏀 ELIKAI'S COURT · walk to the ball to pick it up ·
+   hold ⚔️ to charge · release to launch — up to 100 feet!
+   ============================================================ */
+const HOOP={x:-74,z:104,ry:0.9,rimY:0,rim:null};
+function makeHoop(){
+  const g=new THREE.Group();
+  const steel=new THREE.MeshLambertMaterial({color:lin(0x8a93a5)});
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,3.6,8),steel);
+  pole.position.y=1.8;g.add(pole);
+  // backboard with the classic square
+  const cv=document.createElement('canvas');cv.width=128;cv.height=96;
+  const gg=cv.getContext('2d');
+  gg.fillStyle='#f4f7fb';gg.fillRect(0,0,128,96);
+  gg.strokeStyle='#e8483f';gg.lineWidth=6;gg.strokeRect(40,34,48,40);
+  gg.strokeStyle='#c9d2df';gg.lineWidth=5;gg.strokeRect(3,3,122,90);
+  const bbT=new THREE.CanvasTexture(cv);bbT.encoding=THREE.sRGBEncoding;
+  const board=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.15,0.07),
+    new THREE.MeshLambertMaterial({map:bbT}));
+  board.position.set(0,3.35,0.06);g.add(board);
+  // the rim
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.035,7,20),
+    new THREE.MeshLambertMaterial({color:lin(0xff7a1a),emissive:lin(0x5f2400)}));
+  rim.rotation.x=Math.PI/2;
+  rim.position.set(0,2.95,0.52);g.add(rim);
+  // a simple net
+  const net=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.24,0.5,8,3,true),
+    new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.7}));
+  net.position.set(0,2.68,0.52);g.add(net);
+  g.traverse(m=>{if(m.isMesh)m.castShadow=true});
+  g.position.set(HOOP.x,groundAt(HOOP.x,HOOP.z),HOOP.z);
+  g.rotation.y=HOOP.ry;
+  scene.add(g);
+  const rw=new THREE.Vector3();rim.getWorldPosition(rw);
+  HOOP.rimW=rw;HOOP.rimY=rw.y;
+}
+let ball=null;
+const BALL={mode:'ground',x:-68,z:100,y:0,vx:0,vy:0,vz:0,rest:0,prevY:0};
+function makeBall(){
+  const cv=document.createElement('canvas');cv.width=128;cv.height=64;
+  const g=cv.getContext('2d');
+  g.fillStyle='#e8702a';g.fillRect(0,0,128,64);
+  g.strokeStyle='#3a1c08';g.lineWidth=3;
+  g.beginPath();g.moveTo(64,0);g.lineTo(64,64);g.stroke();
+  g.beginPath();g.moveTo(0,32);g.lineTo(128,32);g.stroke();
+  g.beginPath();g.arc(-6,32,44,0,7);g.stroke();
+  g.beginPath();g.arc(134,32,44,0,7);g.stroke();
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  ball=new THREE.Mesh(new THREE.SphereGeometry(0.34,14,12),
+    new THREE.MeshLambertMaterial({map:t}));
+  ball.castShadow=true;
+  BALL.y=groundAt(BALL.x,BALL.z)+0.34;
+  scene.add(ball);
+}
+let charging=false,chargeT=0;
+function startCharge(){
+  if(BALL.mode!=='carried'||charging)return;
+  charging=true;chargeT=0;
+  document.getElementById('pwrwrap').style.display='block';
+}
+function throwBall(){
+  if(!charging||BALL.mode!=='carried')return;
+  charging=false;
+  document.getElementById('pwrwrap').style.display='none';
+  const power=8+chargeT*22; // full charge ≈ 100 feet of flight
+  BALL.mode='flying';
+  BALL.x=P.x+Math.sin(P.yaw)*0.8;BALL.z=P.z+Math.cos(P.yaw)*0.8;
+  BALL.y=groundAt(P.x,P.z)+1.6;
+  BALL.vx=Math.sin(P.yaw)*power;BALL.vz=Math.cos(P.yaw)*power;
+  BALL.vy=6+chargeT*8;
+  playAnim('Attack',0.07);sfxSwing();
+}
+function tickBall(dt){
+  if(!ball)return;
+  if(BALL.mode==='ground'){
+    ball.position.set(BALL.x,BALL.y,BALL.z);
+    ball.rotation.y+=dt*0.4;
+    if(Math.hypot(P.x-BALL.x,P.z-BALL.z)<1.6&&performance.now()>downUntil){
+      BALL.mode='carried';toast('🏀 Got the ball! Hold ⚔️ to charge your shot');
+    }
+  }else if(BALL.mode==='carried'){
+    ball.position.set(
+      P.x+Math.sin(P.yaw+0.5)*0.55,
+      groundAt(P.x,P.z)+1.05,
+      P.z+Math.cos(P.yaw+0.5)*0.55);
+    if(charging){
+      chargeT=Math.min(1,chargeT+dt/1.3);
+      document.getElementById('pwr').style.width=(chargeT*100)+'%';
+    }
+  }else{ // flying
+    BALL.prevY=BALL.y;
+    BALL.vy-=13.5*dt;
+    BALL.x+=BALL.vx*dt;BALL.y+=BALL.vy*dt;BALL.z+=BALL.vz*dt;
+    ball.rotation.x+=dt*9;
+    // 🎯 the swish check: falling through the rim circle
+    if(HOOP.rimW&&BALL.prevY>HOOP.rimY&&BALL.y<=HOOP.rimY&&BALL.vy<0){
+      const d=Math.hypot(BALL.x-HOOP.rimW.x,BALL.z-HOOP.rimW.z);
+      if(d<0.45){
+        starCount+=5;
+        document.getElementById('stars').textContent='💎 '+starCount;
+        toast('🏀 SWISH!! +5 💎');
+        sfxZap();ping();
+        starBurst(HOOP.rimW.x,HOOP.rimY,HOOP.rimW.z,5);
+        BALL.vx*=0.15;BALL.vz*=0.15; // drops through the net
+      }
+    }
+    const g0b=groundAt(BALL.x,BALL.z);
+    if(BALL.y<g0b+0.34){ // bounce
+      BALL.y=g0b+0.34;
+      if(Math.abs(BALL.vy)>1.6){BALL.vy*=-0.52;BALL.vx*=0.8;BALL.vz*=0.8;sfxHit()}
+      else{BALL.vy=0;BALL.vx*=0.9;BALL.vz*=0.9;
+        if(Math.hypot(BALL.vx,BALL.vz)<0.4){
+          BALL.mode='ground';BALL.rest=performance.now();
+        }
+      }
+    }
+    if(BALL.y<0.2&&groundAt(BALL.x,BALL.z)<0.12){ // splashed into the sea — back to the court
+      BALL.mode='ground';BALL.x=-68;BALL.z=100;BALL.y=groundAt(-68,100)+0.34;
+      toast('🌊 Splash! Ball back at the court');
+    }
+    ball.position.set(BALL.x,BALL.y,BALL.z);
+  }
+  // lost far from court while resting → wander home
+  if(BALL.mode==='ground'&&BALL.rest&&performance.now()-BALL.rest>20000){
+    BALL.x=-68;BALL.z=100;BALL.y=groundAt(-68,100)+0.34;BALL.rest=0;
+  }
+}
 
 /* ============================================================
    ⚔️ STAR DUELS · phase 1: class attacks + skeleton raiders
@@ -1422,8 +1628,19 @@ function doAttack(){
     }
   },260);
 }
-document.getElementById('atk').addEventListener('pointerdown',e=>{e.stopPropagation();doAttack()});
-addEventListener('keydown',e=>{if(e.key==='f'||e.key==='F'||e.key==='Enter')doAttack()});
+document.getElementById('atk').addEventListener('pointerdown',e=>{
+  e.stopPropagation();
+  if(BALL.mode==='carried')startCharge();else doAttack();
+});
+document.getElementById('atk').addEventListener('pointerup',e=>{e.stopPropagation();throwBall()});
+addEventListener('pointerup',()=>throwBall()); // release anywhere throws
+addEventListener('keydown',e=>{
+  if(e.repeat)return;
+  if(e.key==='f'||e.key==='F'||e.key==='Enter'){
+    if(BALL.mode==='carried')startCharge();else doAttack();
+  }
+});
+addEventListener('keyup',e=>{if(e.key==='f'||e.key==='F'||e.key==='Enter')throwBall()});
 
 /* ============================================================
    GAME STATE + MAIN LOOP
@@ -1558,6 +1775,7 @@ function loop(){
   tickSkels(dt);
   tickBursts(dt);
   tickFx(dt);
+  tickBall(dt);
 
   renderer.render(scene,cam);
 }
