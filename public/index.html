@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2451,7 +2452,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-53';
+const SV_BUILD='SV-54';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2524,6 +2525,8 @@ async function ppLoadAssets(onProgress){
   const draco=new THREE.DRACOLoader();
   draco.setDecoderPath('/vendor/draco/');
   loader.setDRACOLoader(draco);
+  const TRP_ATLAS=new THREE.TextureLoader().load('/assets/trp_atlas.png');
+  TRP_ATLAS.flipY=false;TRP_ATLAS.encoding=THREE.sRGBEncoding; // GLTF UV convention
   const names=[...new Set([...Object.values(PP_MODELS),...Object.values(PP_HEROES).map(h=>h.file)])];
   const out={};out.__failed=[];let done=0;
   await Promise.all(names.map(f=>new Promise(res=>{
@@ -2536,8 +2539,7 @@ async function ppLoadAssets(onProgress){
           const mats=Array.isArray(m.material)?m.material:[m.material];
           for(const mm of mats){
             const nm=(mm.name||'').toLowerCase();
-            if(f.startsWith('trp_')&&mm.map){mm.side=THREE.DoubleSide;mm.alphaTest=0.4;mm.transparent=false} // cutout foliage regardless of material name
-            if(f.startsWith('trp_flower')){mm.map=null;mm.color=new THREE.Color(0xd8467a).convertSRGBToLinear()} // its FBX bound the purple emissive atlas — flat blossom pink instead
+            if(f.startsWith('trp_')){mm.map=TRP_ATLAS;if(mm.color)mm.color.setHex(0xffffff);mm.alphaTest=0;mm.transparent=false} // Synty master atlas, colors from the texture
             if(!mm.map&&mm.color){
               if(/leaf|palm|fern|flower|bush|frond|lambert|tree|foliage|leaves|plant/.test(nm))mm.color.setHex(0x3f9e46);
               else if(/bark|trunk|wood/.test(nm))mm.color.setHex(0x7a5a3a);
@@ -3093,6 +3095,7 @@ function ppBoot(){
           const src=assets[file];
           if(!src||!src.animations.length)continue;
           const c=src.animations[0].clone();
+          const ARM=new Set(['Clavicle_L','Shoulder_L','Elbow_L','Hand_L','Clavicle_R','Shoulder_R','Elbow_R','Hand_R']);
           c.tracks=c.tracks.filter(tr=>{
             const bone=tr.name.split('.')[0];
             return REN[bone]&&tr.name.endsWith('.quaternion');
@@ -3100,7 +3103,7 @@ function ppBoot(){
             const bone=tr.name.split('.')[0], dst=REN[bone];
             const aRest=src.scene.getObjectByName(bone)?.quaternion;
             const mRest=miniScene.getObjectByName(dst)?.quaternion;
-            if(aRest&&mRest){
+            if(aRest&&mRest&&!ARM.has(bone)){ // body gets rest-delta; arms keep raw locals (same bone conventions)
               const A=mRest.clone().multiply(aRest.clone().invert());
               const v=tr.values, q=new THREE.Quaternion();
               for(let i2=0;i2<v.length;i2+=4){
