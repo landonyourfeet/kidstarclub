@@ -616,6 +616,41 @@ const PARK_CAST = {
   Marigold:'Marigold the baker. Warm grandma energy, describes imaginary pastries so well you can smell them.',
   Plank:   'Captain Plank the pirate who guards the great bridge. Talks in hearty pirate-speak, demands a JOKE as the toll to cross (always lets kids pass).',
 };
+// ---------- 🎙️ IN-GAME VOICE CHAT: WebRTC signaling mailbox ----------
+// Peers exchange offers/answers/ICE through here, then audio flows peer-to-peer.
+const VOICE = { users: new Map() }; // uid -> {name,last,queue:[]}
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, u] of VOICE.users) if (now - u.last > 12000) VOICE.users.delete(id);
+}, 5000);
+const voiceRoster = (me) =>
+  [...VOICE.users.entries()].filter(([id]) => id !== me).map(([id, u]) => ({ id, name: u.name }));
+
+app.post('/api/voice/join', requireUser, (req, res) => {
+  const id = String(req.user.id);
+  VOICE.users.set(id, { name: req.user.display_name || req.user.username || 'Star', last: Date.now(), queue: [] });
+  res.json({ you: id, roster: voiceRoster(id) });
+});
+app.post('/api/voice/poll', requireUser, (req, res) => {
+  const id = String(req.user.id);
+  const u = VOICE.users.get(id);
+  if (!u) return res.json({ gone: true });
+  u.last = Date.now();
+  const msgs = u.queue.splice(0, 60);
+  res.json({ msgs, roster: voiceRoster(id) });
+});
+app.post('/api/voice/signal', requireUser, (req, res) => {
+  const to = String(req.body?.to || '');
+  const target = VOICE.users.get(to);
+  if (target && target.queue.length < 200)
+    target.queue.push({ from: String(req.user.id), data: req.body?.data });
+  res.json({ ok: true });
+});
+app.post('/api/voice/leave', requireUser, (req, res) => {
+  VOICE.users.delete(String(req.user.id));
+  res.json({ ok: true });
+});
+
 app.post('/api/park/talk', requireUser, async (req, res) => {
   const npc = String(req.body?.npc || '').slice(0, 20);
   const message = String(req.body?.message || '').trim().slice(0, 300);
