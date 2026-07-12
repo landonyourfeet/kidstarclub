@@ -45,7 +45,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD/arrows to run · drag to look · SPACE jump · collect ⭐ · tap 🎙️ to talk</div>
-<div class="hud" id="tag">ISL-3</div>
+<div class="hud" id="tag">ISL-4</div>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
 <div id="vchips" style="position:fixed;left:14px;top:108px;z-index:11;display:flex;flex-direction:column;gap:4px;pointer-events:none"></div>
@@ -56,6 +56,7 @@
 <script src="/vendor/GLTFLoader.js"></script>
 <script src="/vendor/DRACOLoader.js"></script>
 <script src="/vendor/SkeletonUtils.js"></script>
+<script src="/vendor/Sky.js"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -99,17 +100,19 @@ sun.shadow.camera.far=400;sun.shadow.bias=-0.0006;
 const hemi=new THREE.HemisphereLight(lin(0x9ecfff),lin(0x3e7a36),0.5);
 scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
 
-/* ---------- sky dome + painterly cloud strips ---------- */
+/* ---------- THREE.Sky: physically-based atmosphere (free, official) ---------- */
 {
-  const cv=document.createElement('canvas');cv.width=64;cv.height=512;
-  const g=cv.getContext('2d');
-  const gr=g.createLinearGradient(0,0,0,512);
-  gr.addColorStop(0,'#1f7dfa');gr.addColorStop(.5,'#7cc0ff');gr.addColorStop(.82,'#eaf6ff');gr.addColorStop(1,'#ffe9c9');
-  g.fillStyle=gr;g.fillRect(0,0,64,512);
-  const tex=new THREE.CanvasTexture(cv);tex.encoding=THREE.sRGBEncoding;
-  const dome=new THREE.Mesh(new THREE.SphereGeometry(700,24,16),
-    new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,fog:false}));
-  scene.add(dome);
+  const sky=new THREE.Sky();
+  sky.scale.setScalar(4000);
+  scene.add(sky);
+  const u=sky.material.uniforms;
+  u.turbidity.value=6;u.rayleigh.value=2.2;
+  u.mieCoefficient.value=0.004;u.mieDirectionalG.value=0.8;
+  const phi=THREE.MathUtils.degToRad(90-26);   // sun elevation: golden afternoon
+  const theta=THREE.MathUtils.degToRad(35);
+  const sunPos=new THREE.Vector3().setFromSphericalCoords(1,phi,theta);
+  u.sunPosition.value.copy(sunPos);
+  sun.position.copy(sunPos).multiplyScalar(160);
   // stylised cloud strips (flattened white blobs, slow drift)
   window.CLOUDS=[];
   const cm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.92,fog:false});
@@ -200,8 +203,31 @@ let ocean,oceanPos,oceanPhase;
     oceanPhase[i]=Math.random()*6.28;
   }
   g.setAttribute('color',new THREE.BufferAttribute(cols,3));
-  ocean=new THREE.Mesh(g,new THREE.MeshPhongMaterial({color:0xffffff,vertexColors:true,
-    shininess:160,specular:lin(0xbfe6ff),transparent:true,opacity:.9}));
+  const oceanMat=new THREE.MeshPhongMaterial({color:0xffffff,vertexColors:true,
+    shininess:220,specular:lin(0xdff2ff),transparent:true,opacity:.92});
+  oceanMat.onBeforeCompile=(sh)=>{ // 🌊 stylized Gerstner waves + Fresnel rim — the free 'Water Pro' look
+    sh.uniforms.uTime={value:0};
+    oceanMat.userData.sh=sh;
+    sh.vertexShader='uniform float uTime;\n'+sh.vertexShader
+      .replace('#include <begin_vertex>',
+`#include <begin_vertex>
+{
+  vec3 wp = (modelMatrix * vec4(transformed,1.0)).xyz;
+  float w1 = sin(dot(wp.xz, vec2(0.16,0.11)) + uTime*1.15);
+  float w2 = sin(dot(wp.xz, vec2(-0.07,0.19)) + uTime*0.8);
+  float w3 = sin(dot(wp.xz, vec2(0.045,-0.06)) + uTime*0.5);
+  transformed.y += w1*0.14 + w2*0.10 + w3*0.16;
+  transformed.x += cos(dot(wp.xz, vec2(0.16,0.11)) + uTime*1.15)*0.08;
+}`);
+    sh.fragmentShader=sh.fragmentShader
+      .replace('#include <output_fragment>',
+`{
+  float fres = pow(1.0 - abs(dot(normalize(vViewPosition), vec3(0.0,0.0,1.0))), 3.0);
+  outgoingLight += vec3(0.55,0.75,0.85) * fres * 0.35;   // horizon sheen
+}
+#include <output_fragment>`);
+  };
+  ocean=new THREE.Mesh(g,oceanMat);
   ocean.position.y=0.42;
   scene.add(ocean);
   // seabed
@@ -254,7 +280,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-3'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-4'; // bump with every asset change: guarantees fresh files
 const FILES={
   palm1:'trp_palm1.glb',palm2:'trp_palm2.glb',palm3:'trp_palm3.glb',
   fern1:'trp_fern1.glb',fern2:'trp_fern2.glb',bush:'trp_bush.glb',
@@ -775,10 +801,8 @@ function loop(){
 
   // world life
   const t=now/1000;
-  for(let i=0;i<oceanPos.count;i+=7)
-    oceanPos.setY(i,Math.sin(t*1.4+oceanPhase[i])*0.1);
-  oceanPos.needsUpdate=true;
-  foam.material.opacity=0.24+Math.sin(t*1.6)*0.07;
+  if(ocean.material.userData.sh)ocean.material.userData.sh.uniforms.uTime.value=t;
+  foam.material.opacity=0.22+Math.sin(t*1.6)*0.09+Math.sin(t*4.1)*0.03; // lively surf line
   for(const cl of CLOUDS){cl.position.x+=cl.userData.sp*dt;if(cl.position.x>560)cl.position.x=-560}
   for(const sp of smoke){
     sp.userData.ph=(sp.userData.ph+dt*0.11)%1;
