@@ -1420,6 +1420,21 @@ function svApplyWho(){
     bn.innerHTML=`🌟 <b>${esc(who)}</b> ${w.count===1?'is':'are'} in STARVILLE — tap to join!`;
     bn.classList.remove('hide');
   }else bn.classList.add('hide');
+  { // 🏝️ STARVILLE ISLAND live banner
+    const iw=w.island||{count:0,names:[]};
+    let ib=$('#islBanner');
+    if(!ib){
+      ib=document.createElement('button');ib.id='islBanner';ib.className='svbanner hide';
+      ib.style.top='52px';
+      ib.onclick=()=>location.assign('/island.html');
+      document.body.appendChild(ib);
+    }
+    if(iw.count>0){
+      const who2=iw.names.slice(0,3).join(', ')+(iw.count>3?` +${iw.count-3}`:'');
+      ib.innerHTML=`🏝️ <b>${esc(who2)}</b> ${iw.count===1?'is':'are'} on STARVILLE ISLAND — tap to join!`;
+      ib.classList.remove('hide');
+    }else ib.classList.add('hide');
+  }
   const tile=document.querySelector('[data-game="puppy"]');
   if(tile){
     tile.classList.toggle('live',w.count>0);
@@ -2495,7 +2510,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-66';
+const SV_BUILD='SV-67';
 function ppNew(){
   gReset();
   const hero=ppHero();
