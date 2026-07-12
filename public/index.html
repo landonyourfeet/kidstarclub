@@ -2090,6 +2090,12 @@ const PP_HEROES={
   knight:{file:'hero_knight.glb',name:'Sir Knight',emoji:'⚔️'},
   shiba:{file:'animals_pack_ShibaInu.glb',name:'Shiba Pup',emoji:'🐶',scale:1.0},
   redpanda:{file:'hero_redpanda.glb',name:'Rae',emoji:'🦊'},
+  // 🏝️ the Islanders — fully animated with BASE LOCOMOTION
+  aldric:{file:'mini_king.glb',name:'King Aldric',emoji:'👑',scale:1.85},
+  mara:{file:'mini_queen.glb',name:'Queen Mara',emoji:'👸',scale:1.85},
+  pots:{file:'mini_knight.glb',name:'Sir Pots',emoji:'🛡️',scale:1.9},
+  grubhero:{file:'mini_goblin.glb',name:'Grub',emoji:'👺',scale:1.55},
+  plankhero:{file:'mini_pirate.glb',name:'Capt. Plank',emoji:'🏴‍☠️',scale:1.9},
   // 🛍️ shop heroes — fully animated, unlocked with Star Bucks
   frog:{file:'hero_frog.glb',name:'Astro Finn',emoji:'🐸',shop:'hero_frog'},
   bee:{file:'hero_bee.glb',name:'Astro Barbara',emoji:'🐝',shop:'hero_bee'},
@@ -2146,6 +2152,7 @@ const PP_MODELS={
   cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
   ranger:'hero_ranger.glb',cyber:'hero_cyber.glb',mechrae:'hero_mech_rae.glb',mechfinn:'hero_mech_finn.glb',
   gSpider:'Spider.glb',gRat:'Rat.glb',gWasp:'Wasp.glb',gSnake:'Snake_angry.glb',
+  __animIdle:'anim_idle.glb',__animWalk:'anim_walk.glb',__animRun:'anim_run.glb',__animJump:'anim_jump.glb',
   cty_shop1:'cty_shop1.glb',cty_shop2:'cty_shop2.glb',cty_shop3:'cty_shop3.glb',cty_shop4:'cty_shop4.glb',
   cty_off1:'cty_off1.glb',cty_off2:'cty_off2.glb',cty_offL:'cty_offL.glb',cty_round:'cty_round.glb',
   cty_sq1:'cty_sq1.glb',cty_sq2:'cty_sq2.glb',cty_hall:'cty_hall.glb',
@@ -2259,7 +2266,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-41';
+const SV_BUILD='SV-42';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2899,6 +2906,40 @@ function ppBoot(){
   .then(assets=>{try{
     if(assets.__failed?.length)
       console.warn('[starville] failed assets:',assets.__failed.join(', '));
+    // 🎬 BASE LOCOMOTION: Synty's pro clips, renamed onto the minis' skeleton (same rig, older names)
+    try{
+      const REN={Hips:'pelvis',Spine_01:'spine_01',Spine_02:'spine_02',Spine_03:'spine_03',
+        Neck:'neck_01',Head:'head',
+        Clavicle_L:'clavicle_l',Shoulder_L:'upperarm_l',Elbow_L:'lowerarm_l',Hand_L:'hand_l',
+        Clavicle_R:'clavicle_r',Shoulder_R:'upperarm_r',Elbow_R:'lowerarm_r',Hand_R:'hand_r',
+        UpperLeg_L:'thigh_l',LowerLeg_L:'calf_l',Ankle_L:'foot_l',Ball_L:'ball_l',
+        UpperLeg_R:'thigh_r',LowerLeg_R:'calf_r',Ankle_R:'foot_r',Ball_R:'ball_r'};
+      const MINI_CLIPS=[];
+      for(const [nm,file] of [['Idle','anim_idle.glb'],['Walk','anim_walk.glb'],['Run','anim_run.glb'],['Jump','anim_jump.glb']]){
+        const src=assets[file];
+        if(!src||!src.animations.length)continue;
+        const c=src.animations[0].clone();
+        c.tracks=c.tracks.filter(tr=>{
+          const bone=tr.name.split('.')[0];
+          return REN[bone]&&!tr.name.endsWith('.position')&&!tr.name.endsWith('.scale');
+        }).map(tr=>{
+          const dot=tr.name.indexOf('.');
+          tr.name=REN[tr.name.slice(0,dot)]+tr.name.slice(dot);
+          return tr;
+        });
+        c.name=nm;
+        MINI_CLIPS.push(c);
+      }
+      if(MINI_CLIPS.length){
+        let na=0;
+        for(const k in PP_MODELS){
+          if(!k.startsWith('mini_'))continue;
+          const e=assets[PP_MODELS[k]];
+          if(e&&!e.animations.length){e.animations=MINI_CLIPS;na++}
+        }
+        console.log('[locomotion]',na,'minis animated with',MINI_CLIPS.map(c=>c.name).join('/'));
+      }
+    }catch(e){console.error('[locomotion]',e)}
     $('#ppLoad')?.remove();
     const put=(key,x,z,h,ry=0,collide=0,blockH=999)=>{
       const o=ppSpawn(assets,PP_MODELS[key],h);
@@ -3306,7 +3347,12 @@ function ppBoot(){
       m.rotation.y=Math.random()*6.3;
       scene.add(m);
       m.userData.isleIdle=Math.random()*6.3;
-      npcs.push({name:f2.name,mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
+      ppAnim(m,A_IDLE);
+      const royal=(f2.name==='Aldric'||f2.name==='Mara'); // the crown does not wander
+      npcs.push({name:f2.name,mesh:m,target:m.position.clone(),
+        wait:royal?1e9:2+Math.random()*5,
+        home:royal?null:m.position.clone(),
+        frozen:false,isle:true});
     }
     // 🎗️ ambassadors of Starhaven: Lute busks and Grub trades at the PARK plaza,
     // so the new faces greet kids the moment they spawn
@@ -3319,7 +3365,9 @@ function ppBoot(){
       m.position.set(amb.x,groundAt(amb.x,amb.z),amb.z);
       m.rotation.y=Math.random()*6.3;
       scene.add(m);m.userData.isleIdle=Math.random()*6.3;
-      npcs.push({name:amb.name,mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
+      ppAnim(m,A_IDLE);
+      npcs.push({name:amb.name,mesh:m,target:m.position.clone(),
+        wait:3+Math.random()*4,home:m.position.clone(),frozen:false,isle:true});
     }
     // Capt. Plank guards the bridge landing
     {
@@ -3328,7 +3376,8 @@ function ppBoot(){
         const wx=IC.x-IC.R+15, wz=11;
         m.position.set(wx,groundAt(wx,wz),wz);m.rotation.y=-Math.PI/2;
         scene.add(m);m.userData.isleIdle=1;
-        npcs.push({name:'Plank',mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
+        ppAnim(m,A_IDLE);
+        npcs.push({name:'Plank',mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true}); // the bridge is his post
       }
     }
     }
@@ -4678,6 +4727,10 @@ function ppBoot(){
           if(pp.skyfall)w3=pp.canopy?0.045:0.10;
           else if(pp.dropping)w3=0.012; // a whisper of breeze on deck
           else if(player.position.x>85&&!inSpace(player.position.z))w3=0.014+Math.sin(performance.now()/2600)*0.008;
+          if(!pp.skyfall&&!pp.dropping){ // 🌊 rolling surf as you near the sea
+            const coast=Math.max(0,1-Math.abs(player.position.x-(OCEAN_X-4))/55);
+            if(coast>0)w3=Math.max(w3,0.032*coast+Math.sin(performance.now()/850)*0.011*coast);
+          }
           snd.wind.gain.value+=(Math.max(0,w3)-snd.wind.gain.value)*Math.min(1,dt2*3);
         }
         // 🌌 moon-base drone
@@ -5073,6 +5126,7 @@ function ppBoot(){
       // 👑 islanders: gentle idle life, and they turn to greet you
       for(const n of npcs){
         if(!n.isle)continue;
+        if(n.home&&n.mesh.position.distanceTo(n.target)>1.6)continue; // mid-stroll: the Walk clip owns the body
         const u3=n.mesh.userData;
         n.mesh.position.y=groundAt(n.mesh.position.x,n.mesh.position.z)
           +Math.abs(Math.sin(t*1.3+u3.isleIdle))*0.05;
@@ -5232,15 +5286,18 @@ function ppBoot(){
           if(d.length()<1.5){
             n.wait-=dt;
             if(n.wait<=0){n.wait=1+Math.random()*4;
-              n.target.set((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5)}
+              if(n.home)n.target.set(n.home.x+(Math.random()-.5)*28,0,n.home.z+(Math.random()-.5)*28);
+              else n.target.set((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5)}
             ppAnim(n.mesh,A_IDLE);
           }else{
             d.normalize();
-            if(!tryMove(n.mesh,d.x*0.1,d.z*0.1,.45))n.target.set((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5);
+            if(!tryMove(n.mesh,d.x*0.1,d.z*0.1,.45)){
+              if(n.home)n.target.set(n.home.x+(Math.random()-.5)*28,0,n.home.z+(Math.random()-.5)*28);
+              else n.target.set((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5);
+            }
             n.mesh.position.y=groundAt(n.mesh.position.x,n.mesh.position.z);
             n.mesh.rotation.y=Math.atan2(d.x,d.z);
-            if(n.isle)continue;
-            ppAnim(n.mesh,A_WALK);
+                  ppAnim(n.mesh,A_WALK);
           }
         }
         const pd=n.mesh.position.distanceTo(player.position);
