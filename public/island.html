@@ -49,7 +49,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-23</div>
+<div class="hud" id="tag">ISL-24</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -321,7 +321,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-23'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-24'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -1760,7 +1760,7 @@ function tickSkels(dt){
 }
 function playerHurt(dmg=1,from=null){
   if(performance.now()<hurtUntil||performance.now()<downUntil)return;
-  hp-=dmg;heartsUI();hurtUntil=performance.now()+700;
+  hp=Math.max(0,hp-dmg);heartsUI();hurtUntil=performance.now()+700;
   playAnim('Hit',0.08);sfxHit();
   if(from)toast('⚔️ '+from+' got you!');
   if(hp<=0){ // KO: ALL your stars burst out — respawn with nothing
@@ -1838,6 +1838,194 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>{if(e.key==='f'||e.key==='F'||e.key==='Enter')throwBall()});
+
+/* ============================================================
+   🌋 THE LAVA TITAN · every 20 minutes a thousand-foot lava-stone
+   woman walks the horizon and hurls burning meteorites.
+   Wall-clock seeded: every player sees the exact same apparition.
+   ============================================================ */
+function mulberry32(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const TITAN={cycleMs:20*60*1000,lastCycle:-1,group:null,phaseT:0,meteors:[],rings:[],warned:false,armT:0};
+function lavaTex(){
+  const cv=document.createElement('canvas');cv.width=128;cv.height=256;
+  const g=cv.getContext('2d');
+  g.fillStyle='#1d1512';g.fillRect(0,0,128,256);
+  g.strokeStyle='#ff5a1a';g.lineWidth=3;g.shadowColor='#ff7a2a';g.shadowBlur=6;
+  for(let i=0;i<14;i++){ // glowing magma cracks
+    g.beginPath();
+    let x=Math.random()*128,y=Math.random()*256;
+    g.moveTo(x,y);
+    for(let k=0;k<4;k++){x+=(Math.random()-0.5)*40;y+=Math.random()*40;g.lineTo(x,y)}
+    g.stroke();
+  }
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=10497;
+  return t;
+}
+function buildTitan(){
+  const g=new THREE.Group();
+  const lt=lavaTex();
+  const rockM=new THREE.MeshLambertMaterial({map:lt,color:lin(0x5a4438),emissive:lin(0x481700),emissiveMap:lt});
+  const seg=(w,h,d)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),rockM);
+  // legs
+  const legL=seg(26,120,30);legL.position.set(-18,60,0);g.add(legL);
+  const legR=seg(26,120,30);legR.position.set(18,60,0);g.add(legR);
+  g.userData.legs=[legL,legR];
+  // torso — a mountain of a woman
+  const hips=seg(58,34,36);hips.position.y=132;g.add(hips);
+  const waist=seg(44,30,30);waist.position.y=162;g.add(waist);
+  const chest=seg(64,46,38);chest.position.y=198;g.add(chest);
+  // arms
+  const armL=seg(16,86,18);armL.position.set(-46,178,0);g.add(armL);
+  const armR=seg(16,86,18);armR.geometry.translate(0,-38,0);armR.position.set(46,214,0);g.add(armR);
+  g.userData.arm=armR; // the throwing arm pivots at the shoulder
+  // head with molten eyes + flowing lava hair
+  const head=seg(30,32,28);head.position.y=238;g.add(head);
+  const eyeM=new THREE.MeshBasicMaterial({color:0xffb02a});
+  for(const ex of [-8,8]){
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(3,8,6),eyeM);
+    eye.position.set(ex,240,15);g.add(eye);
+  }
+  const hair=seg(36,44,10);hair.position.set(0,232,-16);
+  hair.material=new THREE.MeshLambertMaterial({map:lt,color:lin(0x7a2408),emissive:lin(0x8a2600),emissiveMap:lt});
+  g.add(hair);
+  // her own glow lights the smoke around her
+  const glow=new THREE.PointLight(0xff6a22,1.2,600);glow.position.y=200;g.add(glow);
+  g.traverse(m=>{if(m.isMesh){m.frustumCulled=false}});
+  return g;
+}
+function titanMeteorTargets(rand,n){
+  const out=[];
+  for(let i=0;i<n;i++){
+    const a=rand()*6.28,r=rand()*120;
+    out.push({x:Math.cos(a)*r,z:Math.sin(a)*r});
+  }
+  return out;
+}
+function spawnMeteor(target,fromPos){
+  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(3.2,0),
+    new THREE.MeshBasicMaterial({color:0xff7a1a}));
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({color:0xffb02a,transparent:true,opacity:0.85,depthWrite:false}));
+  halo.scale.setScalar(16);core.add(halo);
+  core.position.copy(fromPos);
+  const T=4.2; // seconds of flight
+  core.userData={t:0,T,sx:fromPos.x,sy:fromPos.y,sz:fromPos.z,tx:target.x,tz:target.z,
+    ty:groundAt(target.x,target.z)};
+  scene.add(core);
+  TITAN.meteors.push(core);
+  // ⭕ the dodge ring — get OUT of the circle!
+  const ring=new THREE.Mesh(new THREE.RingGeometry(7.4,9,36),
+    new THREE.MeshBasicMaterial({color:0xff3a2a,transparent:true,opacity:0.65,side:THREE.DoubleSide,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2;
+  ring.position.set(target.x,groundAt(target.x,target.z)+0.15,target.z);
+  ring.userData={pulse:0};
+  scene.add(ring);
+  TITAN.rings.push(ring);
+  sfxZap();
+}
+let shakeT=0;
+function meteorImpact(m){
+  const x=m.userData.tx,z=m.userData.tz,gy=m.userData.ty;
+  // 🔥 the big one
+  sfxKO();sfxKO();
+  fxImpact(x,gy+1.5,z,0xff5a1a);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1,0.5,7,28),
+    new THREE.MeshBasicMaterial({color:0xff8c42,transparent:true,opacity:0.95}));
+  ring.rotation.x=Math.PI/2;ring.position.set(x,gy+0.5,z);
+  ring.userData={life:0.8,grow:44,kind:'ring'};
+  scene.add(ring);fx.push(ring);
+  const col=new THREE.Mesh(new THREE.CylinderGeometry(2,5,26,10,1,true),
+    new THREE.MeshBasicMaterial({color:0xff6a22,transparent:true,opacity:0.8,side:THREE.DoubleSide,depthWrite:false}));
+  col.position.set(x,gy+13,z);
+  col.userData={life:0.7,grow:8,kind:'ring'};
+  scene.add(col);fx.push(col);
+  throwConfetti(x,gy+4,z,14);
+  shakeT=0.7;
+  // ☠️ the blast: KO everyone inside 9 units (each client judges itself — same meteor everywhere)
+  if(Math.hypot(P.x-x,P.z-z)<9&&performance.now()>downUntil){
+    hp=0;heartsUI();
+    playerHurt(999); // full KO: all diamonds burst, beach respawn
+    toast('🌋 CRUSHED BY THE TITAN!');
+  }
+  for(const sk of [...skels]){
+    if(Math.hypot(sk.root.position.x-x,sk.root.position.z-z)<9){
+      boneScatter(sk.root.position.x,sk.root.position.y+1,sk.root.position.z);
+      scene.remove(sk.root);skels.splice(skels.indexOf(sk),1);
+    }
+  }
+}
+function tickTitan(dt){
+  const now=Date.now();
+  const cycle=Math.floor(now/TITAN.cycleMs);
+  const tIn=(now%TITAN.cycleMs)/1000; // seconds into this cycle
+  const VISIT=75; // she's visible for 75 seconds each cycle
+  if(tIn<VISIT){
+    if(TITAN.lastCycle!==cycle){ // she rises
+      TITAN.lastCycle=cycle;
+      TITAN.group=buildTitan();
+      scene.add(TITAN.group);
+      TITAN.rand=mulberry32(cycle*7919+13);
+      TITAN.nMet=3+((cycle%2)?1:0); // 3 or 4, everyone agrees
+      TITAN.targets=titanMeteorTargets(TITAN.rand,TITAN.nMet);
+      TITAN.thrown=0;
+      TITAN.a0=TITAN.rand()*6.28;
+      toast('🌋 THE LAVA TITAN RISES ON THE HORIZON…');
+      try{const c=sctx(),t=c.currentTime; // deep rumble
+        const o=c.createOscillator();o.type='sawtooth';o.frequency.value=32;
+        const g2=c.createGain();g2.gain.setValueAtTime(0.16,t);g2.gain.exponentialRampToValueAtTime(0.001,t+3);
+        o.connect(g2).connect(c.destination);o.start();o.stop(t+3);
+      }catch(e){}
+    }
+    if(TITAN.group){
+      // she strides along the horizon arc
+      const a=TITAN.a0+(tIn/VISIT)*0.7;
+      const R=780;
+      TITAN.group.position.set(Math.cos(a)*R,0,Math.sin(a)*R);
+      TITAN.group.lookAt(0,0,0);
+      // walk cycle: legs scissor, body sways
+      const w=tIn*1.4;
+      TITAN.group.userData.legs[0].rotation.x=Math.sin(w)*0.22;
+      TITAN.group.userData.legs[1].rotation.x=-Math.sin(w)*0.22;
+      TITAN.group.position.y=Math.abs(Math.sin(w))*6;
+      TITAN.group.rotation.z=Math.sin(w)*0.02;
+      // throws at 18s, 32s, 46s, 60s
+      const throwTimes=[18,32,46,60];
+      if(TITAN.thrown<TITAN.nMet&&tIn>throwTimes[TITAN.thrown]){
+        const hand=new THREE.Vector3(46,240,0).applyMatrix4(TITAN.group.matrixWorld);
+        spawnMeteor(TITAN.targets[TITAN.thrown],hand);
+        TITAN.thrown++;
+        TITAN.armT=0.8; // wind-up pose
+      }
+      if(TITAN.armT>0){TITAN.armT-=dt;TITAN.group.userData.arm.rotation.x=-2.2*Math.min(1,TITAN.armT/0.8)}
+      else TITAN.group.userData.arm.rotation.x=0;
+    }
+  }else if(TITAN.group){ // she sinks beyond the horizon
+    TITAN.group.position.y-=dt*30;
+    if(TITAN.group.position.y<-320){scene.remove(TITAN.group);TITAN.group=null}
+  }
+  // meteors fly a shaped arc
+  for(let i=TITAN.meteors.length-1;i>=0;i--){
+    const m=TITAN.meteors[i],u=m.userData;
+    u.t+=dt;
+    const k=Math.min(1,u.t/u.T);
+    m.position.x=u.sx+(u.tx-u.sx)*k;
+    m.position.z=u.sz+(u.tz-u.sz)*k;
+    m.position.y=u.sy+(u.ty-u.sy)*k+Math.sin(k*Math.PI)*120; // a high burning arc
+    m.rotation.x+=dt*4;m.rotation.y+=dt*3;
+    if(k>=1){
+      meteorImpact(m);
+      scene.remove(m);TITAN.meteors.splice(i,1);
+    }
+  }
+  for(let i=TITAN.rings.length-1;i>=0;i--){
+    const r2=TITAN.rings[i];
+    r2.userData.pulse+=dt*6;
+    r2.material.opacity=0.4+Math.sin(r2.userData.pulse)*0.3;
+    // ring dies when its meteor lands
+    if(!TITAN.meteors.some(m=>Math.abs(m.userData.tx-r2.position.x)<0.5&&Math.abs(m.userData.tz-r2.position.z)<0.5)){
+      scene.remove(r2);TITAN.rings.splice(i,1);
+    }
+  }
+}
 
 /* ============================================================
    GAME STATE + MAIN LOOP
@@ -1945,6 +2133,13 @@ function loop(){
     let cy=py+1.7+(ch-1.7)*(smBoom/camDist);
     cy=Math.max(cy,groundAt(cx,cz)+1.5);
     cam.position.lerp(new THREE.Vector3(cx,cy,cz),Math.min(1,dt*6.5));
+    if(shakeT>0){ // 🌋 impact tremor
+      shakeT-=dt;
+      const sh=shakeT*0.9;
+      cam.position.x+=(Math.random()-0.5)*sh;
+      cam.position.y+=(Math.random()-0.5)*sh*0.6;
+      cam.position.z+=(Math.random()-0.5)*sh;
+    }
     smLead+=((mag>0.05?1.8:0)-smLead)*Math.min(1,dt*3.5);
     lookTarget.lerp(new THREE.Vector3(
       P.x+Math.sin(P.yaw)*smLead,
@@ -1974,6 +2169,7 @@ function loop(){
   tickFx(dt);
   tickBall(dt);
   tickConfetti(dt);
+  tickTitan(dt);
 
   renderer.render(scene,cam);
 }
