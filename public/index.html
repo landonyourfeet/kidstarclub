@@ -2348,6 +2348,7 @@ const PP_MODELS={
   trp_fern1:'trp_fern1.glb',trp_fern2:'trp_fern2.glb',trp_flower1:'trp_flower1.glb',trp_flower2:'trp_flower2.glb',
   trp_rock1:'trp_rock1.glb',trp_rock2:'trp_rock2.glb',trp_cliff1:'trp_cliff1.glb',trp_cliff2:'trp_cliff2.glb',
   trp_dock:'trp_dock.glb',trp_ropebridge:'trp_ropebridge.glb',
+  trp_canoe:'trp_canoe.glb',
   trp_coral1:'trp_coral1.glb',trp_coral2:'trp_coral2.glb',trp_coral3:'trp_coral3.glb',trp_coral4:'trp_coral4.glb',
   trp_weed1:'trp_weed1.glb',trp_weed2:'trp_weed2.glb',trp_grass1:'trp_grass1.glb',trp_grass2:'trp_grass2.glb',
   trp_flame1:'trp_flame1.glb',trp_flame2:'trp_flame2.glb',
@@ -2452,7 +2453,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-54';
+const SV_BUILD='SV-55';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3546,6 +3547,15 @@ function ppBoot(){
     makeHeli(0,-72,0xff2ec4);
     makeHeli(-62,42,0x45d8ff);
     makeHeli(IC.x+38,IC.z+34,0xff8c1a); // island hopper (east beach)
+    { // ⛵ THE OUTRIGGER: a real Synty sailboat — board it and sail the lagoon
+      const bg=new THREE.Group(), btilt=new THREE.Group();bg.add(btilt);
+      const cm=ppSpawn(assets,'trp_canoe.glb',2.7);
+      if(cm){btilt.add(cm);cm.position.y=-0.12}
+      const brot=new THREE.Group();bg.add(brot); // vehicle code expects a rotor node
+      bg.position.set(IC.x-64,0.52,IC.z+16); // moored in the bridge shallows
+      scene.add(bg);
+      helis.push({mesh:bg,tilt:btilt,rotor:brot,vel:new THREE.Vector3(),rpm:0,boat:true});
+    }
     makeHeli(IC.x-30,IC.z+44,0xa78bfa); // the Isle ferry-bird
 
     // ---- 🏰 STARHAVEN: the fantasy city at the heart of the Isle ----
@@ -5185,18 +5195,25 @@ function ppBoot(){
           const ax=Math.sin(af)*(-vz)+Math.sin(af-Math.PI/2)*vx;
           const az=Math.cos(af)*(-vz)+Math.cos(af-Math.PI/2)*vx;
           // momentum: thrust + drag, collective for lift, gravity when idle
-          const TH=h.ship?27:13, DRG=h.ship?0.9:1.6;
+          const TH=h.boat?15:(h.ship?27:13), DRG=h.boat?1.1:(h.ship?0.9:1.6);
           h.vel.x+=ax*TH*dt*h.rpm; h.vel.z+=az*TH*dt*h.rpm;
           h.vel.x*=1-DRG*dt; h.vel.z*=1-DRG*dt;
-          const liftIn=pp.lift||(keys[' ']?1:(keys.c||keys.C)?-1:0);
+          const liftIn=h.boat?0:(pp.lift||(keys[' ']?1:(keys.c||keys.C)?-1:0));
           h.vel.y+= (liftIn>0?(h.ship?14:10):liftIn<0?(h.ship?-12:-9):(h.ship?-4:-5.5))*dt*h.rpm;
           h.vel.y=Math.max(-8,Math.min(h.ship?9:6,h.vel.y));h.vel.y*=1-0.8*dt;
           if(h.glow)h.glow.intensity=h.rpm*2.2;
           const m=h.mesh;
+          if(h.boat){ // boats stay on water: bounce softly off the shallows
+            const nx2=m.position.x+h.vel.x*dt*8,nz2=m.position.z+h.vel.z*dt*8;
+            if(groundAt(nx2,nz2)>0.5){h.vel.x*=-.2;h.vel.z*=-.2}
+          }
           if(!tryMove(m,h.vel.x*dt,h.vel.z*dt,1.6)){h.vel.x*=-.25;h.vel.z*=-.25}
           const floor=groundAt(m.position.x,m.position.z);
-          m.position.y=Math.max(floor,Math.min(h.ship?62:42,m.position.y+h.vel.y*dt));
-          if(m.position.y===floor&&h.vel.y<0)h.vel.y=0; // touched down (ground OR rooftop)
+          if(h.boat){m.position.y=0.5+Math.sin(performance.now()/650)*0.05;h.vel.y=0} // bobbing on the swell
+          else{
+            m.position.y=Math.max(floor,Math.min(h.ship?62:42,m.position.y+h.vel.y*dt));
+            if(m.position.y===floor&&h.vel.y<0)h.vel.y=0; // touched down (ground OR rooftop)
+          }
           const sp=Math.hypot(h.vel.x,h.vel.z);
           if(sp>0.6)m.rotation.y+=(((Math.atan2(h.vel.x,h.vel.z)-m.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*3);
           // bank & pitch with the motion
