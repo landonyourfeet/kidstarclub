@@ -46,7 +46,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD/arrows to run · drag to look · SPACE jump · collect ⭐ · tap 🎙️ to talk</div>
-<div class="hud" id="tag">ISL-8</div>
+<div class="hud" id="tag">ISL-9</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
@@ -283,7 +283,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-8'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-9'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -956,6 +956,7 @@ const normKey=k=>{k=k.toLowerCase();return KEYMAP[k]||k};
 addEventListener('keydown',e=>{keys[normKey(e.key)]=true;if(e.key===' '||e.key.startsWith('Arrow'))e.preventDefault()});
 addEventListener('keyup',e=>{keys[normKey(e.key)]=false});
 let camYaw=2.6,camPitch=0.32,camDist=9.5,dragId=null,lx=0,ly=0;
+let slopeTilt=0,lookReleasedAt=0;
 let pinchId2=null,pinchD0=0,pinchDist0=0;
 addEventListener('wheel',e=>{camDist=Math.max(5.5,Math.min(16,camDist+e.deltaY*0.01))},{passive:true});
 let joyId=null,jx=0,jy=0;
@@ -988,7 +989,7 @@ addEventListener('pointermove',e=>{
   }
 });
 addEventListener('pointerup',e=>{
-  if(e.pointerId===dragId)dragId=null;
+  if(e.pointerId===dragId){dragId=null;lookReleasedAt=performance.now()}
   if(e.pointerId===pinchId2)pinchId2=null;
   if(e.pointerId===joyId){joyId=null;jx=jy=0;joyKnob.style.transform=''}
 });
@@ -1057,10 +1058,30 @@ function loop(){
   else if(!emoting)playAnim('Idle');
   mixer&&mixer.update(dt);
 
+  // 🎥 follow-camera brain: swing behind on direction change · flow back after free-look · tilt on slopes
+  {
+    const lookHeld=dragId!==null;
+    const easeAng=(from,to,k)=>from+(((to-from+Math.PI*3)%(Math.PI*2))-Math.PI)*k;
+    if(!lookHeld){
+      // flow back behind the hero — faster while running, gentle when idle,
+      // with a short grace period after releasing free-look so it feels intentional
+      const since=performance.now()-lookReleasedAt;
+      const grace=mag>0.05?0:600;
+      if(since>grace){
+        const rate=mag>0.85?3.2:mag>0.05?2.4:1.2;
+        camYaw=easeAng(camYaw,P.yaw,Math.min(1,dt*rate));
+      }
+    }
+    // slope tilt: look up hills you're climbing, down slopes you're descending
+    const aheadG=groundAt(P.x+Math.sin(P.yaw)*4.5,P.z+Math.cos(P.yaw)*4.5);
+    const slope=Math.max(-0.4,Math.min(0.5,(aheadG-g0)/4.5));
+    slopeTilt+=((mag>0.05?slope*0.5:0)-slopeTilt)*Math.min(1,dt*3);
+  }
   // camera: Starville boom — orbit-follow, occlusion pull-in sampled along the boom, zoomable
   {
-    const ch=3.0+camPitch*5.2;
-    const dirX=-Math.sin(camYaw)*Math.cos(camPitch), dirZ=-Math.cos(camYaw)*Math.cos(camPitch);
+    const pEff=Math.max(0.05,Math.min(1.15,camPitch+slopeTilt));
+    const ch=3.0+pEff*5.2;
+    const dirX=-Math.sin(camYaw)*Math.cos(pEff), dirZ=-Math.cos(camYaw)*Math.cos(pEff);
     let boom=camDist;
     const eyeY=py+1.7;
     for(let tt=0.25;tt<=1.001;tt+=0.15){ // sample the sightline: hills never eat the view
@@ -1074,7 +1095,8 @@ function loop(){
     let cy=py+1.7+(ch-1.7)*(boom/camDist);
     cy=Math.max(cy,groundAt(cx,cz)+1.5);
     cam.position.lerp(new THREE.Vector3(cx,cy,cz),Math.min(1,dt*8));
-    cam.lookAt(P.x,py+1.7,P.z);
+    const lead=mag>0.05?1.8:0;
+    cam.lookAt(P.x+Math.sin(P.yaw)*lead,py+1.7+slopeTilt*3,P.z+Math.cos(P.yaw)*lead);
   }
 
   // world life
