@@ -2246,7 +2246,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-38';
+const SV_BUILD='SV-39';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -4636,6 +4636,7 @@ function ppBoot(){
       try{ // any frame error paints the snag instead of silently freezing on blue
       const dt=Math.min(0.05,clock.getDelta());
       t+=dt*4.8;
+      const camHold=pp.lookHold||(pp.lookHoldT||0)>performance.now(); // manual two-finger look active?
       for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>580)cl.position.x=-580}
       if(window.__svStar)__svStar.rotation.y+=dt*0.5;
       // 🌊 living water
@@ -5292,7 +5293,6 @@ function ppBoot(){
           pp.camYaw+=dd*Math.min(1,dt*3.6);
         }
       }
-      const camHold=pp.lookHold||(pp.lookHoldT||0)>performance.now();
       // slope-driven camera: climbing flattens the pitch AND zooms out for a wider view
       const fx2=Math.sin(player.rotation.y), fz2=Math.cos(player.rotation.y);
       const px2=player.position.x, pz2=player.position.z;
