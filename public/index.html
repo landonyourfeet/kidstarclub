@@ -2202,7 +2202,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-31';
+const SV_BUILD='SV-32';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2444,7 +2444,7 @@ function ppBoot(){
       const comp=new THREE.EffectComposer(renderer);
       comp.addPass(new THREE.RenderPass(scene,cam));
       const bloom=new THREE.UnrealBloomPass(
-        new THREE.Vector2(wrap.clientWidth||640,wrap.clientHeight||480),0.55,0.4,0.82);
+        new THREE.Vector2(wrap.clientWidth||640,wrap.clientHeight||480),0.4,0.4,0.9);
       comp.addPass(bloom);
       fx={comp,bloom,on:true,slow:0};
     }
@@ -2621,6 +2621,9 @@ function ppBoot(){
     for(let i=0;i<6000&&n<1600;i++){
       const x=-B+6+Math.random()*(B+56), z=(Math.random()-.5)*(CANYON_Z*2-44);
       if(x>64)continue;
+      if(x>30&&x<54)continue;                                  // the road is asphalt
+      if(Math.hypot(x-(-64),z-30)<11.5)continue;               // not in the pond
+      if(Math.hypot(x,z+72)<5||Math.hypot(x+62,z-42)<5)continue; // helipads stay clear
       dummy.position.set(x,groundAt(x,z),z);
       dummy.rotation.y=Math.random()*6.3;
       const s2=0.7+Math.random()*0.9;
@@ -2640,7 +2643,14 @@ function ppBoot(){
     for(let i=0;i<N;i++){pos[i*3]=(Math.random()-.5)*44;pos[i*3+1]=0.8+Math.random()*5;pos[i*3+2]=(Math.random()-.5)*44}
     const g3=new THREE.BufferGeometry();
     g3.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    motes.mat=new THREE.PointsMaterial({color:0xfff7cc,size:0.32,transparent:true,opacity:0.22,depthWrite:false});
+    const mcv=document.createElement('canvas');mcv.width=64;mcv.height=64;
+    const mg=mcv.getContext('2d');
+    const mgr=mg.createRadialGradient(32,32,2,32,32,30);
+    mgr.addColorStop(0,'rgba(255,255,255,1)');mgr.addColorStop(0.4,'rgba(255,255,255,.55)');mgr.addColorStop(1,'rgba(255,255,255,0)');
+    mg.fillStyle=mgr;mg.fillRect(0,0,64,64);
+    const moteTex=new THREE.CanvasTexture(mcv);
+    motes.mat=new THREE.PointsMaterial({color:0xfff7cc,size:0.22,map:moteTex,
+      transparent:true,opacity:0.2,depthWrite:false,alphaTest:0.02});
     motes.pts=new THREE.Points(g3,motes.mat);
     motes.pts.frustumCulled=false;
     motes.pos=pos;
@@ -2753,8 +2763,16 @@ function ppBoot(){
       if(Math.hypot(x-(-64),z-30)<14)continue;
       put(TREES[i%TREES.length],x,z,6+Math.random()*4,Math.random()*6.3,.7,9);
     }
-    for(let i=0;i<95;i++)put(i%2?'flowers':'grass',-B+6+Math.random()*(B-14+64),(Math.random()-.5)*B*1.9,.7+Math.random()*.4,Math.random()*6.3);
-    for(let i=0;i<32;i++)put('bush',-B+6+Math.random()*(B+50),(Math.random()-.5)*B*1.8,1.1,Math.random()*6.3,.6,2);
+    for(let i=0;i<95;i++){
+      const fx2=-B+6+Math.random()*(B-14+64), fz2=(Math.random()-.5)*B*1.9;
+      if(fx2>30&&fx2<54)continue; // keep the road clean
+      put(i%2?'flowers':'grass',fx2,fz2,.7+Math.random()*.4,Math.random()*6.3);
+    }
+    for(let i=0;i<32;i++){
+      const bx2=-B+6+Math.random()*(B+50), bz2=(Math.random()-.5)*B*1.8;
+      if(bx2>30&&bx2<54)continue;
+      put('bush',bx2,bz2,1.1,Math.random()*6.3,.6,2);
+    }
     for(let i=0;i<24;i++)put('rock',-B+8+Math.random()*(B-16),(Math.random()-.5)*B*1.8,.8,Math.random()*6.3,.5,1.4);
     // 🌵 the desert: cacti, flowering cacti, sun-baked rocks
     const CACTI=['cactus1','cactus2','cactus3'];
@@ -4168,12 +4186,13 @@ function ppBoot(){
       const old=document.getElementById('ppMap');if(old)old.remove();
       const mc=document.createElement('canvas');
       mc.id='ppMap';mc.width=132;mc.height=132;
+      const mapPx=Math.max(88,Math.min(132,Math.round((wrap.clientWidth||480)*0.24)));
       const st=mc.style;
       st.setProperty('position','absolute','important');
-      st.setProperty('bottom','74px','important');
+      st.setProperty('bottom','78px','important');
       st.setProperty('right','10px','important');
-      st.setProperty('width','132px','important');
-      st.setProperty('height','132px','important');
+      st.setProperty('width',mapPx+'px','important');
+      st.setProperty('height',mapPx+'px','important');
       st.setProperty('z-index','40','important');
       st.setProperty('display','block','important');
       st.setProperty('pointer-events','none','important');
@@ -4360,12 +4379,12 @@ function ppBoot(){
         if(window.__skyMat)__skyMat.color.setRGB(
           Math.min(1,0.05+0.95*f+warm*0.5), Math.min(1,0.07+0.93*f+warm*0.12), 0.22+0.78*f);
         if(window.__nightStars)__nightStars.opacity=(1-f)*0.9;
-        if(fx)fx.bloom.strength=0.5+(1-f)*0.6+warm*0.2; // night makes the glow sing
+        if(fx)fx.bloom.strength=0.3+(1-f)*0.8+warm*0.2; // subtle by day, glorious by night
         // motes: pollen by day, fireflies by night
         if(motes.mat){
-          if(f<0.5){motes.mat.color.setHex(0x9dffb0);motes.mat.size=0.5;
+          if(f<0.5){motes.mat.color.setHex(0x9dffb0);motes.mat.size=0.34;
             motes.mat.opacity=0.55+Math.sin(performance.now()/280)*0.35}
-          else{motes.mat.color.setHex(0xfff7cc);motes.mat.size=0.32;motes.mat.opacity=0.22}
+          else{motes.mat.color.setHex(0xfff7cc);motes.mat.size=0.22;motes.mat.opacity=0.2}
         }
         for(const cl of clouds)for(const puff of cl.children)
           puff.material.color.setScalar(0.22+0.78*f);
