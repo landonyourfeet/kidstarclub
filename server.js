@@ -684,6 +684,17 @@ app.post('/api/park/talk', requireUser, async (req, res) => {
 // (who's-playing feed for the banner + arcade tile)
 
 const parkPresence=new Map(); // userId -> {name,x,z,ry,hero,cfg,ts}
+const islandHits=new Map();   // targetName -> [{from,dmg,ts}] — STAR DUELS hit relay
+app.post('/api/island/hit', requireUser, (req, res) => {
+  const to=String(req.body?.to||'').slice(0,30);
+  const dmg=Math.max(1,Math.min(3,parseInt(req.body?.dmg,10)||1));
+  if(!to)return res.json({ok:false});
+  const from=(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30);
+  const q=islandHits.get(to)||[];
+  if(q.length<20)q.push({from,dmg,ts:Date.now()});
+  islandHits.set(to,q);
+  res.json({ok:true});
+});
 app.post('/api/park/pos', requireUser, (req, res) => {
   const b=req.body||{};
   const num=v=>Math.max(-500,Math.min(500,Number(v)||0));
@@ -701,11 +712,14 @@ app.post('/api/park/pos', requireUser, (req, res) => {
     hero:String(b.hero||'custom').slice(0,20), cfg:safeCfg, ts:Date.now(),
   });
   const now=Date.now(), others=[];
+  const myName=(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30);
+  const myHits=(islandHits.get(myName)||[]).filter(h=>now-h.ts<6000);
+  islandHits.delete(myName);
   for(const [id,p2] of parkPresence){
     if(now-p2.ts>8000){parkPresence.delete(id);continue}
     if(id!==req.user.id)others.push({id,...p2});
   }
-  res.json({others});
+  res.json({others,you:myName,hits:myHits});
 });
 app.get('/api/chat/mymentions', requireUser, async (req, res) => {
   const me='@'+String(req.user.display_name||'').toLowerCase();
