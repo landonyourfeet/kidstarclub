@@ -1597,6 +1597,35 @@ function sndBlast(lines){
 }
 const sndWin  =()=>{[523,659,784,1046].forEach((f,i)=>sfxTone(f,0.18,'triangle',0.22,i*0.11))};
 
+// ---- 🔍 INSPECTOR: triple-tap the mic button, then tap any object to name its model ----
+window.__inspect=false;let __insTaps=[],__insRay=new (window.THREE?THREE.Raycaster:function(){})();
+addEventListener('pointerdown',e=>{
+  if(e.target?.id==='ppVoice'){
+    const now=performance.now();__insTaps=__insTaps.filter(t=>now-t<900);__insTaps.push(now);
+    if(__insTaps.length>=3){__inspect=!__inspect;__insTaps=[];
+      const d=document.createElement('div');d.className='pphud';d.style.cssText='z-index:9;top:36%;background:#e0f2ff;color:#123a5a;font-size:12px';
+      d.textContent=__inspect?'🔍 INSPECTOR ON — tap any object to identify it':'🔍 inspector off';
+      document.querySelector('.ppwrap')?.appendChild(d);setTimeout(()=>d.remove(),2500);}
+    return;
+  }
+  if(!__inspect||!window.scene||!window.cam)return;
+  const cv=document.querySelector('.ppwrap canvas.game3d')||document.querySelector('.ppwrap canvas');
+  if(!cv||e.target!==cv)return;
+  const r=cv.getBoundingClientRect();
+  const nx=((e.clientX-r.left)/r.width)*2-1, ny=-(((e.clientY-r.top)/r.height)*2-1);
+  __insRay.setFromCamera({x:nx,y:ny},cam);
+  const hits=__insRay.intersectObjects(scene.children,true);
+  for(const h of hits){
+    let o=h.object,key=null;
+    while(o){if(o.userData?.mkey){key=o.userData.mkey;break}o=o.parent}
+    if(key){
+      const d=document.createElement('div');d.className='pphud';d.style.cssText='z-index:9;top:36%;background:#fff7d6;color:#5a4310;font-size:13px;font-weight:800';
+      d.textContent='🔍 '+key+' ('+(PP_MODELS[key]||'?')+')';
+      document.querySelector('.ppwrap')?.appendChild(d);setTimeout(()=>d.remove(),4000);
+      break;
+    }
+  }
+},true);
 // ---- 🎙️ IN-GAME VOICE CHAT (WebRTC mesh; server is signaling-only) ----
 const VC={state:'off',peers:new Map(),stream:null,myId:null,timer:null,ctx:null,meter:null};
 function vcUI(){
@@ -2452,7 +2481,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-56';
+const SV_BUILD='SV-57';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2704,7 +2733,8 @@ function ppBoot(){
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
   scene.fog=new THREE.Fog(new THREE.Color(0xa8d4f5).convertSRGBToLinear(),300,1400); // linear fog — the global white veil is gone
-  const cam=new THREE.PerspectiveCamera(55,1,0.1,1700);
+  window.scene=scene; // 🔍 inspector access
+  const cam=new THREE.PerspectiveCamera(55,1,0.1,1700);window.cam=cam;
   // ✨ post stack: filmic bloom (emissives glow — the Great Star, crystals, bolts, neon skins)
   let fx=null;
   try{
@@ -3141,6 +3171,7 @@ function ppBoot(){
     const put=(key,x,z,h,ry=0,collide=0,blockH=999)=>{
       const o=ppSpawn(assets,PP_MODELS[key],h);
       if(!o)return null;
+      o.userData.mkey=key; // 🔍 tap-to-identify
       o.position.set(x,groundAt(x,z),z);o.rotation.y=ry;scene.add(o);
       if(collide)COLL.push({x,z,hw:collide,hd:collide,h:blockH});
       return o;
@@ -3171,12 +3202,12 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=48+Math.random()*18;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(i%2?'trp_flame1':TREES[i%TREES.length],tx4,tz4,5.5+Math.random()*2,Math.random()*6.3,.45,8);
+        put(TREES[(i*3+1)%TREES.length],tx4,tz4,5.5+Math.random()*2,Math.random()*6.3,.45,8);
       }
       for(let i=0;i<12;i++){ // jungle interior
         const an4=Math.random()*6.3, rr4=30+Math.random()*14;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
-        put([TREES[i%TREES.length],'trp_flame2','trp_flame1'][i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.7,10);
+        put(TREES[(i*2)%TREES.length],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.7,10);
       }
       for(let i=0;i<4;i++){ // 🍌 banana groves (of course)
         const an4=1.1+i*0.5, rr4=36+Math.random()*10;
@@ -3186,7 +3217,7 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=28+Math.random()*38;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(['trp_rock1','trp_coral2','trp_flame2','trp_coral4','trp_coral1'][i%5],tx4,tz4,1.0+Math.random()*0.7,Math.random()*6.3,0,0);
+        put(['trp_rock1','trp_coral2','trp_coral3','trp_coral4','trp_coral1'][i%5],tx4,tz4,1.0+Math.random()*0.7,Math.random()*6.3,0,0);
       }
       for(let i=0;i<5;i++){ // shoreline boulders
         const an4=Math.random()*6.3, rr4=60+Math.random()*7;
@@ -3194,7 +3225,7 @@ function ppBoot(){
         put(i%2?'trp_rock1':'trp_rock2',tx4,tz4,1.6+Math.random()*1.6,Math.random()*6.3,1.2,2.5);
       }
       // 🌺 flame trees (pohutukawa) — bursts of red through the canopy
-      for(let i=0;i<11;i++){
+      for(let i=0;i<0;i++){ // 🌺 flame trees benched pending inspector verdict
         const an4=Math.random()*6.3, rr4=30+Math.random()*26;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
