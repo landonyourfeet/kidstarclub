@@ -45,7 +45,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD / drag to look · SPACE to jump</div>
-<div class="hud" id="tag">ISL-1</div>
+<div class="hud" id="tag">ISL-2</div>
 <div id="joy"><i></i></div>
 <div id="jump">⬆︎</div>
 
@@ -251,6 +251,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
+const ASSET_V='ISL-2'; // bump with every asset change: guarantees fresh files
 const FILES={
   palm1:'trp_palm1.glb',palm2:'trp_palm2.glb',palm3:'trp_palm3.glb',
   fern1:'trp_fern1.glb',fern2:'trp_fern2.glb',bush:'trp_bush.glb',
@@ -271,10 +272,15 @@ function loadAll(onProgress){
   const names=Object.values(FILES);
   let done=0;
   return Promise.all(names.map(f=>new Promise(res=>{
-    loader.load('/assets/'+f,g=>{
+    loader.load('/assets/'+f+'?v='+ASSET_V,g=>{
       g.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;
         const mats=Array.isArray(m.material)?m.material:[m.material];
-        for(const mm of mats)if(mm&&mm.map)mm.map.anisotropy=4;
+        for(const mm of mats){
+          if(!mm)continue;
+          if(mm.map)mm.map.anisotropy=4;
+          if(mm.alphaTest>0){mm.transparent=false;mm.depthWrite=true;mm.needsUpdate=true} // crisp cutout cards
+          if(f==='trp_rock1.glb'){mm.map=null;mm.color=lin(0xb9a68e);mm.needsUpdate=true} // triplanar rock -> flat stone
+        }
       }});
       assets[f]={scene:g.scene,animations:g.animations||[]};
       done++;onProgress(done,names.length);res();
@@ -403,8 +409,10 @@ function buildWorld(){
    CONTROLS · third-person: orbit camera + move-relative-to-camera
    ============================================================ */
 const keys={};
-addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key===' ')e.preventDefault()});
-addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+const KEYMAP={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'};
+const normKey=k=>{k=k.toLowerCase();return KEYMAP[k]||k};
+addEventListener('keydown',e=>{keys[normKey(e.key)]=true;if(e.key===' '||e.key.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keyup',e=>{keys[normKey(e.key)]=false});
 let camYaw=2.6,camPitch=0.32,dragId=null,lx=0,ly=0;
 let joyId=null,jx=0,jy=0;
 const joyEl=document.getElementById('joy'),joyKnob=joyEl.querySelector('i');
