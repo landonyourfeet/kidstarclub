@@ -156,6 +156,14 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
 .sbpiece.on{border-color:var(--yellow);box-shadow:0 0 16px rgba(255,225,77,.85);transform:scale(1.15) rotate(2deg);animation:none}
 .sbpiece.empty{border:none;background:none;min-width:40px;animation:none}
 .sbpiece{touch-action:none}
+.sbcell.blast{animation:sbBlast .34s ease-out forwards;z-index:2;position:relative}
+@keyframes sbBlast{
+  0%{filter:brightness(1.4);box-shadow:0 0 8px 2px #fff}
+  55%{filter:brightness(2.6) saturate(1.6);transform:scale(1.22);
+    box-shadow:0 0 22px 9px #ffe14d,0 0 44px 20px rgba(255,46,196,.85),0 0 70px 32px rgba(69,216,255,.5)}
+  100%{filter:brightness(3.2);transform:scale(.45) rotate(8deg);opacity:0;
+    box-shadow:0 0 60px 26px rgba(255,255,255,.95)}
+}
 .sbghost{position:fixed;z-index:70;pointer-events:none;opacity:.95;filter:drop-shadow(0 6px 10px rgba(13,2,16,.6))}
 .sbcell.prev{background:#1e6b3a!important;box-shadow:0 0 10px rgba(74,222,128,.8),inset 0 0 6px rgba(74,222,128,.6)}
 .sbcell.badprev{background:#6b1e1e!important;box-shadow:0 0 8px rgba(248,113,113,.7)}
@@ -1612,7 +1620,7 @@ function sbAnyFit(){
   return sb.tray.some(p=>p&&[...Array(8)].some((_,r)=>[...Array(8)].some((_,c)=>sbCan(p.m,r,c))));
 }
 function sbPlace(r,c){
-  if(sb.over)return;
+  if(sb.over||sb.busy)return;
   const p=sb.tray[sb.sel];if(!p)return;
   if(!sbCan(p.m,r,c)){
     sndBad();
@@ -1627,14 +1635,30 @@ function sbPlace(r,c){
   for(let i=0;i<8;i++){if(sb.grid[i].every(v=>v))rows.push(i)}
   for(let j=0;j<8;j++){if(sb.grid.every(row=>row[j]))cols.push(j)}
   const lines=rows.length+cols.length;
-  rows.forEach(i=>sb.grid[i]=Array(8).fill(0));
-  cols.forEach(j=>sb.grid.forEach(row=>row[j]=0));
-  sb.score+=cells+(lines?10*lines*lines:0);
-  if(lines){sndBlast(lines);burst(lines>=3?'storm':'pop')}else sndDrop();
-  if(sb.tray.every(x=>!x))sbFill();
-  if(!sbAnyFit()){sb.over=true;sndWin();
-    submitScore('starblast',sb.score).then(x=>setTimeout(()=>alert('Game over! ⭐ '+sb.score+' points'+x),300))}
-  sbRender();
+  const finish=()=>{
+    rows.forEach(i=>sb.grid[i]=Array(8).fill(0));
+    cols.forEach(j=>sb.grid.forEach(row=>row[j]=0));
+    sb.score+=cells+(lines?10*lines*lines:0);
+    if(sb.tray.every(x=>!x))sbFill();
+    if(!sbAnyFit()){sb.over=true;sndWin();
+      submitScore('starblast',sb.score).then(x=>setTimeout(()=>alert('Game over! ⭐ '+sb.score+' points'+x),300))}
+    sb.busy=false;
+    sbRender();
+  };
+  if(lines){
+    sndBlast(lines);burst(lines>=3?'storm':'pop');
+    sb.busy=true;
+    sbRender(); // show the placed piece first…
+    const gEl=$('#sbgrid');
+    if(gEl){ // …then light up the full lines and let them SHATTER
+      rows.forEach(i=>{for(let j=0;j<8;j++)gEl.children[i*8+j]?.classList.add('blast')});
+      cols.forEach(j=>{for(let i=0;i<8;i++)gEl.children[i*8+j]?.classList.add('blast')});
+    }
+    setTimeout(finish,340);
+  }else{
+    sndDrop();
+    finish();
+  }
 }
 function sbRender(){
   const g=$('#sbgrid');if(!g)return;
@@ -1655,7 +1679,15 @@ function sbRender(){
 let sbDragState=null;
 function sbDragStart(i,ev){
   const p=sb.tray[i];if(!p||sb.over)return;
+  // clean up any leaked drag (Android can interrupt mid-gesture)
+  if(sbDragState){try{sbDragState.ghost.remove()}catch(e){}
+    removeEventListener('pointermove',sbDragMove);
+    removeEventListener('pointerup',sbDragEnd);
+    removeEventListener('pointercancel',sbDragEnd);
+    document.querySelectorAll('.sbcell').forEach(el=>el.classList.remove('prev','badprev'));
+    sbDragState=null;}
   ev.preventDefault();
+  try{ev.target.setPointerCapture&&ev.target.setPointerCapture(ev.pointerId)}catch(e){}
   sndPick();
   sb.sel=i;sbRender();
   const cellPx=Math.min(34,Math.floor(($('#sbgrid').getBoundingClientRect().width-12)/8));
@@ -1668,10 +1700,12 @@ function sbDragStart(i,ev){
   sbDragState={i,p,ghost,cellPx,r:-1,c:-1};
   sbDragMove(ev);
   addEventListener('pointermove',sbDragMove,{passive:false});
-  addEventListener('pointerup',sbDragEnd,{once:true});
+  addEventListener('pointerup',sbDragEnd);
+  addEventListener('pointercancel',sbDragEnd); // Android fires THIS when it hijacks a gesture
 }
 function sbDragMove(ev){
   const d=sbDragState;if(!d)return;
+  if(ev.pointerType==='mouse'&&ev.buttons===0)return sbDragEnd();
   ev.preventDefault?.();
   const lift=70; // piece floats above the finger so she can see it
   const gx=ev.clientX-(d.p.m[0].length*d.cellPx)/2;
@@ -1695,6 +1729,8 @@ function sbDragMove(ev){
 function sbDragEnd(){
   const d=sbDragState;if(!d)return;
   removeEventListener('pointermove',sbDragMove);
+  removeEventListener('pointerup',sbDragEnd);
+  removeEventListener('pointercancel',sbDragEnd);
   d.ghost.remove();
   document.querySelectorAll('.sbcell').forEach(el=>el.classList.remove('prev','badprev'));
   sbDragState=null;
