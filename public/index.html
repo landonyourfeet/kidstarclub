@@ -1393,7 +1393,6 @@ async function removeVid(id){
 // ---- ARCADE HUB ----
 const GAMES={
   island:{title:'🏝️ STARVILLE ISLAND',blurb:'NEW! Explore a tropical island with friends — collect stars, meet the deer, bring your Shiba & talk on mic!',start:()=>{location.href='/island.html'}},
-  puppy:{title:'🌟 STARVILLE',blurb:'A real 3D world! Animated heroes, a puppy, wildlife, houses, cars & AI friends!',start:()=>ppNew()},
   starblast:{title:'⭐ STAR BLAST',blurb:'Fill rows & columns to BLAST them!',start:()=>sbNew()},
   zaptap:{title:'⚡ ZAP TAP',blurb:'30 seconds. Tap the stars. Dodge the bombs!',start:()=>ztNew()},
   starmatch:{title:'🃏 STAR MATCH',blurb:'Find all the pairs — fast fingers, big score!',start:()=>smNew()},
@@ -1415,7 +1414,7 @@ function svApplyWho(){
     bn.onclick=()=>{go('arcade');setTimeout(()=>openGame('puppy'),60)};
     document.body.appendChild(bn);
   }
-  if(w.count>0&&currentGame!=='puppy'){
+  if(false){ // 🌟 classic Starville retired — the island carries the torch
     const who=w.names.slice(0,3).join(', ')+(w.count>3?` +${w.count-3}`:'');
     bn.innerHTML=`🌟 <b>${esc(who)}</b> ${w.count===1?'is':'are'} in STARVILLE — tap to join!`;
     bn.classList.remove('hide');
@@ -2510,7 +2509,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-67';
+const SV_BUILD='SV-68';
 function ppNew(){
   gReset();
   const hero=ppHero();
