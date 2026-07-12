@@ -38,14 +38,14 @@
 <body>
 <canvas id="c"></canvas>
 <div id="title">
-  <div id="hero">👑</div>
+  <div id="hero">🏹</div>
   <h1>STARVILLE ISLAND</h1>
-  <p>a tropical adventure · play as <b>King Aldric</b></p>
+  <p>a tropical adventure · play as <b>the Ranger</b> · your Shiba comes too</p>
   <div id="loadBar"><i></i></div><div id="loadPct">0%</div>
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD/arrows to run · drag to look · SPACE jump · collect ⭐ · tap 🎙️ to talk</div>
-<div class="hud" id="tag">ISL-4</div>
+<div class="hud" id="tag">ISL-5</div>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
 <div id="vchips" style="position:fixed;left:14px;top:108px;z-index:11;display:flex;flex-direction:column;gap:4px;pointer-events:none"></div>
@@ -280,18 +280,15 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-4'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-5'; // bump with every asset change: guarantees fresh files
 const FILES={
-  palm1:'trp_palm1.glb',palm2:'trp_palm2.glb',palm3:'trp_palm3.glb',
-  fern1:'trp_fern1.glb',fern2:'trp_fern2.glb',bush:'trp_bush.glb',
-  flower1:'trp_flower1.glb',flower2:'trp_flower2.glb',
-  flame1:'trp_flame1.glb',flame2:'trp_flame2.glb',banana:'trp_banana.glb',
-  rock1:'trp_rock1.glb',coral1:'trp_coral1.glb',coral2:'trp_coral2.glb',
-  coral3:'trp_coral3.glb',coral4:'trp_coral4.glb',weed1:'trp_weed1.glb',weed2:'trp_weed2.glb',
-  dock:'trp_dock.glb',canoe:'trp_canoe.glb',wreck:'trp_wreck.glb',whale:'trp_whale.glb',barrel:'trp_barrel.glb',
-  king:'mini_king.glb',
-  animIdle:'anim_idle.glb',animWalk:'anim_walk.glb',animRun:'anim_run.glb',animJump:'anim_jump.glb',
-};
+  tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
+  pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
+  bush:'Bush_1.glb',flowers:'Flowers.glb',grass:'Grass.glb',
+  rock1:'Rock_1.glb',rock2:'Rock_Moss_1.glb',
+  ranger:'hero_ranger.glb',shiba:'animals_pack_ShibaInu.glb',
+  deer:'Deer.glb',stag:'Stag.glb',flamingo:'hero_flamingo.glb',
+}
 const assets={};
 function loadAll(onProgress){
   const loader=new THREE.GLTFLoader();
@@ -308,7 +305,6 @@ function loadAll(onProgress){
           if(!mm)continue;
           if(mm.map)mm.map.anisotropy=4;
           if(mm.alphaTest>0){mm.transparent=false;mm.depthWrite=true;mm.needsUpdate=true} // crisp cutout cards
-          if(f==='trp_rock1.glb'){mm.map=null;mm.color=lin(0xb9a68e);mm.needsUpdate=true} // triplanar rock -> flat stone
         }
       }});
       assets[f]={scene:g.scene,animations:g.animations||[]};
@@ -341,40 +337,18 @@ const put=(key,x,z,h,ry)=>{
 /* ============================================================
    CHARACTER · King Aldric with the verified retarget
    ============================================================ */
-const REN={Hips:'pelvis',Spine_01:'spine_01',Spine_02:'spine_02',Spine_03:'spine_03',
-  Neck:'neck_01',Head:'head',
-  Clavicle_L:'clavicle_l',Shoulder_L:'upperarm_l',Elbow_L:'lowerarm_l',Hand_L:'hand_l',
-  Clavicle_R:'clavicle_r',Shoulder_R:'upperarm_r',Elbow_R:'lowerarm_r',Hand_R:'hand_r',
-  UpperLeg_L:'thigh_l',LowerLeg_L:'calf_l',Ankle_L:'foot_l',Ball_L:'ball_l',
-  UpperLeg_R:'thigh_r',LowerLeg_R:'calf_r',Ankle_R:'foot_r',Ball_R:'ball_r'};
-const ARM=new Set(['Clavicle_L','Shoulder_L','Elbow_L','Hand_L','Clavicle_R','Shoulder_R','Elbow_R','Hand_R']);
-function buildClips(miniScene){
-  const out=[];
-  for(const [nm,file] of [['Idle',FILES.animIdle],['Walk',FILES.animWalk],['Run',FILES.animRun],['Jump',FILES.animJump]]){
-    const src=assets[file];
-    if(!src||!src.animations.length)continue;
-    const c=src.animations[0].clone();
-    c.tracks=c.tracks.filter(tr=>{
-      const b=tr.name.split('.')[0];
-      return REN[b]&&tr.name.endsWith('.quaternion');
-    }).map(tr=>{
-      const b=tr.name.split('.')[0],dst=REN[b];
-      const aR=src.scene.getObjectByName(b)?.quaternion;
-      const mR=miniScene.getObjectByName(dst)?.quaternion;
-      if(aR&&mR&&!ARM.has(b)){ // body: rest-delta · arms: raw locals (proven on 6 rigs)
-        const A=mR.clone().multiply(aR.clone().invert());
-        const v=tr.values,q=new THREE.Quaternion();
-        for(let i=0;i<v.length;i+=4){
-          q.set(v[i],v[i+1],v[i+2],v[i+3]).premultiply(A);
-          v[i]=q.x;v[i+1]=q.y;v[i+2]=q.z;v[i+3]=q.w;
-        }
-      }
-      tr.name=dst+'.quaternion';
-      return tr;
-    });
-    c.name=nm;out.push(c);
+function nativeActions(root,anims){ // Quaternius clips ship inside the GLB — just normalize names
+  const mixer=new THREE.AnimationMixer(root);
+  const acts={};
+  for(const clip of anims){
+    const k=clip.name.split('|').pop();
+    const act=mixer.clipAction(clip);
+    acts[k]=act;
+    for(const want of ['Idle','Walk','Run','Jump'])
+      if(k.includes(want)&&!acts[want])acts[want]=act;
   }
-  return out;
+  if(!acts.Walk&&acts.Run)acts.Walk=acts.Run;
+  return {mixer,acts};
 }
 let player,mixer,actions={},current=null;
 function playAnim(name,fade=0.18){
@@ -385,53 +359,254 @@ function playAnim(name,fade=0.18){
 }
 
 /* ============================================================
+   PROCEDURAL TROPICS · hand-built for the browser, cannot fail
+   ============================================================ */
+let frondTex=null;
+function getFrondTex(){
+  if(frondTex)return frondTex;
+  const cv=document.createElement('canvas');cv.width=128;cv.height=256;
+  const g=cv.getContext('2d');
+  g.clearRect(0,0,128,256);
+  // a tapered frond with notched edges
+  g.fillStyle='#2f9e46';
+  g.beginPath();g.moveTo(64,0);
+  for(let i=0;i<=10;i++){
+    const t=i/10,w=Math.sin(t*Math.PI)*46;
+    g.lineTo(64+w*(i%2?0.72:1),t*256);
+  }
+  for(let i=10;i>=0;i--){
+    const t=i/10,w=Math.sin(t*Math.PI)*46;
+    g.lineTo(64-w*(i%2?0.72:1),t*256);
+  }
+  g.closePath();g.fill();
+  const gr=g.createLinearGradient(0,0,0,256);
+  gr.addColorStop(0,'rgba(255,240,150,0.35)');gr.addColorStop(1,'rgba(0,60,20,0.35)');
+  g.globalCompositeOperation='source-atop';g.fillStyle=gr;g.fillRect(0,0,128,256);
+  frondTex=new THREE.CanvasTexture(cv);
+  frondTex.encoding=THREE.sRGBEncoding;
+  return frondTex;
+}
+function makePalm(h){
+  const g=new THREE.Group();
+  const barkM=new THREE.MeshLambertMaterial({color:lin(0x8a6a44)});
+  const segs=6;let px=0,py=0,tilt=(Math.random()-0.5)*0.16;
+  for(let i=0;i<segs;i++){
+    const t=i/segs;
+    const seg=new THREE.Mesh(new THREE.CylinderGeometry(0.16*(1-t*0.5)*h/7,0.2*(1-t*0.45)*h/7,h/segs,7),barkM);
+    px+=tilt*h/segs*i*0.5;
+    seg.position.set(px,py+h/segs/2,0);
+    seg.rotation.z=-tilt*i*0.8;
+    py+=h/segs*0.98;
+    g.add(seg);
+  }
+  const crown=new THREE.Group();crown.position.set(px,py,0);
+  const fm=new THREE.MeshLambertMaterial({map:getFrondTex(),alphaTest:0.4,side:THREE.DoubleSide});
+  for(let i=0;i<8;i++){
+    const fr=new THREE.Mesh(new THREE.PlaneGeometry(h*0.24,h*0.66,1,6),fm);
+    // droop: bend the frond down along its length
+    const pos=fr.geometry.attributes.position;
+    for(let vi=0;vi<pos.count;vi++){
+      const y=pos.getY(vi),t=(y+h*0.33)/(h*0.66);
+      pos.setZ(vi,-Math.pow(1-t,2)*h*0.14);
+    }
+    pos.needsUpdate=true;fr.geometry.computeVertexNormals();
+    fr.position.y=h*0.3;
+    fr.rotation.set(-0.55-Math.random()*0.25,i/8*Math.PI*2,0);
+    const hold=new THREE.Group();hold.rotation.y=i/8*Math.PI*2;
+    fr.rotation.y=0;hold.add(fr);crown.add(hold);
+  }
+  for(let i=0;i<3;i++){ // coconuts
+    const nut=new THREE.Mesh(new THREE.SphereGeometry(h*0.045,8,6),new THREE.MeshLambertMaterial({color:lin(0x5f4a2e)}));
+    nut.position.set(Math.cos(i*2.1)*h*0.06,-h*0.02,Math.sin(i*2.1)*h*0.06);
+    crown.add(nut);
+  }
+  g.add(crown);
+  g.traverse(m=>{if(m.isMesh)m.castShadow=true});
+  return g;
+}
+function makeCoral(){
+  const g=new THREE.Group();
+  const cols=[0xff5f8f,0xff8c42,0x27e6ff,0x9d5cff,0x37ffb0];
+  const n=2+Math.floor(Math.random()*3);
+  for(let i=0;i<n;i++){
+    const geo=new THREE.IcosahedronGeometry(0.4+Math.random()*0.5,0);
+    const pos=geo.attributes.position;
+    for(let vi=0;vi<pos.count;vi++)
+      pos.setXYZ(vi,pos.getX(vi)*(0.8+Math.random()*0.5),pos.getY(vi)*(1+Math.random()*0.9),pos.getZ(vi)*(0.8+Math.random()*0.5));
+    geo.computeVertexNormals();
+    const m=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:lin(cols[(Math.random()*cols.length)|0])}));
+    m.position.set((Math.random()-0.5)*1.2,0.3,(Math.random()-0.5)*1.2);
+    g.add(m);
+  }
+  return g;
+}
+function makeDock(x,z,ry){
+  const g=new THREE.Group();
+  const wood=new THREE.MeshLambertMaterial({color:lin(0x9a7448)});
+  for(let i=0;i<7;i++){
+    const plank=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.14,0.8),wood);
+    plank.position.set(0,0.85,i*0.92);plank.castShadow=true;g.add(plank);
+  }
+  for(const [px,pz] of [[-1,0.5],[1,0.5],[-1,5.5],[1,5.5]]){
+    const post=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.13,1.9,7),wood);
+    post.position.set(px,0,pz);g.add(post);
+  }
+  g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);
+  return g;
+}
+function makeBoat(x,z,ry){
+  const g=new THREE.Group();
+  const hullM=new THREE.MeshLambertMaterial({color:lin(0xb2814f)});
+  const hull=new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.55,3.6,8,1,false),hullM);
+  hull.rotation.z=Math.PI/2;hull.rotation.y=Math.PI/2;hull.scale.y=0.62;hull.scale.z=0.5;
+  hull.position.y=0.34;g.add(hull);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,2.6,6),hullM);
+  mast.position.y=1.6;g.add(mast);
+  const sailCv=document.createElement('canvas');sailCv.width=64;sailCv.height=64;
+  const sg=sailCv.getContext('2d');sg.fillStyle='#e8483f';sg.fillRect(0,0,64,64);
+  sg.fillStyle='#ffe1d9';sg.fillRect(0,26,64,12);
+  const sailT=new THREE.CanvasTexture(sailCv);sailT.encoding=THREE.sRGBEncoding;
+  const sail=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.5),
+    new THREE.MeshLambertMaterial({map:sailT,side:THREE.DoubleSide}));
+  sail.position.set(0.1,1.9,0);sail.rotation.y=Math.PI/2;g.add(sail);
+  g.traverse(m=>{if(m.isMesh)m.castShadow=true});
+  g.position.set(x,0.42,z);g.rotation.y=ry;
+  g.userData.boat=true;scene.add(g);
+  return g;
+}
+function makeWhaleBones(x,z,ry){
+  const g=new THREE.Group();
+  const boneM=new THREE.MeshLambertMaterial({color:lin(0xf2ead8)});
+  for(let i=0;i<7;i++){
+    const rib=new THREE.Mesh(new THREE.TorusGeometry(2.2-Math.abs(i-3)*0.32,0.13,6,14,Math.PI),boneM);
+    rib.position.set(0,0.2,i*1.15-3.4);
+    g.add(rib);
+  }
+  for(let i=0;i<9;i++){
+    const v=new THREE.Mesh(new THREE.SphereGeometry(0.24,7,6),boneM);
+    v.position.set(0,0.25,i*0.95-3.8);g.add(v);
+  }
+  const skull=new THREE.Mesh(new THREE.ConeGeometry(1.1,2.6,7),boneM);
+  skull.rotation.x=-Math.PI/2;skull.position.set(0,0.6,-5.4);g.add(skull);
+  g.traverse(m=>{if(m.isMesh)m.castShadow=true});
+  g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);
+  return g;
+}
+const putPalm=(x,z,h)=>{const pl=makePalm(h);pl.position.set(x,groundAt(x,z),z);pl.rotation.y=Math.random()*6.28;scene.add(pl)};
+const putCoral=(x,z,sc)=>{const c=makeCoral();c.scale.setScalar(sc);c.position.set(x,groundAt(x,z),z);scene.add(c)};
+
+/* ============================================================
+   ISLAND CRITTERS · Quaternius animals with wander AI
+   ============================================================ */
+const critters=[];
+function addCritter(fileKey,x,z,h){
+  const src=assets[FILES[fileKey]];
+  if(!src)return;
+  const root=spawn(FILES[fileKey],h);
+  root.position.set(x,groundAt(x,z),z);
+  const na=nativeActions(root.userData.inner,src.animations);
+  scene.add(root);
+  const cr={root,...na,cur:null,tx:x,tz:z,wait:2+Math.random()*4};
+  critters.push(cr);
+  return cr;
+}
+function critAnim(cr,name){
+  if(cr.cur===name||!cr.acts[name])return;
+  if(cr.cur&&cr.acts[cr.cur])cr.acts[cr.cur].fadeOut(0.2);
+  cr.acts[name].reset().fadeIn(0.2).play();
+  cr.cur=name;
+}
+let buddy=null;
+function tickCritters(dt){
+  for(const cr of critters){
+    const dx=cr.tx-cr.root.position.x,dz=cr.tz-cr.root.position.z;
+    const dist=Math.hypot(dx,dz);
+    if(cr.isBuddy){ // the shiba shadows the player
+      const bd=Math.hypot(P.x-cr.root.position.x,P.z-cr.root.position.z);
+      if(bd>3.4){cr.tx=P.x+Math.sin(P.yaw+2.4)*1.6;cr.tz=P.z+Math.cos(P.yaw+2.4)*1.6}
+    }else if(dist<0.5){
+      cr.wait-=dt;
+      if(cr.wait<=0){
+        cr.wait=3+Math.random()*6;
+        for(let t=0;t<10;t++){
+          const nx=cr.root.position.x+(Math.random()-0.5)*22,nz=cr.root.position.z+(Math.random()-0.5)*22;
+          if(groundAt(nx,nz)>0.7){cr.tx=nx;cr.tz=nz;break}
+        }
+      }
+    }
+    if(dist>0.5){
+      const sp=(cr.isBuddy&&dist>6?7.5:2.6)*dt;
+      const ny=Math.atan2(dx,dz);
+      cr.root.rotation.y+=(((ny-cr.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*8);
+      cr.root.position.x+=Math.sin(ny)*Math.min(sp,dist);
+      cr.root.position.z+=Math.cos(ny)*Math.min(sp,dist);
+      critAnim(cr,cr.isBuddy&&dist>6?'Run':'Walk');
+    }else critAnim(cr,'Idle');
+    cr.root.position.y=groundAt(cr.root.position.x,cr.root.position.z);
+    cr.mixer.update(dt);
+  }
+}
+
+/* ============================================================
    WORLD DRESSING · composed like the key art
    ============================================================ */
 function buildWorld(){
-  // 🌴 beach palm rings — clusters leaning over the sand
-  for(let i=0;i<26;i++){
+  // 🌴 palm rings on every beach (procedural — the signature silhouette)
+  for(let i=0;i<30;i++){
     const a=Math.random()*6.28,R=isleR(a);
-    const r=R-6-Math.random()*7;
+    const r=R-5-Math.random()*8;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.3)continue;
-    put(['palm1','palm2','palm3'][i%3],x,z,6+Math.random()*3);
+    putPalm(x,z,5.5+Math.random()*3.5);
   }
-  // 🌺 jungle interior: flame trees + banana + palms interleaved
-  for(let i=0;i<30;i++){
-    const a=Math.random()*6.28,r=14+Math.random()*38;
+  // 🌳 jungle interior: the proven CC0 canopy
+  for(let i=0;i<34;i++){
+    const a=Math.random()*6.28,r=12+Math.random()*40;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.9)continue;
     if(Math.hypot(x-VOLC.x,z-VOLC.z)<10)continue;
-    put(['flame1','banana','palm2','flame2','palm1'][i%5],x,z,5.5+Math.random()*3);
+    put(['tree1','tree2','tree3','birch','willow'][i%5],x,z,6+Math.random()*3.5);
   }
-  // 🌿 undergrowth everywhere green
-  for(let i=0;i<60;i++){
-    const a=Math.random()*6.28,r=8+Math.random()*54;
+  // pines climb the terrace + volcano skirt
+  for(let i=0;i<10;i++){
+    const a=Math.random()*6.28,r=18+Math.random()*20;
+    const x=VOLC.x+Math.cos(a)*r,z=VOLC.z+Math.sin(a)*r;
+    const g=groundAt(x,z);
+    if(g<2.4||g>9)continue;
+    put(i%2?'pine1':'pine2',x,z,5+Math.random()*3);
+  }
+  // 🌿 undergrowth: bushes, flowers, grass tufts
+  for(let i=0;i<80;i++){
+    const a=Math.random()*6.28,r=8+Math.random()*56;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.8)continue;
-    put(['fern1','fern2','bush','flower1','flower2'][i%5],x,z,0.9+Math.random()*0.9);
+    put(['bush','flowers','grass','grass','flowers'][i%5],x,z,0.8+Math.random()*0.9);
   }
-  // 🪨 boulders on the slopes
-  for(let i=0;i<14;i++){
-    const a=Math.random()*6.28,r=16+Math.random()*44;
+  // 🪨 boulders
+  for(let i=0;i<16;i++){
+    const a=Math.random()*6.28,r=14+Math.random()*46;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     if(groundAt(x,z)<0.6)continue;
-    put('rock1',x,z,1.2+Math.random()*2.4);
+    put(i%2?'rock1':'rock2',x,z,1+Math.random()*2.2);
   }
-  // 🪸 reef gardens in the shallows — visible through the water
-  for(let i=0;i<34;i++){
+  // 🪸 reef gardens in the shallows
+  for(let i=0;i<36;i++){
     const a=Math.random()*6.28,R=isleR(a);
-    const r=R+2+Math.random()*14;
-    const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
-    put(['coral1','coral2','coral3','coral4','weed1','weed2'][i%6],x,z,1+Math.random()*1.4);
+    const r=R+2+Math.random()*13;
+    putCoral(IC.x+Math.cos(a)*r,IC.z+Math.sin(a)*r,0.8+Math.random()*1.1);
   }
-  // 🏝️ the story set: dock, canoe, wreck, whale bones, barrels — south-west cove
-  put('dock',-44,34,4.5,2.2);
-  put('canoe',-52,42,2.6,1.1);
-  put('wreck',-14,62,7,2.5);
-  put('whale',26,64,6.5,-0.6);
-  put('barrel',-40,30,1.3);
-  put('barrel',-38,32.5,1.3);
+  // 🏝️ the cove story set — all hand-made
+  makeDock(-46,32,2.1);
+  makeBoat(-51,40,1.0);
+  makeWhaleBones(26,64,-0.6);
+  // 🦌 the islanders: deer family + a stag + a flamingo by the water
+  addCritter('deer',18,26,1.5);
+  addCritter('deer',22,30,1.4);
+  addCritter('stag',26,24,1.9);
+  const fl=addCritter('flamingo',-30,52,1.6);
+  // 🐕 your Shiba comes along
+  buddy=addCritter('shiba',P.x+2,P.z+2,0.85);
+  if(buddy)buddy.isBuddy=true;
 }
 
 /* ============================================================
@@ -488,7 +663,7 @@ function tickStars(dt,t){
    👥 FRIENDS · presence over the club server (8s TTL feed)
    ============================================================ */
 const remotes=new Map(); // name -> {root,mixer,actions,cur,tx,tz,ty,tr,last}
-let kingClipsShared=null;
+
 function nameSprite(txt){
   const cv=document.createElement('canvas');cv.width=256;cv.height=64;
   const g=cv.getContext('2d');
@@ -503,17 +678,13 @@ function nameSprite(txt){
   return sp;
 }
 function spawnRemote(o){
-  const root=spawn(FILES.king,1.9);
+  const root=spawn(FILES.ranger,1.85);
   if(!root)return null;
   root.traverse(m=>{if(m.isMesh)m.castShadow=true});
   const tag=nameSprite(o.name);tag.position.y=2.7;root.add(tag);
-  let mixer=null,actions={};
-  if(kingClipsShared&&kingClipsShared.length){
-    mixer=new THREE.AnimationMixer(root.userData.inner);
-    for(const c of kingClipsShared)actions[c.name]=mixer.clipAction(c);
-  }
+  const na=nativeActions(root.userData.inner,assets[FILES.ranger].animations);
   scene.add(root);
-  return {root,mixer,actions,cur:null,tx:o.x,tz:o.z,ty:o.y||0,tr:o.ry||0,last:performance.now()};
+  return {root,mixer:na.mixer,actions:na.acts,cur:null,tx:o.x,tz:o.z,ty:o.y||0,tr:o.ry||0,last:performance.now()};
 }
 function remoteAnim(r,name){
   if(r.cur===name||!r.actions[name])return;
@@ -526,7 +697,7 @@ async function presenceTick(){
   if(!started)return;
   try{
     const r=await fetch('/api/park/pos',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:'aldric',mode:'walk',score:starCount})
+      body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:'ranger',mode:'walk',score:starCount})
     }).then(x=>x.json());
     const seen=new Set();
     for(const o of r.others||[]){
@@ -814,6 +985,7 @@ function loop(){
   craterGlow.intensity=0.4+Math.random()*0.15;
   tickStars(dt,t);
   tickRemotes(dt);
+  tickCritters(dt);
 
   renderer.render(scene,cam);
 }
@@ -826,14 +998,10 @@ loadAll((n,total)=>{
 }).then(()=>{
   buildWorld();
   // the King
-  player=spawn(FILES.king,1.9);
+  player=spawn(FILES.ranger,1.85);
   if(player){
-    const clips=buildClips(assets[FILES.king].scene);
-    kingClipsShared=clips; // friends animate with the same verified moveset
-    if(clips.length){
-      mixer=new THREE.AnimationMixer(player.userData.inner);
-      for(const c of clips)actions[c.name]=mixer.clipAction(c);
-    }
+    const na=nativeActions(player.userData.inner,assets[FILES.ranger].animations);
+    mixer=na.mixer;actions=na.acts;
     player.traverse(m=>{if(m.isMesh)m.castShadow=true});
     scene.add(player);
   }
