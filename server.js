@@ -710,6 +710,7 @@ app.post('/api/park/pos', requireUser, (req, res) => {
     mode:['walk','car','heli','dino','drop','ship'].includes(b.mode)?b.mode:'walk',
     y:Math.max(0,Math.min(80,parseFloat(b.y)||0)),
     hero:String(b.hero||'custom').slice(0,20), cfg:safeCfg, ts:Date.now(),
+    game:b.game==='island'?'island':'classic',
   });
   const now=Date.now(), others=[];
   const myName=(String(req.user.display_name||req.user.username||'Star')+(req.user.badge?' '+req.user.badge:'')).slice(0,30);
@@ -832,13 +833,14 @@ app.post('/api/park/buy', requireUser, async (req, res) => {
 });
 
 app.get('/api/park/who', requireUser, (req, res) => {
-  const now=Date.now(), names=[];let me=false;
+  const now=Date.now(), names=[], isl=[];let me=false;
   for(const [id,p2] of parkPresence){
     if(now-p2.ts>8000){parkPresence.delete(id);continue}
     if(id===req.user.id){me=true;continue}
-    names.push(p2.name);
+    (p2.game==='island'?isl:names).push(p2.name);
   }
-  res.json({names:names.slice(0,8), count:names.length, me});
+  res.json({names:names.slice(0,8), count:names.length, me,
+    island:{names:isl.slice(0,8), count:isl.length}});
 });
 
 // ---------- Arcade ----------
