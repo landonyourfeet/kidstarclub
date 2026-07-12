@@ -2451,7 +2451,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-51';
+const SV_BUILD='SV-52';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2758,15 +2758,15 @@ function ppBoot(){
     cl.userData.v=0.008+Math.random()*0.014;
     scene.add(cl);clouds.push(cl);
   }
-  const sun=new THREE.DirectionalLight(0xffedc0,1.4);
+  const sun=new THREE.DirectionalLight(0xffe6b0,1.05);
   sun.position.set(30,52,18);sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);
   sun.shadow.camera.left=-150;sun.shadow.camera.right=150;
   sun.shadow.camera.top=150;sun.shadow.camera.bottom=-150;
   sun.shadow.bias=-0.0005;sun.shadow.normalBias=1.4; // no shadow-acne shimmer on slopes
   scene.add(sun.target); // shadow window follows the player across the huge map
-  const hemi=new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9);
-  scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.1));
+  const hemi=new THREE.HemisphereLight(0x9ecfff,0x3e7a36,0.5);
+  scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
   const B=400, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
   // 🏝️ THE FANTASY ISLE: an island kingdom across the eastern sea
@@ -2952,7 +2952,7 @@ function ppBoot(){
   road.rotation.x=-Math.PI/2;road.position.set(42,.015,0);scene.add(road);
   // 🏛️ TOWN PLAZA: paved square + fountain — the peaceful heart of the city
   {
-    const plaza=new THREE.Mesh(new THREE.PlaneGeometry(26,26),mat(0xb0aab8));
+    const plaza=new THREE.Mesh(new THREE.PlaneGeometry(26,26),mat(0xc2a06e)); // sun-warmed cobbles
     plaza.rotation.x=-Math.PI/2;plaza.position.set(4,.018,-24);plaza.receiveShadow=true;scene.add(plaza);
     const basin=new THREE.Mesh(new THREE.CylinderGeometry(3,3.3,.9,20),mat(0x8a8a96));
     basin.position.set(4,.45,-24);basin.castShadow=true;scene.add(basin);
@@ -3029,7 +3029,7 @@ function ppBoot(){
     ig.rotateX(-Math.PI/2);
     const ip=ig.attributes.position;
     const cols=new Float32Array(ip.count*3);
-    const sand=new THREE.Color(0xe6cd96).convertSRGBToLinear(), grass2=new THREE.Color(0x2f9e3f).convertSRGBToLinear(), cob=new THREE.Color(0x8e8798).convertSRGBToLinear();
+    const sand=new THREE.Color(0xe6cd96).convertSRGBToLinear(), grass2=new THREE.Color(0x2c8f37).convertSRGBToLinear(), cob=new THREE.Color(0xbb9a6a).convertSRGBToLinear() /* warm stone plateau */;
     for(let i=0;i<ip.count;i++){
       const wx=IC.x+ip.getX(i), wz=IC.z+ip.getZ(i);
       const h=islandAt(wx,wz);
@@ -3163,22 +3163,22 @@ function ppBoot(){
     // 🌴 the Isle goes TROPICAL: palms, banana trees, jungle, cliffs, a dock
     {
       const PALMS=['trp_palm1','trp_palm2','trp_palm3'];
-      for(let i=0;i<12;i++){ // palms lean over the beaches
+      for(let i=0;i<20;i++){ // palms lean over the beaches
         const an4=Math.random()*6.3, rr4=48+Math.random()*18;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
         put(PALMS[i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.45,9);
       }
-      for(let i=0;i<6;i++){ // jungle interior
+      for(let i=0;i<12;i++){ // jungle interior
         const an4=Math.random()*6.3, rr4=30+Math.random()*14;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
-        put(i%2?'trp_forest1':'trp_forest2',tx4,tz4,7+Math.random()*2,Math.random()*6.3,.7,10);
+        put([TREES[i%TREES.length],'trp_palm2','trp_flame1'][i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.7,10);
       }
       for(let i=0;i<4;i++){ // 🍌 banana groves (of course)
         const an4=1.1+i*0.5, rr4=36+Math.random()*10;
         put(i%2?'trp_banana1':'trp_banana2',IC.x+Math.cos(an4)*rr4,IC.z+Math.sin(an4)*rr4,4.5,Math.random()*6.3,.5,6);
       }
-      for(let i=0;i<16;i++){ // undergrowth: ferns, bushes, flowers (walk right through)
+      for(let i=0;i<28;i++){ // undergrowth: ferns, bushes, flowers (walk right through)
         const an4=Math.random()*6.3, rr4=28+Math.random()*38;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
@@ -3190,7 +3190,7 @@ function ppBoot(){
         put(i%2?'trp_rock1':'trp_rock2',tx4,tz4,1.6+Math.random()*1.6,Math.random()*6.3,1.2,2.5);
       }
       // 🌺 flame trees (pohutukawa) — bursts of red through the canopy
-      for(let i=0;i<7;i++){
+      for(let i=0;i<11;i++){
         const an4=Math.random()*6.3, rr4=30+Math.random()*26;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
@@ -3549,7 +3549,7 @@ function ppBoot(){
     {
       const CX=IC.x, CZ=IC.z, bY2=3;
       // stone ring wall with a west gate (facing the bridge)
-      const wallM2=new THREE.MeshLambertMaterial({color:new THREE.Color(0xb9b3c2).convertSRGBToLinear()});
+      const wallM2=new THREE.MeshLambertMaterial({color:new THREE.Color(0xcaa878).convertSRGBToLinear()}); // warm sandstone
       wallM2.color.convertSRGBToLinear();
       const SEG=26;
       for(let i=0;i<SEG;i++){
@@ -5104,9 +5104,9 @@ function ppBoot(){
         else if(tt<DAY+DUSK){f=1-(tt-DAY)/DUSK;warm=1-Math.abs(f-0.5)*2}
         else if(tt<DAY+DUSK+NIGHT)f=0;
         else {f=(tt-DAY-DUSK-NIGHT)/DAWN;warm=1-Math.abs(f-0.5)*2}
-        sun.intensity=0.12+1.28*f;
+        sun.intensity=0.1+0.95*f;
         sun.color.setRGB(1,0.95-warm*0.30,0.82-warm*0.48);
-        hemi.intensity=0.16+0.74*f;
+        hemi.intensity=0.12+0.38*f;
         scene.fog.color.setRGB(
           0.04+0.71*f+warm*0.18, 0.05+0.84*f+warm*0.04, 0.13+0.87*f);
         if(window.__skyMat)__skyMat.color.setRGB(
