@@ -49,7 +49,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-21</div>
+<div class="hud" id="tag">ISL-23</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -321,7 +321,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-21'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-23'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -709,7 +709,7 @@ function buildWorld(){
   makeBoat(-100,78,1.0);
   makeWhaleBones(52,128,-0.6);
   raidStart(); // ⛵ the first raid ship appears on the horizon
-  makeHoop();makeBall(); // 🏀 Elikai's court on the west beach
+  makeHoop();makeCourt();makeBall(); // 🏀 Elikai's full court on the west beach
   // 🦌 the islanders: deer family + a stag + a flamingo by the water
   addCritter('deer',36,52,1.5);
   addCritter('deer',44,60,1.4);
@@ -851,7 +851,8 @@ async function presenceTick(){
   if(!started)return;
   try{
     const r=await fetch('/api/park/pos',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:heroKey,mode:'walk',score:starCount,game:'island'})
+      body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:heroKey,mode:'walk',score:starCount,game:'island',evAfter,
+        ball:(BALL.mode!=='ground')?{m:BALL.mode,x:BALL.x,y:BALL.y,z:BALL.z,vx:BALL.vx,vy:BALL.vy,vz:BALL.vz}:null})
     }).then(x=>x.json());
     if(r.you)myName=r.you; // the server tells us exactly who we are
     { // 🏆 live leaderboard: everyone sees everyone's diamonds
@@ -885,6 +886,12 @@ async function presenceTick(){
       }
     }
     for(const h of r.hits||[])playerHurt(h.dmg||1,h.from); // ⚔️ incoming battle damage
+    for(const ev of r.events||[]){ // 🎆 shared spectacle
+      if(ev.id>evAfter)evAfter=ev.id;
+      if(ev.from===myName)continue; // already celebrated locally
+      if(ev.kind==='swish')celebrate(ev.from,ev.pts,ev.x,ev.z);
+      else if(ev.kind==='boom')ballExplode(ev.x,ev.z,false);
+    }
     const seen=new Set();
     for(const o of r.others||[]){
       if(o.name===myName)continue;
@@ -899,6 +906,7 @@ async function presenceTick(){
         rm.dur=Math.min(1900,Math.max(500,now3-(rm.last||now3-1200)));
         rm.t0=now3;rm.last=now3;
         rm.spd=Math.hypot(rm.gx-rm.fx,rm.gz-rm.fz)/(rm.dur/1000);
+        rm.ballState=o.ball||null; // 🏀 friends' shots replay with local physics
       }
     }
     for(const [nm,rm] of remotes)
@@ -919,6 +927,43 @@ function tickRemotes(dt){
     const spd=rm.spd||0;
     remoteAnim(rm,spd>6?'Run':spd>0.4?'Walk':'Idle');
     rm.mixer&&rm.mixer.update(dt);
+    tickRemoteBall(rm,dt);
+  }
+}
+function tickRemoteBall(rm,dt){
+  const bs=rm.ballState;
+  if(!bs||!bs.m){ // no ball — hide theirs
+    if(rm.ballMesh){rm.ballMesh.visible=false}
+    return;
+  }
+  if(!rm.ballMesh){
+    rm.ballMesh=ball?ball.clone():null;
+    if(!rm.ballMesh)return;
+    scene.add(rm.ballMesh);
+    rm.ballSim=null;
+  }
+  rm.ballMesh.visible=true;
+  if(bs.m==='carried'){
+    rm.ballSim=null;
+    rm.ballMesh.position.set(
+      rm.root.position.x+Math.sin(rm.root.rotation.y+0.5)*0.55,
+      rm.root.position.y+1.05,
+      rm.root.position.z+Math.cos(rm.root.rotation.y+0.5)*0.55);
+  }else{ // flying: seed a local sim from the snapshot, then let physics fly it smoothly
+    if(!rm.ballSim||rm.ballSim.seed!==bs.t){
+      rm.ballSim={seed:bs.t,x:bs.x,y:bs.y,z:bs.z,vx:bs.vx,vy:bs.vy,vz:bs.vz};
+    }
+    const b2=rm.ballSim;
+    b2.vy-=13.5*dt;
+    b2.x+=b2.vx*dt;b2.y+=b2.vy*dt;b2.z+=b2.vz*dt;
+    const g0b=groundAt(b2.x,b2.z);
+    if(b2.y<g0b+0.34){
+      b2.y=g0b+0.34;
+      if(Math.abs(b2.vy)>1.6){b2.vy*=-0.52;b2.vx*=0.8;b2.vz*=0.8}
+      else{b2.vy=0;b2.vx*=0.9;b2.vz*=0.9}
+    }
+    rm.ballMesh.rotation.x+=dt*9;
+    rm.ballMesh.position.set(b2.x,b2.y,b2.z);
   }
 }
 
@@ -1287,6 +1332,41 @@ function makeHoop(){
   const rw=new THREE.Vector3();rim.getWorldPosition(rw);
   HOOP.rimW=rw;HOOP.rimY=rw.y;
 }
+function makeCourt(){
+  // a painted beach court: paint box, free-throw circle, 3-point arc, half-court line
+  const W=17,L=26; // meters-ish
+  const cv=document.createElement('canvas');cv.width=340;cv.height=520;
+  const g=cv.getContext('2d');
+  g.fillStyle='#e8cf9b';g.fillRect(0,0,340,520);           // packed sand
+  g.strokeStyle='#fdfdf6';g.lineWidth=6;g.lineCap='round';
+  const px=u=>u*20; // 20px per unit
+  // boundary
+  g.strokeRect(6,6,328,508);
+  // hoop sits at top-center (y≈30px). the key / paint:
+  g.strokeStyle='#ff8c42';g.strokeRect(170-px(2.2),6,px(4.4),px(5.5));
+  // free-throw circle
+  g.beginPath();g.arc(170,6+px(5.5),px(1.9),0,7);g.stroke();
+  // 3-point arc
+  g.strokeStyle='#fdfdf6';
+  g.beginPath();g.arc(170,px(1.6),px(7.6),0.25,Math.PI-0.25);g.stroke();
+  // half-court line + center circle
+  g.beginPath();g.moveTo(6,260);g.lineTo(334,260);g.stroke();
+  g.beginPath();g.arc(170,260,px(2.2),0,7);g.stroke();
+  // downtown line (the +20 zone)
+  g.strokeStyle='#2bd9ff';g.setLineDash([14,10]);
+  g.beginPath();g.moveTo(6,px(13));g.lineTo(334,px(13));g.stroke();
+  g.setLineDash([]);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const court=new THREE.Mesh(new THREE.PlaneGeometry(W,L),
+    new THREE.MeshLambertMaterial({map:t,transparent:true,opacity:0.96}));
+  court.rotation.x=-Math.PI/2;
+  // hoop at the top edge of the court, court extends away from it
+  const back=new THREE.Vector3(Math.sin(HOOP.ry),0,Math.cos(HOOP.ry)); // hoop faces this way
+  court.position.set(HOOP.x+back.x*(L/2-1.4),groundAt(HOOP.x,HOOP.z)+0.06,HOOP.z+back.z*(L/2-1.4));
+  court.rotation.z=-HOOP.ry;
+  court.receiveShadow=true;
+  scene.add(court);
+}
 let ball=null;
 const BALL={mode:'ground',x:-68,z:100,y:0,vx:0,vy:0,vz:0,rest:0,prevY:0};
 function makeBall(){
@@ -1305,6 +1385,23 @@ function makeBall(){
   BALL.y=groundAt(BALL.x,BALL.z)+0.34;
   scene.add(ball);
 }
+function onCourt(x,z){ // court-local rectangle test
+  const cx=x-(HOOP.x+Math.sin(HOOP.ry)*11.6), cz=z-(HOOP.z+Math.cos(HOOP.ry)*11.6);
+  const lx=cx*Math.cos(-HOOP.ry)-cz*Math.sin(-HOOP.ry);
+  const lz=cx*Math.sin(-HOOP.ry)+cz*Math.cos(-HOOP.ry);
+  return Math.abs(lx)<9.5&&Math.abs(lz)<14;
+}
+function ballRespawn(){
+  BALL.mode='ground';BALL.scored=false;BALL.rest=0;
+  BALL.x=-68;BALL.z=100;BALL.y=groundAt(-68,100)+0.34;
+  BALL.vx=BALL.vy=BALL.vz=0;
+  toast('🏀 Fresh ball at the court');
+}
+let evAfter=0;
+function postEvent(kind,pts,x,z){
+  fetch('/api/island/event',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({kind,pts,x,z})}).catch(()=>{});
+}
 let charging=false,chargeT=0;
 function startCharge(){
   if(BALL.mode!=='carried'||charging)return;
@@ -1314,6 +1411,7 @@ function startCharge(){
 function throwBall(){
   if(!charging||BALL.mode!=='carried')return;
   charging=false;
+  BALL.shotFrom=HOOP.rimW?Math.hypot(P.x-HOOP.rimW.x,P.z-HOOP.rimW.z):0;
   document.getElementById('pwrwrap').style.display='none';
   const power=8+chargeT*22; // full charge ≈ 100 feet of flight
   BALL.mode='flying';
@@ -1349,21 +1447,34 @@ function tickBall(dt){
     if(HOOP.rimW&&BALL.prevY>HOOP.rimY&&BALL.y<=HOOP.rimY&&BALL.vy<0){
       const d=Math.hypot(BALL.x-HOOP.rimW.x,BALL.z-HOOP.rimW.z);
       if(d<0.45){
-        starCount+=5;
+        // 🎯 points by where you shot from — the court lines tell the story
+        const sd=BALL.shotFrom||0;
+        let pts=2,label='🏀 Layup! +2 💎';
+        if(sd>=25){pts=50;label='🌋 FULL-COURT MIRACLE!! +50 💎'}
+        else if(sd>=13){pts=20;label='🚀 DOWNTOWN!! +20 💎'}
+        else if(sd>=7.6){pts=10;label='🎯 THREE-POINTER! +10 💎'}
+        else if(sd>=4.5){pts=5;label='🏀 Free-throw range! +5 💎'}
+        starCount+=pts;
         document.getElementById('stars').textContent='💎 '+starCount;
-        toast('🏀 SWISH!! +5 💎');
-        sfxZap();ping();
-        starBurst(HOOP.rimW.x,HOOP.rimY,HOOP.rimW.z,5);
+        toast(label);
+        celebrate(myName||'You',pts,HOOP.rimW.x,HOOP.rimW.z); // 🎆 the big one
+        postEvent('swish',pts,HOOP.rimW.x,HOOP.rimW.z);       // …and everyone sees it
+        BALL.scored=true;
         BALL.vx*=0.15;BALL.vz*=0.15; // drops through the net
       }
     }
     const g0b=groundAt(BALL.x,BALL.z);
-    if(BALL.y<g0b+0.34){ // bounce
+    if(BALL.y<g0b+0.34){ // touched down
+      if(!BALL.scored&&!onCourt(BALL.x,BALL.z)){ // 💣 out of bounds = GRENADE
+        ballExplode(BALL.x,BALL.z,true);
+        ballRespawn();
+        return;
+      }
       BALL.y=g0b+0.34;
       if(Math.abs(BALL.vy)>1.6){BALL.vy*=-0.52;BALL.vx*=0.8;BALL.vz*=0.8;sfxHit()}
       else{BALL.vy=0;BALL.vx*=0.9;BALL.vz*=0.9;
         if(Math.hypot(BALL.vx,BALL.vz)<0.4){
-          BALL.mode='ground';BALL.rest=performance.now();
+          BALL.mode='ground';BALL.rest=performance.now();BALL.scored=false;
         }
       }
     }
@@ -1400,6 +1511,87 @@ function starBurst(x,y,z,n){
   }
 }
 const bursts=[];
+const confetti=[];
+const confCols=[0xff4fd8,0x2bd9ff,0xffe14d,0x4ade80,0xb96bff,0xff8c42];
+function throwConfetti(x,y,z,n){
+  for(let i=0;i<n;i++){
+    const c=new THREE.Mesh(new THREE.PlaneGeometry(0.16,0.24),
+      new THREE.MeshBasicMaterial({color:confCols[i%confCols.length],side:THREE.DoubleSide}));
+    c.position.set(x,y,z);
+    c.userData={vx:(Math.random()-0.5)*9,vy:5+Math.random()*7,vz:(Math.random()-0.5)*9,
+      rx:Math.random()*9,rz:Math.random()*9,life:2.2};
+    scene.add(c);confetti.push(c);
+  }
+}
+function tickConfetti(dt){
+  for(let i=confetti.length-1;i>=0;i--){
+    const c=confetti[i],u=c.userData;
+    u.vy-=6.5*dt; // flutters, doesn't plummet
+    c.position.x+=u.vx*dt;c.position.y+=u.vy*dt;c.position.z+=u.vz*dt;
+    c.rotation.x+=u.rx*dt;c.rotation.z+=u.rz*dt;
+    u.life-=dt;
+    if(u.life<=0||c.position.y<0){scene.remove(c);confetti.splice(i,1)}
+  }
+}
+function sfxFanfare(){
+  try{const c=sctx(),t=c.currentTime;
+    [523,659,784,1047].forEach((f,i)=>{
+      const o=c.createOscillator();o.type='triangle';o.frequency.value=f;
+      const g=c.createGain();g.gain.setValueAtTime(0.001,t+i*0.09);
+      g.gain.exponentialRampToValueAtTime(0.14,t+i*0.09+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001,t+i*0.09+0.3);
+      o.connect(g).connect(c.destination);o.start(t+i*0.09);o.stop(t+i*0.09+0.32);
+    });
+  }catch(e){}}
+function celebrate(who,pts,x,z){
+  // big screen banner
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(0.3);z-index:16;font-size:clamp(28px,7vw,54px);font-weight:900;color:#ffe14d;text-shadow:0 0 18px rgba(255,225,77,.9),0 4px 0 rgba(0,0,0,.35);pointer-events:none;transition:transform .28s cubic-bezier(.2,2.2,.4,1),opacity .4s;white-space:nowrap';
+  d.textContent='🏀 '+who+' +'+pts+' 💎!';
+  document.body.appendChild(d);
+  requestAnimationFrame(()=>d.style.transform='translate(-50%,-50%) scale(1)');
+  setTimeout(()=>{d.style.opacity='0'},1600);
+  setTimeout(()=>d.remove(),2100);
+  // screen flash
+  const f=document.createElement('div');
+  f.style.cssText='position:fixed;inset:0;z-index:13;background:radial-gradient(circle,rgba(255,225,77,.28),transparent 70%);pointer-events:none;transition:opacity .5s';
+  document.body.appendChild(f);
+  setTimeout(()=>{f.style.opacity='0'},80);
+  setTimeout(()=>f.remove(),650);
+  const gy=groundAt(x,z);
+  throwConfetti(x,gy+3,z,26);
+  starBurst(x,gy+3,z,4);
+  sfxFanfare();
+}
+/* 💣 the grenade ball */
+function ballExplode(x,z,mine){
+  const gy=groundAt(x,z);
+  sfxKO();
+  // fireball + shockwave
+  fxImpact(x,gy+0.8,z,0xff8c42);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(0.5,0.12,6,24),
+    new THREE.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:0.9}));
+  ring.rotation.x=Math.PI/2;ring.position.set(x,gy+0.35,z);
+  ring.userData={life:0.5,grow:26,kind:'ring'};
+  scene.add(ring);fx.push(ring);
+  throwConfetti(x,gy+1,z,10);
+  if(!mine)return; // only the thrower's client deals damage — no double hits
+  const R=4.5;
+  // me
+  if(Math.hypot(P.x-x,P.z-z)<R)playerHurt(2);
+  // skeletons in the blast
+  for(const sk of [...skels]){
+    if(Math.hypot(sk.root.position.x-x,sk.root.position.z-z)<R)damageSkel(sk,3);
+  }
+  // friends in the blast
+  for(const [nm,rm] of remotes){
+    if(Math.hypot(rm.root.position.x-x,rm.root.position.z-z)<R){
+      fetch('/api/island/hit',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({to:nm,dmg:2})}).catch(()=>{});
+    }
+  }
+  postEvent('boom',0,x,z);
+}
 const boneM2=new THREE.MeshLambertMaterial({color:lin(0xf2ead8)});
 function boneScatter(x,y,z){
   for(let i=0;i<7;i++){
@@ -1442,6 +1634,9 @@ function tickFx(dt){
     if(f2.userData.kind==='slash'){
       f2.position.x+=f2.userData.vx*dt;f2.position.z+=f2.userData.vz*dt;
       f2.material.opacity=Math.max(0,f2.userData.life/0.22);
+    }else if(f2.userData.kind==='ring'){
+      f2.scale.x+=f2.userData.grow*dt;f2.scale.y+=f2.userData.grow*dt;
+      f2.material.opacity=Math.max(0,f2.userData.life/0.5);
     }else{
       f2.scale.x+=f2.userData.grow*dt;f2.scale.y+=f2.userData.grow*dt;
       f2.material.opacity=Math.max(0,f2.userData.life/0.2);
@@ -1586,6 +1781,19 @@ function toast(txt){
   d.textContent=txt;document.body.appendChild(d);
   setTimeout(()=>d.remove(),1800);
 }
+function damageSkel(sk,dmg){
+  sk.hp-=dmg;sk.hitFlash=0.3;sfxHit();
+  fxImpact(sk.root.position.x,sk.root.position.y+1.2,sk.root.position.z);
+  if(sk.hp<=0){
+    sfxKO();
+    boneScatter(sk.root.position.x,sk.root.position.y+1,sk.root.position.z); // he falls apart!
+    starCount+=25; // 💎 bounty
+    document.getElementById('stars').textContent='💎 '+starCount;
+    toast('☠️ +25 💎!');
+    scene.remove(sk.root);
+    skels.splice(skels.indexOf(sk),1);
+  }else skAnim(sk,'Hit');
+}
 function doAttack(){
   const now=performance.now();
   if(now<attackUntil||now<downUntil)return;
@@ -1611,19 +1819,8 @@ function doAttack(){
       const dx=sk.root.position.x-P.x,dz=sk.root.position.z-P.z;
       const d=Math.hypot(dx,dz);
       if(d<2.6&&(dx*fx2+dz*fz2)/Math.max(0.01,d)>0.35){
-        sk.hp--;sk.hitFlash=0.3;sfxHit();
-        fxImpact(sk.root.position.x,sk.root.position.y+1.2,sk.root.position.z);
-        // knockback
-        sk.root.position.x+=fx2*1.2;sk.root.position.z+=fz2*1.2;
-        if(sk.hp<=0){
-          sfxKO();
-          boneScatter(sk.root.position.x,sk.root.position.y+1,sk.root.position.z); // he falls apart!
-          starCount+=25; // 💎 bounty
-          document.getElementById('stars').textContent='💎 '+starCount;
-          toast('☠️ +25 💎!');
-          scene.remove(sk.root);
-          skels.splice(skels.indexOf(sk),1);
-        }else skAnim(sk,'Hit');
+        sk.root.position.x+=fx2*1.2;sk.root.position.z+=fz2*1.2; // knockback
+        damageSkel(sk,1);
       }
     }
   },260);
@@ -1776,6 +1973,7 @@ function loop(){
   tickBursts(dt);
   tickFx(dt);
   tickBall(dt);
+  tickConfetti(dt);
 
   renderer.render(scene,cam);
 }
