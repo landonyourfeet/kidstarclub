@@ -46,10 +46,11 @@
   <div id="loadBar"><i></i></div><div id="loadPct">0%</div>
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
-<div class="hud" id="hint">WASD/arrows run · SPACE jump · F/⚔️ attack · E/🎉 emote · ⭐ collect · 🎙️ talk</div>
-<div class="hud" id="tag">ISL-17</div>
+<div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
+<div class="hud" id="tag">ISL-18</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
-<div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
+<div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
+<div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
 <div id="vchips" style="position:fixed;left:14px;top:108px;z-index:11;display:flex;flex-direction:column;gap:4px;pointer-events:none"></div>
 <div id="joy"><i></i></div>
@@ -308,7 +309,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-17'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-18'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -695,8 +696,7 @@ function buildWorld(){
   makeDock(-92,64,2.1);
   makeBoat(-100,78,1.0);
   makeWhaleBones(52,128,-0.6);
-  // ☠️ skeleton raiders haunt the shipwreck cove — first swords to cross!
-  addSkel(-24,116);addSkel(-36,124);addSkel(-16,128);
+  raidStart(); // ⛵ the first raid ship appears on the horizon
   // 🦌 the islanders: deer family + a stag + a flamingo by the water
   addCritter('deer',36,52,1.5);
   addCritter('deer',44,60,1.4);
@@ -716,7 +716,7 @@ function buildWorld(){
 let starCount=0;
 const stars=[];
 const starGeo=new THREE.OctahedronGeometry(0.55);
-const starMat=new THREE.MeshLambertMaterial({color:lin(0xffd94d),emissive:lin(0x8a5f00)});
+const starMat=new THREE.MeshLambertMaterial({color:lin(0x4fd8ff),emissive:lin(0x0a4a7a)}); // 💎 diamonds
 function starSpot(){
   for(let t=0;t<40;t++){
     const a=Math.random()*6.28,r=14+Math.random()*136;
@@ -791,7 +791,7 @@ function tickStars(dt,t){
     st.position.y+=Math.sin(t*3+st.userData.spin*9)*0.0035;
     if(Math.hypot(st.position.x-P.x,st.position.z-P.z)<1.7&&P.air<1.4){
       scene.remove(st);stars.splice(i,1);
-      starCount++;document.getElementById('stars').textContent='⭐ '+starCount;
+      starCount++;document.getElementById('stars').textContent='💎 '+starCount;
       ping();
       setTimeout(makeStar,20000+Math.random()*15000);
     }
@@ -841,6 +841,24 @@ async function presenceTick(){
       body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:heroKey,mode:'walk',score:starCount})
     }).then(x=>x.json());
     if(r.you)myName=r.you; // the server tells us exactly who we are
+    { // 🏆 live leaderboard: everyone sees everyone's diamonds
+      const rows=[{name:myName||'You',score:starCount,me:true}];
+      for(const o of r.others||[])if(o.name!==myName)rows.push({name:o.name,score:o.score||0});
+      rows.sort((a2,b2)=>b2.score-a2.score);
+      const medals=['🥇','🥈','🥉'];
+      document.getElementById('board').innerHTML=rows.slice(0,5).map((rw,i)=>
+        (medals[i]||'▫️')+' '+(rw.me?'<b style="color:#ffe14d">':'')+String(rw.name).replace(/[<>&]/g,'')+(rw.me?'</b>':'')+' <span style="color:#6fe0ff">💎'+rw.score+'</span>').join('<br>');
+      const champ=rows[0];
+      if(champ&&champ.score>=100&&!window.__winLock){
+        window.__winLock=true;
+        sfxKO();sfxZap();
+        toast('👑 '+champ.name+' WINS with 100 💎! New round…');
+        setTimeout(()=>{
+          starCount=0;document.getElementById('stars').textContent='💎 0';
+          window.__winLock=false;
+        },5000);
+      }
+    }
     for(const h of r.hits||[])playerHurt(h.dmg||1,h.from); // ⚔️ incoming battle damage
     const seen=new Set();
     for(const o of r.others||[]){
@@ -1162,6 +1180,15 @@ function starBurst(x,y,z,n){
   }
 }
 const bursts=[];
+const boneM2=new THREE.MeshLambertMaterial({color:lin(0xf2ead8)});
+function boneScatter(x,y,z){
+  for(let i=0;i<7;i++){
+    const b=new THREE.Mesh(i%2?new THREE.BoxGeometry(0.14,0.4,0.14):new THREE.SphereGeometry(0.14,6,5),boneM2);
+    b.position.set(x,y,z);
+    b.userData={vx:(Math.random()-0.5)*6,vy:3+Math.random()*4,vz:(Math.random()-0.5)*6,burst:1.2,spin:Math.random()*8};
+    scene.add(b);bursts.push(b);
+  }
+}
 let slashTex=null;
 function getSlashTex(){
   if(slashTex)return slashTex;
@@ -1207,11 +1234,74 @@ function tickBursts(dt){
     const b=bursts[i];
     b.userData.vy-=14*dt;
     b.position.x+=b.userData.vx*dt;b.position.y+=b.userData.vy*dt;b.position.z+=b.userData.vz*dt;
-    b.rotation.y+=dt*7;b.userData.burst-=dt;
+    b.rotation.y+=dt*(b.userData.spin||7);b.rotation.x+=dt*3;b.userData.burst-=dt;
     if(b.userData.burst<=0||b.position.y<0){scene.remove(b);bursts.splice(i,1)}
   }
 }
-/* skeleton raiders haunt the shipwreck */
+/* ============================================================
+   ☠️ THE SKELETON RAID · a ship appears on the horizon, sails in
+   slowly, and lands 10 sword-raiders. 3 hits each · +25 💎 a kill
+   ============================================================ */
+const RAID={state:'sailing',ship:null,timer:0,landing:{x:-40,z:150}};
+function makeRaidShip(){
+  const g=makeBoat(0,0,0);
+  g.scale.setScalar(2.6);
+  // dark raid sail
+  g.traverse(m=>{if(m.isMesh&&m.material&&m.material.map){m.material=m.material.clone();
+    const cv=document.createElement('canvas');cv.width=64;cv.height=64;
+    const gg=cv.getContext('2d');gg.fillStyle='#23263a';gg.fillRect(0,0,64,64);
+    gg.fillStyle='#e8e2d0';gg.font='900 40px system-ui';gg.textAlign='center';gg.fillText('☠',32,46);
+    m.material.map=new THREE.CanvasTexture(cv);m.material.map.encoding=THREE.sRGBEncoding;
+  }});
+  return g;
+}
+function raidStart(){
+  const a=Math.atan2(RAID.landing.z,RAID.landing.x);
+  RAID.ship=makeRaidShip();
+  RAID.ship.position.set(Math.cos(a)*620,0.42,Math.sin(a)*620); // a speck on the horizon
+  RAID.state='sailing';
+  toast('⛵ A strange ship on the horizon…');
+}
+function raidLand(){
+  RAID.state='ashore';
+  toast('☠️ SKELETON RAID! 10 raiders ashore — ⚔️ +25 💎 each!');
+  sfxKO();
+  for(let i=0;i<10;i++){
+    const a=Math.random()*6.28,r=Math.random()*24;
+    addSkel(RAID.landing.x*0.72+Math.cos(a)*r,RAID.landing.z*0.72+Math.sin(a)*r);
+  }
+}
+function tickRaid(dt){
+  if(RAID.state==='sailing'&&RAID.ship){
+    const dx=RAID.landing.x*1.15-RAID.ship.position.x, dz=RAID.landing.z*1.15-RAID.ship.position.z;
+    const d=Math.hypot(dx,dz);
+    if(d>6){
+      RAID.ship.position.x+=dx/d*5.5*dt;
+      RAID.ship.position.z+=dz/d*5.5*dt;
+      RAID.ship.rotation.y=Math.atan2(dx,dz);
+      RAID.ship.position.y=0.42+Math.sin(performance.now()/700)*0.12;
+    }else raidLand();
+  }else if(RAID.state==='ashore'){
+    RAID.ship&&(RAID.ship.position.y=0.42+Math.sin(performance.now()/700)*0.12);
+    if(skels.length===0){
+      RAID.state='departing';
+      toast('🏴‍☠️ Raid defeated! The ship retreats…');
+    }
+  }else if(RAID.state==='departing'&&RAID.ship){
+    const a=Math.atan2(RAID.ship.position.z,RAID.ship.position.x);
+    RAID.ship.position.x+=Math.cos(a)*7*dt;
+    RAID.ship.position.z+=Math.sin(a)*7*dt;
+    RAID.ship.rotation.y=Math.atan2(Math.cos(a),Math.sin(a));
+    if(Math.hypot(RAID.ship.position.x,RAID.ship.position.z)>640){
+      scene.remove(RAID.ship);RAID.ship=null;
+      RAID.state='waiting';RAID.timer=45; // next wave brews
+    }
+  }else if(RAID.state==='waiting'){
+    RAID.timer-=dt;
+    if(RAID.timer<=0)raidStart();
+  }
+}
+/* skeleton raiders (3 hits · they hunt across the whole island) */
 const skels=[];
 function addSkel(x,z){
   const root=spawn(FILES.kkSkel,1.8);
@@ -1220,7 +1310,7 @@ function addSkel(x,z){
   const na=nativeActions(root.userData.inner,assets[FILES.kkSkel].animations);
   root.traverse(m=>{if(m.isMesh)m.castShadow=true});
   scene.add(root);
-  skels.push({root,...na,cur:null,hp:2,home:{x,z},atkCd:0,hitFlash:0,state:'idle'});
+  skels.push({root,...na,cur:null,hp:3,home:{x,z},atkCd:0,hitFlash:0,state:'idle'});
 }
 function skAnim(sk,name){
   if(sk.cur===name||!sk.acts[name])return;
@@ -1235,7 +1325,7 @@ function tickSkels(dt){
     const dist=Math.hypot(dx,dz);
     sk.atkCd=Math.max(0,sk.atkCd-dt);
     if(sk.hitFlash>0){sk.hitFlash-=dt}
-    if(dist<14&&dist>1.9&&downUntil<performance.now()){ // stalk the hero
+    if(dist<70&&dist>1.9&&downUntil<performance.now()){ // raiders hunt across the island
       const ny=Math.atan2(dx,dz);
       sk.root.rotation.y+=(((ny-sk.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*6);
       sk.root.position.x+=Math.sin(ny)*2.2*dt;
@@ -1263,7 +1353,7 @@ function playerHurt(dmg=1,from=null){
     sfxKO();
     starBurst(P.x,groundAt(P.x,P.z)+1.2,P.z,Math.min(10,Math.max(3,starCount)));
     starCount=0;
-    document.getElementById('stars').textContent='⭐ 0';
+    document.getElementById('stars').textContent='💎 0';
     playAnim('Down',0.1);
     setTimeout(()=>{
       P.x=-60;P.z=88;hp=HP_MAX;heartsUI();playAnim('Idle',0.1);
@@ -1307,11 +1397,12 @@ function doAttack(){
         sk.root.position.x+=fx2*1.2;sk.root.position.z+=fz2*1.2;
         if(sk.hp<=0){
           sfxKO();
-          starBurst(sk.root.position.x,sk.root.position.y+1.2,sk.root.position.z,4);
-          for(let k=0;k<2;k++)setTimeout(makeStar,400*k); // loot!
+          boneScatter(sk.root.position.x,sk.root.position.y+1,sk.root.position.z); // he falls apart!
+          starCount+=25; // 💎 bounty
+          document.getElementById('stars').textContent='💎 '+starCount;
+          toast('☠️ +25 💎!');
           scene.remove(sk.root);
           skels.splice(skels.indexOf(sk),1);
-          setTimeout(()=>addSkel(-28+Math.random()*16,116+Math.random()*20),15000); // a new raider rises
         }else skAnim(sk,'Hit');
       }
     }
