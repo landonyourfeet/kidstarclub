@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2453,7 +2452,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-55';
+const SV_BUILD='SV-56';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2540,7 +2539,7 @@ async function ppLoadAssets(onProgress){
           const mats=Array.isArray(m.material)?m.material:[m.material];
           for(const mm of mats){
             const nm=(mm.name||'').toLowerCase();
-            if(f.startsWith('trp_')){mm.map=TRP_ATLAS;if(mm.color)mm.color.setHex(0xffffff);mm.alphaTest=0;mm.transparent=false} // Synty master atlas, colors from the texture
+            if(f.startsWith('trp_')){mm.map=null;mm.alphaTest=0;mm.transparent=false;mm.side=THREE.DoubleSide} // party build: stylized solids — texture wiring resumes post-party
             if(!mm.map&&mm.color){
               if(/leaf|palm|fern|flower|bush|frond|lambert|tree|foliage|leaves|plant/.test(nm))mm.color.setHex(0x3f9e46);
               else if(/bark|trunk|wood/.test(nm))mm.color.setHex(0x7a5a3a);
@@ -3172,12 +3171,12 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=48+Math.random()*18;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(PALMS[i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.45,9);
+        put(i%2?'trp_flame1':TREES[i%TREES.length],tx4,tz4,5.5+Math.random()*2,Math.random()*6.3,.45,8);
       }
       for(let i=0;i<12;i++){ // jungle interior
         const an4=Math.random()*6.3, rr4=30+Math.random()*14;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
-        put([TREES[i%TREES.length],'trp_palm2','trp_flame1'][i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.7,10);
+        put([TREES[i%TREES.length],'trp_flame2','trp_flame1'][i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.7,10);
       }
       for(let i=0;i<4;i++){ // 🍌 banana groves (of course)
         const an4=1.1+i*0.5, rr4=36+Math.random()*10;
@@ -3187,7 +3186,7 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=28+Math.random()*38;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(['trp_fern1','trp_fern2','trp_bush','trp_flower1','trp_flower2'][i%5],tx4,tz4,1.2+Math.random()*0.9,Math.random()*6.3,0,0);
+        put(['trp_rock1','trp_coral2','trp_flame2','trp_coral4','trp_coral1'][i%5],tx4,tz4,1.0+Math.random()*0.7,Math.random()*6.3,0,0);
       }
       for(let i=0;i<5;i++){ // shoreline boulders
         const an4=Math.random()*6.3, rr4=60+Math.random()*7;
@@ -3206,7 +3205,7 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=28+Math.random()*40;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(['trp_fern1','trp_fern2','trp_bush'][i%3],tx4,tz4,0.9+Math.random()*0.7,Math.random()*6.3,0,0); // ferns read better than grass cards
+        put(['trp_rock1','trp_coral3','trp_coral2'][i%3],tx4,tz4,0.7+Math.random()*0.5,Math.random()*6.3,0,0); // solid pieces only for the party build
       }
       // 🪸 THE REEF GARDENS: corals & seaweed in the shallows, visible through the water —
       // by day a sunken rainbow, by night they GLOW (bioluminescence system below)
@@ -3240,7 +3239,7 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=30+Math.random()*34;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        glowPut(i%2?'trp_flower1':'trp_flower2',tx4,tz4,1.1+Math.random()*0.6,REEF_COLS[(i+2)%4]);
+        glowPut(i%2?'trp_coral1':'trp_coral3',tx4,tz4,1.1+Math.random()*0.6,REEF_COLS[(i+2)%4]);
       }
       // 🌊 glowing shoreline ring (night surf line)
       window.__shoreGlow=new THREE.Mesh(new THREE.RingGeometry(IC.R+0.5,IC.R+2.4,72),
