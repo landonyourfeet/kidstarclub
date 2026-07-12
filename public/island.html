@@ -47,7 +47,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD/arrows run · SPACE jump · F/⚔️ attack · E/🎉 emote · ⭐ collect · 🎙️ talk</div>
-<div class="hud" id="tag">ISL-13</div>
+<div class="hud" id="tag">ISL-14</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
@@ -55,7 +55,9 @@
 <div id="joy"><i></i></div>
 <button id="emote" style="position:fixed;right:26px;bottom:124px;z-index:11;width:56px;height:56px;border-radius:50%;border:2px solid #fff;background:rgba(157,92,255,.85);font-size:24px">🎉</button>
 <button id="atk" style="position:fixed;right:108px;bottom:44px;z-index:11;width:74px;height:74px;border-radius:50%;border:3px solid #fff;background:rgba(232,72,63,.9);font-size:32px">⚔️</button>
-<div class="hud" id="hearts" style="left:14px;top:158px;font-size:20px;text-shadow:0 2px 2px rgba(0,0,0,.4)">❤️❤️❤️</div>
+<div class="hud" id="hpwrap" style="left:14px;top:158px;width:150px;height:16px;border-radius:999px;background:rgba(6,20,40,.65);border:2px solid rgba(255,255,255,.5);overflow:hidden">
+  <div id="hpbar" style="height:100%;width:100%;background:linear-gradient(90deg,#4ade80,#a3e635);border-radius:999px;transition:width .18s"></div>
+</div>
 <div id="jump">⬆︎</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -286,7 +288,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-13'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-14'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -713,6 +715,44 @@ function makeStar(){
 }
 for(let i=0;i<80;i++)makeStar();
 let sndCtx=null;
+function sctx(){sndCtx=sndCtx||new (window.AudioContext||window.webkitAudioContext)();return sndCtx}
+function sfxSwing(){ // whoosh: filtered noise sweep
+  try{const c=sctx(),t=c.currentTime;
+    const buf=c.createBuffer(1,c.sampleRate*0.18,c.sampleRate);
+    const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const src=c.createBufferSource();src.buffer=buf;
+    const f=c.createBiquadFilter();f.type='bandpass';f.frequency.setValueAtTime(600,t);f.frequency.exponentialRampToValueAtTime(2400,t+0.15);f.Q.value=1.2;
+    const g=c.createGain();g.gain.setValueAtTime(0.16,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+    src.connect(f).connect(g).connect(c.destination);src.start();
+  }catch(e){}}
+function sfxHit(){ // impact: thump + click
+  try{const c=sctx(),t=c.currentTime;
+    const o=c.createOscillator();o.type='sine';o.frequency.setValueAtTime(180,t);o.frequency.exponentialRampToValueAtTime(60,t+0.12);
+    const g=c.createGain();g.gain.setValueAtTime(0.28,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.14);
+    o.connect(g).connect(c.destination);o.start();o.stop(t+0.15);
+    const buf=c.createBuffer(1,c.sampleRate*0.05,c.sampleRate);
+    const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const n=c.createBufferSource();n.buffer=buf;
+    const g2=c.createGain();g2.gain.value=0.14;n.connect(g2).connect(c.destination);n.start();
+  }catch(e){}}
+function sfxZap(){ // energy blast: descending square
+  try{const c=sctx(),t=c.currentTime;
+    const o=c.createOscillator();o.type='square';o.frequency.setValueAtTime(880,t);o.frequency.exponentialRampToValueAtTime(160,t+0.22);
+    const g=c.createGain();g.gain.setValueAtTime(0.1,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.24);
+    o.connect(g).connect(c.destination);o.start();o.stop(t+0.25);
+  }catch(e){}}
+function sfxKO(){ // big pop
+  try{const c=sctx(),t=c.currentTime;
+    const buf=c.createBuffer(1,c.sampleRate*0.5,c.sampleRate);
+    const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+    const src=c.createBufferSource();src.buffer=buf;
+    const f=c.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(900,t);f.frequency.exponentialRampToValueAtTime(120,t+0.45);
+    const g=c.createGain();g.gain.setValueAtTime(0.34,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.5);
+    src.connect(f).connect(g).connect(c.destination);src.start();
+    const o=c.createOscillator();o.frequency.setValueAtTime(70,t);
+    const g2=c.createGain();g2.gain.setValueAtTime(0.25,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+    o.connect(g2).connect(c.destination);o.start();o.stop(t+0.42);
+  }catch(e){}}
 function ping(){
   try{
     sndCtx=sndCtx||new (window.AudioContext||window.webkitAudioContext)();
@@ -780,9 +820,10 @@ async function presenceTick(){
     const r=await fetch('/api/park/pos',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:heroKey,mode:'walk',score:starCount})
     }).then(x=>x.json());
+    if(r.you)myName=r.you; // the server tells us exactly who we are
+    for(const h of r.hits||[])playerHurt(h.dmg||1,h.from); // ⚔️ incoming battle damage
     const seen=new Set();
     for(const o of r.others||[]){
-      if(myName===null&&Math.hypot(o.x-P.x,o.z-P.z)<0.6)myName=o.name; // best-effort self detect
       if(o.name===myName)continue;
       seen.add(o.name);
       let rm=remotes.get(o.name);
@@ -1043,8 +1084,13 @@ addEventListener('keydown',e=>{if(e.key==='e'||e.key==='E')document.getElementBy
    ⚔️ STAR DUELS · phase 1: class attacks + skeleton raiders
    defeat = a burst of stars, never anything scary
    ============================================================ */
-let hearts=3,attackUntil=0,hurtUntil=0,downUntil=0;
-function heartsUI(){document.getElementById('hearts').textContent=hearts>0?'❤️'.repeat(hearts):'💫'}
+let hp=10;const HP_MAX=10;let attackUntil=0,hurtUntil=0,downUntil=0;
+function heartsUI(){
+  const bar=document.getElementById('hpbar');
+  const f=Math.max(0,hp/HP_MAX);
+  bar.style.width=(f*100)+'%';
+  bar.style.background=f>0.5?'linear-gradient(90deg,#4ade80,#a3e635)':f>0.25?'linear-gradient(90deg,#facc15,#fb923c)':'linear-gradient(90deg,#ef4444,#f97316)';
+}
 function starBurst(x,y,z,n){
   for(let i=0;i<n;i++){
     const st=new THREE.Mesh(starGeo,starMat);
@@ -1055,6 +1101,46 @@ function starBurst(x,y,z,n){
   }
 }
 const bursts=[];
+let slashTex=null;
+function getSlashTex(){
+  if(slashTex)return slashTex;
+  const cv=document.createElement('canvas');cv.width=128;cv.height=128;
+  const g=cv.getContext('2d');
+  g.strokeStyle='rgba(160,240,255,0.95)';g.lineWidth=14;g.lineCap='round';
+  g.beginPath();g.arc(64,110,74,Math.PI*1.18,Math.PI*1.82);g.stroke();
+  g.strokeStyle='rgba(255,255,255,0.9)';g.lineWidth=6;
+  g.beginPath();g.arc(64,110,74,Math.PI*1.22,Math.PI*1.78);g.stroke();
+  slashTex=new THREE.CanvasTexture(cv);
+  return slashTex;
+}
+const fx=[];
+function fxSlash(){
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:getSlashTex(),transparent:true,opacity:0.95,depthWrite:false}));
+  sp.scale.set(2.6,2.6,1);
+  sp.position.set(P.x+Math.sin(P.yaw)*1.4,groundAt(P.x,P.z)+1.4,P.z+Math.cos(P.yaw)*1.4);
+  sp.userData={life:0.22,vx:Math.sin(P.yaw)*9,vz:Math.cos(P.yaw)*9,kind:'slash'};
+  scene.add(sp);fx.push(sp);
+}
+function fxImpact(x,y,z,col){
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({color:col||0xfff1a8,transparent:true,opacity:0.95,depthWrite:false}));
+  sp.scale.set(0.5,0.5,1);
+  sp.position.set(x,y,z);
+  sp.userData={life:0.2,grow:14,kind:'impact'};
+  scene.add(sp);fx.push(sp);
+}
+function tickFx(dt){
+  for(let i=fx.length-1;i>=0;i--){
+    const f2=fx[i];f2.userData.life-=dt;
+    if(f2.userData.kind==='slash'){
+      f2.position.x+=f2.userData.vx*dt;f2.position.z+=f2.userData.vz*dt;
+      f2.material.opacity=Math.max(0,f2.userData.life/0.22);
+    }else{
+      f2.scale.x+=f2.userData.grow*dt;f2.scale.y+=f2.userData.grow*dt;
+      f2.material.opacity=Math.max(0,f2.userData.life/0.2);
+    }
+    if(f2.userData.life<=0){scene.remove(f2);fx.splice(i,1)}
+  }
+}
 function tickBursts(dt){
   for(let i=bursts.length-1;i>=0;i--){
     const b=bursts[i];
@@ -1097,7 +1183,7 @@ function tickSkels(dt){
     }else if(dist<=1.9&&sk.atkCd<=0&&downUntil<performance.now()){ // bonk!
       skAnim(sk,'Attack');sk.atkCd=1.6;
       setTimeout(()=>{
-        if(Math.hypot(P.x-sk.root.position.x,P.z-sk.root.position.z)<2.4)playerHurt();
+        if(Math.hypot(P.x-sk.root.position.x,P.z-sk.root.position.z)<2.4)playerHurt(1);
       },420);
     }else if(sk.cur!=='Attack'||sk.atkCd<1.1){
       skAnim(sk,'Idle');
@@ -1106,36 +1192,60 @@ function tickSkels(dt){
     sk.mixer.update(dt);
   }
 }
-function playerHurt(){
+function playerHurt(dmg=1,from=null){
   if(performance.now()<hurtUntil||performance.now()<downUntil)return;
-  hearts--;heartsUI();hurtUntil=performance.now()+900;
-  playAnim('Hit',0.08);ping();
-  if(hearts<=0){ // burst into stars, respawn on the beach
+  hp-=dmg;heartsUI();hurtUntil=performance.now()+700;
+  playAnim('Hit',0.08);sfxHit();
+  if(from)toast('⚔️ '+from+' got you!');
+  if(hp<=0){ // KO: ALL your stars burst out — respawn with nothing
     downUntil=performance.now()+2600;
-    starBurst(P.x,groundAt(P.x,P.z)+1.2,P.z,Math.min(6,starCount));
-    starCount=Math.max(0,starCount-3);
-    document.getElementById('stars').textContent='⭐ '+starCount;
+    sfxKO();
+    starBurst(P.x,groundAt(P.x,P.z)+1.2,P.z,Math.min(10,Math.max(3,starCount)));
+    starCount=0;
+    document.getElementById('stars').textContent='⭐ 0';
     playAnim('Down',0.1);
     setTimeout(()=>{
-      P.x=-60;P.z=88;hearts=3;heartsUI();playAnim('Idle',0.1);
+      P.x=-60;P.z=88;hp=HP_MAX;heartsUI();playAnim('Idle',0.1);
     },2500);
   }
+}
+function toast(txt){
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:20%;z-index:15;background:rgba(6,20,40,.8);color:#ffe14d;font-weight:800;padding:8px 18px;border-radius:999px;font-size:14px;pointer-events:none';
+  d.textContent=txt;document.body.appendChild(d);
+  setTimeout(()=>d.remove(),1800);
 }
 function doAttack(){
   const now=performance.now();
   if(now<attackUntil||now<downUntil)return;
   attackUntil=now+700;
   playAnim('Attack',0.07);
+  sfxSwing();fxSlash();
   setTimeout(()=>{ // the swing lands mid-animation
-    const fx=Math.sin(P.yaw),fz=Math.cos(P.yaw);
+    const fwx=Math.sin(P.yaw),fwz=Math.cos(P.yaw);
+    // 🥊 PvP: friends in the arc take battle damage (relayed via the club server)
+    for(const [nm,rm] of remotes){
+      const dx=rm.root.position.x-P.x,dz=rm.root.position.z-P.z;
+      const d=Math.hypot(dx,dz);
+      if(d<2.8&&(dx*fwx+dz*fwz)/Math.max(0.01,d)>0.35){
+        sfxZap();sfxHit();
+        fxImpact(rm.root.position.x,rm.root.position.y+1.3,rm.root.position.z,0x9be8ff);
+        starBurst(rm.root.position.x,rm.root.position.y+1.2,rm.root.position.z,2);
+        fetch('/api/island/hit',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({to:nm,dmg:1})}).catch(()=>{});
+      }
+    }
+    const fx2=fwx,fz2=fwz;
     for(const sk of skels){
       const dx=sk.root.position.x-P.x,dz=sk.root.position.z-P.z;
       const d=Math.hypot(dx,dz);
-      if(d<2.6&&(dx*fx+dz*fz)/Math.max(0.01,d)>0.35){
-        sk.hp--;sk.hitFlash=0.3;ping();
+      if(d<2.6&&(dx*fx2+dz*fz2)/Math.max(0.01,d)>0.35){
+        sk.hp--;sk.hitFlash=0.3;sfxHit();
+        fxImpact(sk.root.position.x,sk.root.position.y+1.2,sk.root.position.z);
         // knockback
-        sk.root.position.x+=fx*1.2;sk.root.position.z+=fz*1.2;
+        sk.root.position.x+=fx2*1.2;sk.root.position.z+=fz2*1.2;
         if(sk.hp<=0){
+          sfxKO();
           starBurst(sk.root.position.x,sk.root.position.y+1.2,sk.root.position.z,4);
           for(let k=0;k<2;k++)setTimeout(makeStar,400*k); // loot!
           scene.remove(sk.root);
@@ -1281,6 +1391,7 @@ function loop(){
   tickCritters(dt);
   tickSkels(dt);
   tickBursts(dt);
+  tickFx(dt);
 
   renderer.render(scene,cam);
 }
