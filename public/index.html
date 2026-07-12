@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2327,6 +2328,9 @@ const PP_MODELS={
   trp_fern1:'trp_fern1.glb',trp_fern2:'trp_fern2.glb',trp_flower1:'trp_flower1.glb',trp_flower2:'trp_flower2.glb',
   trp_rock1:'trp_rock1.glb',trp_rock2:'trp_rock2.glb',trp_cliff1:'trp_cliff1.glb',trp_cliff2:'trp_cliff2.glb',
   trp_dock:'trp_dock.glb',trp_ropebridge:'trp_ropebridge.glb',
+  trp_coral1:'trp_coral1.glb',trp_coral2:'trp_coral2.glb',trp_coral3:'trp_coral3.glb',trp_coral4:'trp_coral4.glb',
+  trp_weed1:'trp_weed1.glb',trp_weed2:'trp_weed2.glb',trp_grass1:'trp_grass1.glb',trp_grass2:'trp_grass2.glb',
+  trp_flame1:'trp_flame1.glb',trp_flame2:'trp_flame2.glb',
   medInn:'med_Inn.glb',medSmith:'med_Blacksmith.glb',medH1:'med_House_1.glb',medH2:'med_House_2.glb',
   medH3:'med_House_3.glb',medH4:'med_House_4.glb',medBell:'med_Bell_Tower.glb',medMill:'med_Mill.glb',
   medStand1:'med_MarketStand_1.glb',medStand2:'med_MarketStand_2.glb',medGazebo:'med_Gazebo.glb',
@@ -2428,7 +2432,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-43';
+const SV_BUILD='SV-44';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3168,6 +3172,77 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=60+Math.random()*7;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         put(i%2?'trp_rock1':'trp_rock2',tx4,tz4,1.6+Math.random()*1.6,Math.random()*6.3,1.2,2.5);
+      }
+      // 🌺 flame trees (pohutukawa) — bursts of red through the canopy
+      for(let i=0;i<7;i++){
+        const an4=Math.random()*6.3, rr4=30+Math.random()*26;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        if(inOcean(tx4,tz4))continue;
+        put(i%2?'trp_flame1':'trp_flame2',tx4,tz4,6+Math.random()*2.5,Math.random()*6.3,.6,9);
+      }
+      // 🌿 island grass clumps
+      for(let i=0;i<22;i++){
+        const an4=Math.random()*6.3, rr4=28+Math.random()*40;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        if(inOcean(tx4,tz4))continue;
+        put(i%2?'trp_grass1':'trp_grass2',tx4,tz4,0.9+Math.random()*0.7,Math.random()*6.3,0,0);
+      }
+      // 🪸 THE REEF GARDENS: corals & seaweed in the shallows, visible through the water —
+      // by day a sunken rainbow, by night they GLOW (bioluminescence system below)
+      window.__GLOW=[];
+      const glowPut=(key,x2,z2,sc2,gcol)=>{
+        const o=put(key,x2,z2,sc2,Math.random()*6.3,0,0);
+        if(!o)return;
+        o.traverse(mm=>{
+          if(!mm.isMesh||!mm.material)return;
+          mm.material=mm.material.clone();
+          mm.material.emissive=new THREE.Color(gcol);
+          mm.material.emissiveIntensity=0;
+          __GLOW.push(mm.material);
+        });
+      };
+      const REEF_COLS=[0x27e6ff,0xff4fd8,0x9d5cff,0x37ffb0];
+      for(let i=0;i<30;i++){ // ring of reef around the Isle
+        const an4=Math.random()*6.3, rr4=IC.R+3+Math.random()*16;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        if(tx4>B-6)continue;
+        glowPut(['trp_coral1','trp_coral2','trp_coral3','trp_coral4','trp_weed1','trp_weed2'][i%6],
+          tx4,tz4,1.2+Math.random()*1.4,REEF_COLS[i%4]);
+      }
+      for(let i=0;i<10;i++){ // reef bed along the mainland coast by the bridge
+        const tx4=OCEAN_X+4+Math.random()*22, tz4=-30+Math.random()*70;
+        if(!inOcean(tx4,tz4))continue;
+        glowPut(['trp_coral2','trp_weed1','trp_coral4'][i%3],tx4,tz4,1.1+Math.random()*1.2,REEF_COLS[(i+1)%4]);
+      }
+      // isle flowers join the night glow
+      for(let i=0;i<10;i++){
+        const an4=Math.random()*6.3, rr4=30+Math.random()*34;
+        const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+        if(inOcean(tx4,tz4))continue;
+        glowPut(i%2?'trp_flower1':'trp_flower2',tx4,tz4,1.1+Math.random()*0.6,REEF_COLS[(i+2)%4]);
+      }
+      // 🌊 glowing shoreline ring (night surf line)
+      window.__shoreGlow=new THREE.Mesh(new THREE.RingGeometry(IC.R+0.5,IC.R+2.4,72),
+        new THREE.MeshBasicMaterial({color:0x27e6ff,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}));
+      __shoreGlow.rotation.x=-Math.PI/2;
+      __shoreGlow.position.set(IC.x,0.5,IC.z);
+      scene.add(__shoreGlow);
+      // ✨ plankton sparkles over the lagoon (night only)
+      {
+        const N2=170,pos2=new Float32Array(N2*3);
+        for(let i=0;i<N2;i++){
+          const an4=Math.random()*6.3, rr4=IC.R-4+Math.random()*26;
+          pos2[i*3]=IC.x+Math.cos(an4)*rr4;
+          pos2[i*3+1]=0.55+Math.random()*0.7;
+          pos2[i*3+2]=IC.z+Math.sin(an4)*rr4;
+        }
+        const g6=new THREE.BufferGeometry();
+        g6.setAttribute('position',new THREE.BufferAttribute(pos2,3));
+        window.__plankton=new THREE.Points(g6,new THREE.PointsMaterial({color:0x6ff2ff,size:0.34,
+          map:(typeof moteTex!=='undefined'?moteTex:null),transparent:true,opacity:0,
+          depthWrite:false,blending:THREE.AdditiveBlending}));
+        __plankton.frustumCulled=false;
+        scene.add(__plankton);
       }
       // dramatic sea cliffs on the north-east point
       put('trp_cliff1',IC.x+52,IC.z-44,9,2.4,3.5,9);
@@ -4988,6 +5063,26 @@ function ppBoot(){
           Math.min(1,0.05+0.95*f+warm*0.5), Math.min(1,0.07+0.93*f+warm*0.12), 0.22+0.78*f);
         if(window.__nightStars)__nightStars.opacity=(1-f)*0.9;
         if(fx)fx.bloom.strength=0.3+(1-f)*0.8+warm*0.2; // subtle by day, glorious by night
+        // 🌌 BIOLUMINESCENCE: the reef, flowers and lagoon ignite at night
+        const glowAmt=Math.max(0,(0.55-f))/0.55; // 0 by day → 1 at deep night
+        if(window.__GLOW)for(const gm of __GLOW)gm.emissiveIntensity=glowAmt*1.35;
+        if(window.__shoreGlow){
+          __shoreGlow.material.opacity=glowAmt*(0.32+Math.sin(performance.now()/700)*0.1);
+        }
+        if(window.__plankton){
+          __plankton.material.opacity=glowAmt*0.85;
+          __plankton.rotation.y+=0.0004;
+        }
+        if(window.__ocean){
+          __ocean.material.emissive=__ocean.material.emissive||new THREE.Color(0x0d4a7d);
+          __ocean.material.emissive.setHex(0x0d4a7d);
+          __ocean.material.emissiveIntensity=glowAmt*0.5;
+        }
+        if(window.__fWater){
+          __fWater.material.emissive=__fWater.material.emissive||new THREE.Color(0x1a6aa8);
+          __fWater.material.emissive.setHex(0x1a6aa8);
+          __fWater.material.emissiveIntensity=glowAmt*0.6;
+        }
         // motes: pollen by day, fireflies by night
         if(motes.mat){
           if(f<0.5){motes.mat.color.setHex(0x9dffb0);motes.mat.size=0.34;
