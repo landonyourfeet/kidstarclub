@@ -2183,16 +2183,16 @@ window.ppShopTap=async(id,kind,cost,owned)=>{
   }catch(e){alert(e.message||'Could not buy that!')}
 };
 function loadWorldLibs(cb,failEl){
-  const seq=['/vendor/GLTFLoader.js','/vendor/DRACOLoader.js','/vendor/SkeletonUtils.js'];
+  const seq=['/vendor/GLTFLoader.js','/vendor/DRACOLoader.js','/vendor/SkeletonUtils.js','/vendor/post.js'];
   loadThree(()=>{
     let i=0;
     const next=()=>{
       if(i>=seq.length)return cb();
-      if((seq[i].includes('GLTF')&&THREE.GLTFLoader)||(seq[i].includes('DRACO')&&THREE.DRACOLoader)||(seq[i].includes('Skeleton')&&THREE.SkeletonUtils)){i++;return next()}
+      if((seq[i].includes('GLTF')&&THREE.GLTFLoader)||(seq[i].includes('DRACO')&&THREE.DRACOLoader)||(seq[i].includes('Skeleton')&&THREE.SkeletonUtils)||(seq[i].includes('post')&&THREE.UnrealBloomPass)){i++;return next()}
       const want=seq[i];
       const sc=document.createElement('script');sc.src=want;i++;
       sc.onload=()=>{ // verify the script actually delivered its library (catch-all 404s serve HTML)
-        const ok=(want.includes('GLTF')&&THREE.GLTFLoader)||(want.includes('DRACO')&&THREE.DRACOLoader)||(want.includes('Skeleton')&&THREE.SkeletonUtils);
+        const ok=(want.includes('GLTF')&&THREE.GLTFLoader)||(want.includes('DRACO')&&THREE.DRACOLoader)||(want.includes('Skeleton')&&THREE.SkeletonUtils)||(want.includes('post')&&THREE.UnrealBloomPass);
         if(ok)next();
         else if(failEl)failEl.innerHTML='<div class="pphud" style="color:#7a1a1a">Missing file on the server: '+want+' — the public/vendor folder needs to be uploaded to the repo! 📦</div>';
       };
@@ -2202,7 +2202,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-30';
+const SV_BUILD='SV-31';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2431,14 +2431,27 @@ function ppBoot(){
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.outputEncoding=THREE.sRGBEncoding;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.0;
+  renderer.toneMappingExposure=1.1;
   renderer.setClearColor(0x87d8ff,1); // sky, not black, while the world loads
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
   scene.fog=new THREE.Fog(0xbfe3ff,130,560);
   const cam=new THREE.PerspectiveCamera(55,1,0.1,1000);
+  // ✨ post stack: filmic bloom (emissives glow — the Great Star, crystals, bolts, neon skins)
+  let fx=null;
+  try{
+    if(THREE.EffectComposer&&THREE.UnrealBloomPass){
+      const comp=new THREE.EffectComposer(renderer);
+      comp.addPass(new THREE.RenderPass(scene,cam));
+      const bloom=new THREE.UnrealBloomPass(
+        new THREE.Vector2(wrap.clientWidth||640,wrap.clientHeight||480),0.55,0.4,0.82);
+      comp.addPass(bloom);
+      fx={comp,bloom,on:true,slow:0};
+    }
+  }catch(e){console.error('[fx]',e)}
   function fit(){const W=wrap.clientWidth,H=wrap.clientHeight;
-    renderer.setSize(W,H);cam.aspect=W/H;cam.updateProjectionMatrix()}
+    renderer.setSize(W,H);cam.aspect=W/H;cam.updateProjectionMatrix();
+    fx&&fx.comp.setSize(W,H)}
   fit();addEventListener('resize',fit);
   // sky + clouds
   {
@@ -2570,23 +2583,69 @@ function ppBoot(){
     return g;
   }
   let grassTex;{
-    const cv=document.createElement('canvas');cv.width=256;cv.height=256;
+    const cv=document.createElement('canvas');cv.width=512;cv.height=512;
     const g2=cv.getContext('2d');
-    g2.fillStyle='#3fae3f';g2.fillRect(0,0,256,256);
-    for(let i=0;i<2600;i++){
-      g2.fillStyle=['#379e37','#4cc24c','#2f8f2f','#58d158'][i%4];
-      g2.fillRect(Math.random()*256,Math.random()*256,2,2+Math.random()*3);
+    const grd=g2.createLinearGradient(0,0,512,512);
+    grd.addColorStop(0,'#43b243');grd.addColorStop(.5,'#3aa53a');grd.addColorStop(1,'#46b846');
+    g2.fillStyle=grd;g2.fillRect(0,0,512,512);
+    for(let i=0;i<9000;i++){ // layered blade speckle
+      g2.fillStyle=['#379e37','#4cc24c','#2f8f2f','#58d158','#63d863','#2a852a'][i%6];
+      g2.fillRect(Math.random()*512,Math.random()*512,2,2+Math.random()*4);
+    }
+    for(let i=0;i<26;i++){ // worn dirt patches
+      const px=Math.random()*512,py=Math.random()*512,pr=6+Math.random()*14;
+      const rg=g2.createRadialGradient(px,py,1,px,py,pr);
+      rg.addColorStop(0,'rgba(122,92,48,0.55)');rg.addColorStop(1,'rgba(122,92,48,0)');
+      g2.fillStyle=rg;g2.beginPath();g2.arc(px,py,pr,0,7);g2.fill();
     }
     grassTex=new THREE.CanvasTexture(cv);
     grassTex.encoding=THREE.sRGBEncoding;
-    grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping;grassTex.repeat.set(38,38);
+    grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping;grassTex.repeat.set(46,46);
   }
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(B*2+12,B*2+12),
     new THREE.MeshLambertMaterial({map:grassTex}));
   ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-  const pond=new THREE.Mesh(new THREE.CircleGeometry(10,24),
-    new THREE.MeshLambertMaterial({color:0x2e9dff,transparent:true,opacity:.9}));
-  pond.rotation.x=-Math.PI/2;pond.position.set(-64,.02,30);scene.add(pond);
+  const pond=new THREE.Mesh(new THREE.CircleGeometry(10,40),
+    new THREE.MeshPhongMaterial({color:0x2e9dff,shininess:160,specular:0xbfe6ff,
+      transparent:true,opacity:.92}));
+  pond.rotation.x=-Math.PI/2;pond.position.set(-64,.06,30);scene.add(pond);
+  const pondPos=pond.geometry.attributes.position;
+  // 🌱 instanced grass blades across the green (one draw call)
+  {
+    const blade=new THREE.ConeGeometry(0.06,0.55,3);
+    blade.translate(0,0.27,0);
+    const inst=new THREE.InstancedMesh(blade,new THREE.MeshLambertMaterial({color:0xffffff}),1600);
+    const dummy=new THREE.Object3D();
+    const cs=[new THREE.Color(0x3fae3f),new THREE.Color(0x58d158),new THREE.Color(0x2f8f2f)];
+    let n=0;
+    for(let i=0;i<6000&&n<1600;i++){
+      const x=-B+6+Math.random()*(B+56), z=(Math.random()-.5)*(CANYON_Z*2-44);
+      if(x>64)continue;
+      dummy.position.set(x,groundAt(x,z),z);
+      dummy.rotation.y=Math.random()*6.3;
+      const s2=0.7+Math.random()*0.9;
+      dummy.scale.set(s2,s2*(0.8+Math.random()*0.8),s2);
+      dummy.updateMatrix();
+      inst.setMatrixAt(n,dummy.matrix);
+      inst.setColorAt(n,cs[n%3]);
+      n++;
+    }
+    inst.count=n;inst.frustumCulled=false;
+    scene.add(inst);
+  }
+  // 🌫️ atmosphere motes: daytime pollen, nighttime fireflies
+  const motes={};
+  {
+    const N=140,pos=new Float32Array(N*3);
+    for(let i=0;i<N;i++){pos[i*3]=(Math.random()-.5)*44;pos[i*3+1]=0.8+Math.random()*5;pos[i*3+2]=(Math.random()-.5)*44}
+    const g3=new THREE.BufferGeometry();
+    g3.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    motes.mat=new THREE.PointsMaterial({color:0xfff7cc,size:0.32,transparent:true,opacity:0.22,depthWrite:false});
+    motes.pts=new THREE.Points(g3,motes.mat);
+    motes.pts.frustumCulled=false;
+    motes.pos=pos;
+    scene.add(motes.pts);
+  }
   const road=new THREE.Mesh(new THREE.PlaneGeometry(16,B*2),mat(0x3a3a44));
   road.rotation.x=-Math.PI/2;road.position.set(42,.015,0);scene.add(road);
   for(let i=0;i<29;i++){
@@ -4265,6 +4324,24 @@ function ppBoot(){
       t+=dt*4.8;
       for(const cl of clouds){cl.position.x+=cl.userData.v;if(cl.position.x>580)cl.position.x=-580}
       if(window.__svStar)__svStar.rotation.y+=dt*0.5;
+      // 🌊 living water
+      for(let i=0;i<pondPos.count;i++){
+        const px5=pondPos.getX(i),py5=pondPos.getY(i);
+        pondPos.setZ(i,Math.sin(t*1.7+px5*0.55+py5*0.4)*0.075);
+      }
+      pondPos.needsUpdate=true;
+      pond.geometry.computeVertexNormals();
+      // 🌫️ motes drift around the player
+      if(motes.pts){
+        motes.pts.position.set(player.position.x,player.position.y,player.position.z);
+        for(let i=0;i<140;i++){
+          let my=motes.pos[i*3+1]+dt*(0.25+((i%5)*0.08));
+          motes.pos[i*3]+=Math.sin(t*0.6+i)*dt*0.5;
+          if(my>6){my=0.6;motes.pos[i*3]=(Math.random()-.5)*44;motes.pos[i*3+2]=(Math.random()-.5)*44}
+          motes.pos[i*3+1]=my;
+        }
+        motes.pts.geometry.attributes.position.needsUpdate=true;
+      }
       // ---- 🌙 day/night cycle: day → dusk → starry night → sunrise ----
       {
         const DAY=110,DUSK=16,NIGHT=45,DAWN=16,TOT=DAY+DUSK+NIGHT+DAWN;
@@ -4283,6 +4360,13 @@ function ppBoot(){
         if(window.__skyMat)__skyMat.color.setRGB(
           Math.min(1,0.05+0.95*f+warm*0.5), Math.min(1,0.07+0.93*f+warm*0.12), 0.22+0.78*f);
         if(window.__nightStars)__nightStars.opacity=(1-f)*0.9;
+        if(fx)fx.bloom.strength=0.5+(1-f)*0.6+warm*0.2; // night makes the glow sing
+        // motes: pollen by day, fireflies by night
+        if(motes.mat){
+          if(f<0.5){motes.mat.color.setHex(0x9dffb0);motes.mat.size=0.5;
+            motes.mat.opacity=0.55+Math.sin(performance.now()/280)*0.35}
+          else{motes.mat.color.setHex(0xfff7cc);motes.mat.size=0.32;motes.mat.opacity=0.22}
+        }
         for(const cl of clouds)for(const puff of cl.children)
           puff.material.color.setScalar(0.22+0.78*f);
         // announce the turns
@@ -4978,7 +5062,12 @@ function ppBoot(){
       sndFrame(dt);
       cam.position.lerp(target,Math.min(1,dt*9)); // fast follow, framerate-independent
       cam.lookAt(player.position.x,player.position.y+(pp.flying?1:1.3*z),player.position.z); // always track HIS height
-      renderer.render(scene,cam);
+      if(fx&&fx.on)fx.comp.render();else renderer.render(scene,cam);
+      // 📉 auto-fallback: if a tablet can't hold ~24fps with bloom, drop the post stack
+      if(fx&&fx.on){
+        fx.slow=dt>0.045?fx.slow+1:Math.max(0,fx.slow-2);
+        if(fx.slow>240){fx.on=false;console.warn('[fx] bloom disabled for performance')}
+      }
       __raf=requestAnimationFrame(loop);
     };
     __raf=requestAnimationFrame(loop);
