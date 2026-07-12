@@ -2451,7 +2451,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-49';
+const SV_BUILD='SV-50';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2537,6 +2537,7 @@ async function ppLoadAssets(onProgress){
           for(const mm of mats){
             const nm=(mm.name||'').toLowerCase();
             if(f.startsWith('trp_')&&/leaf|palm|fern|flower|bush|frond/.test(nm)){mm.side=THREE.DoubleSide;if(mm.map)mm.alphaTest=0.35}
+            if(f.startsWith('trp_flower')){mm.map=null;mm.color=new THREE.Color(0xd8467a).convertSRGBToLinear()} // its FBX bound the purple emissive atlas — flat blossom pink instead
             if(!mm.map&&mm.color){
               if(/leaf|palm|fern|flower|bush|frond|lambert|tree|foliage|leaves|plant/.test(nm))mm.color.setHex(0x3f9e46);
               else if(/bark|trunk|wood/.test(nm))mm.color.setHex(0x7a5a3a);
@@ -2700,7 +2701,7 @@ function ppBoot(){
   renderer.setClearColor(0x87d8ff,1); // sky, not black, while the world loads
   wrap.insertBefore(renderer.domElement,wrap.firstChild);
   const scene=new THREE.Scene();
-  scene.fog=new THREE.Fog(0xcfe9ff,320,1500); // sized for the big world — distance stays SATURATED
+  scene.fog=new THREE.Fog(new THREE.Color(0xa8d4f5).convertSRGBToLinear(),300,1400); // linear fog — the global white veil is gone
   const cam=new THREE.PerspectiveCamera(55,1,0.1,1700);
   // ✨ post stack: filmic bloom (emissives glow — the Great Star, crystals, bolts, neon skins)
   let fx=null;
@@ -2989,7 +2990,7 @@ function ppBoot(){
     og.rotateX(-Math.PI/2);
     window.__oceanPos=og.attributes.position;
     { // 🏝️ postcard water: pale turquoise shallows deepening to open-sea blue
-      const shallow=new THREE.Color(0x8fe9da), deep=new THREE.Color(0x1266a8), oc=new THREE.Color();
+      const shallow=new THREE.Color(0x6fe2d0).convertSRGBToLinear(), deep=new THREE.Color(0x0d5a9c).convertSRGBToLinear(), oc=new THREE.Color();
       const ocols=new Float32Array(__oceanPos.count*3);
       const ocx=(OCEAN_X+B)/2;
       for(let i=0;i<__oceanPos.count;i++){
@@ -3028,7 +3029,7 @@ function ppBoot(){
     ig.rotateX(-Math.PI/2);
     const ip=ig.attributes.position;
     const cols=new Float32Array(ip.count*3);
-    const sand=new THREE.Color(0xe6cd96), grass2=new THREE.Color(0x43b243), cob=new THREE.Color(0x9a94a4);
+    const sand=new THREE.Color(0xe6cd96).convertSRGBToLinear(), grass2=new THREE.Color(0x2f9e3f).convertSRGBToLinear(), cob=new THREE.Color(0x8e8798).convertSRGBToLinear();
     for(let i=0;i<ip.count;i++){
       const wx=IC.x+ip.getX(i), wz=IC.z+ip.getZ(i);
       const h=islandAt(wx,wz);
@@ -3085,42 +3086,48 @@ function ppBoot(){
       const MINI_CLIPS=[];
       // rest-pose bridge: the anim rig and the minis share bone STRUCTURE but not rest orientations —
       // per-bone correction A = miniRest * inv(animRest), baked into every keyframe (else characters tip flat)
-      let refMini=null;
-      for(const k in PP_MODELS){if(k.startsWith('mini_')&&assets[PP_MODELS[k]]){refMini=assets[PP_MODELS[k]].scene;break}}
-      for(const [nm,file] of [['Idle','anim_idle.glb'],['Walk','anim_walk.glb'],['Run','anim_run.glb'],['Jump','anim_jump.glb']]){
-        const src=assets[file];
-        if(!src||!src.animations.length||!refMini)continue;
-        const c=src.animations[0].clone();
-        c.tracks=c.tracks.filter(tr=>{
-          const bone=tr.name.split('.')[0];
-          return REN[bone]&&tr.name.endsWith('.quaternion');
-        }).map(tr=>{
-          const bone=tr.name.split('.')[0], dst=REN[bone];
-          const aRest=src.scene.getObjectByName(bone)?.quaternion;
-          const mRest=refMini.getObjectByName(dst)?.quaternion;
-          if(aRest&&mRest){
-            const A=mRest.clone().multiply(aRest.clone().invert());
-            const v=tr.values, q=new THREE.Quaternion();
-            for(let i2=0;i2<v.length;i2+=4){
-              q.set(v[i2],v[i2+1],v[i2+2],v[i2+3]).premultiply(A);
-              v[i2]=q.x;v[i2+1]=q.y;v[i2+2]=q.z;v[i2+3]=q.w;
+      // each character gets clips corrected against ITS OWN rest pose (goblins ≠ kings)
+      const buildClipsFor=(miniScene)=>{
+        const out=[];
+        for(const [nm,file] of [['Idle','anim_idle.glb'],['Walk','anim_walk.glb'],['Run','anim_run.glb'],['Jump','anim_jump.glb']]){
+          const src=assets[file];
+          if(!src||!src.animations.length)continue;
+          const c=src.animations[0].clone();
+          c.tracks=c.tracks.filter(tr=>{
+            const bone=tr.name.split('.')[0];
+            return REN[bone]&&tr.name.endsWith('.quaternion');
+          }).map(tr=>{
+            const bone=tr.name.split('.')[0], dst=REN[bone];
+            const aRest=src.scene.getObjectByName(bone)?.quaternion;
+            const mRest=miniScene.getObjectByName(dst)?.quaternion;
+            if(aRest&&mRest){
+              const A=mRest.clone().multiply(aRest.clone().invert());
+              const v=tr.values, q=new THREE.Quaternion();
+              for(let i2=0;i2<v.length;i2+=4){
+                q.set(v[i2],v[i2+1],v[i2+2],v[i2+3]).premultiply(A);
+                v[i2]=q.x;v[i2+1]=q.y;v[i2+2]=q.z;v[i2+3]=q.w;
+              }
             }
-          }
-          tr.name=dst+'.quaternion';
-          return tr;
-        });
-        c.name=nm;
-        MINI_CLIPS.push(c);
-      }
-      if(MINI_CLIPS.length){
+            tr.name=dst+'.quaternion';
+            return tr;
+          });
+          c.name=nm;out.push(c);
+        }
+        return out;
+      };
+      MINI_CLIPS.push('per-mini'); // marker: clips are built per character below
+      {
         let na=0;
         for(const k in PP_MODELS){
           if(!k.startsWith('mini_'))continue;
           const e=assets[PP_MODELS[k]];
-          if(e&&!e.animations.length){e.animations=MINI_CLIPS;na++}
+          if(e&&!e.animations.length){
+            const clips=buildClipsFor(e.scene);
+            if(clips.length){e.animations=clips;na++}
+          }
         }
-        console.log('[locomotion]',na,'minis animated with',MINI_CLIPS.map(c=>c.name).join('/'));
-        window.__locoStatus={ok:MINI_CLIPS.length>=4&&na>=0,clips:MINI_CLIPS.length,minis:na};
+        console.log('[locomotion]',na,'minis animated (per-character rest correction)');
+        window.__locoStatus={ok:na>0,clips:4,minis:na};
       }
     }catch(e){console.error('[locomotion]',e);window.__locoStatus={ok:false,err:e.message}}
     if(!window.__locoStatus)window.__locoStatus={ok:false,clips:0,minis:0}; // carriers never loaded
@@ -3362,8 +3369,8 @@ function ppBoot(){
       // one grassy cone per peak = a natural multi-summit silhouette
       const zoneMat=m=>{
         if(Math.hypot(m.x-IC.x,m.z-IC.z)<IC.R+6)return new THREE.MeshLambertMaterial({color:new THREE.Color(m.H>=18?0xc9a486:0x67b467)}); // volcano rock / green hills
-        if(m.x>110)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xd9bd7e)});        // desert butte
-        if(m.z>CANYON_Z-20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xb5502e)});// red rock
+        if(m.x>110)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xd9bd7e).convertSRGBToLinear()});        // desert butte
+        if(m.z>CANYON_Z-20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xb5502e).convertSRGBToLinear()});// red rock
         return new THREE.MeshLambertMaterial({map:grassTex});
       };
       for(const m of MTNS){
@@ -3394,9 +3401,9 @@ function ppBoot(){
         rk.rotation.set(Math.random(),Math.random(),Math.random());
         rk.castShadow=true;scene.add(rk);
       }
-      const stone=new THREE.MeshLambertMaterial({color:new THREE.Color(0xc9c9d4)});
+      const stone=new THREE.MeshLambertMaterial({color:new THREE.Color(0xc9c9d4).convertSRGBToLinear()});
       stone.color.convertSRGBToLinear();
-      const roofM=new THREE.MeshLambertMaterial({color:new THREE.Color(0xe20074)});
+      const roofM=new THREE.MeshLambertMaterial({color:new THREE.Color(0xe20074).convertSRGBToLinear()});
       roofM.color.convertSRGBToLinear();
       const tower=(tx,tz,r,h)=>{
         const tw=new THREE.Mesh(new THREE.CylinderGeometry(r,r*1.12,h,10),stone);
@@ -3540,7 +3547,7 @@ function ppBoot(){
     {
       const CX=IC.x, CZ=IC.z, bY2=3;
       // stone ring wall with a west gate (facing the bridge)
-      const wallM2=new THREE.MeshLambertMaterial({color:new THREE.Color(0xb9b3c2)});
+      const wallM2=new THREE.MeshLambertMaterial({color:new THREE.Color(0xb9b3c2).convertSRGBToLinear()});
       wallM2.color.convertSRGBToLinear();
       const SEG=26;
       for(let i=0;i<SEG;i++){
@@ -3558,7 +3565,7 @@ function ppBoot(){
         const tw=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.5,4.6,10),wallM2);
         tw.position.set(tx,bY2+2.3,tz);tw.castShadow=true;scene.add(tw);
         const rf=new THREE.Mesh(new THREE.ConeGeometry(1.8,2.2,10),
-          new THREE.MeshLambertMaterial({color:new THREE.Color(0xe20074)}));
+          new THREE.MeshLambertMaterial({color:new THREE.Color(0xe20074).convertSRGBToLinear()}));
         rf.material.color.convertSRGBToLinear();
         rf.position.set(tx,bY2+5.7,tz);scene.add(rf);
         COLL.push({x:tx,z:tz,hw:1.5,hd:1.5,h:bY2+4.6});
