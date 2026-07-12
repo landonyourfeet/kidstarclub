@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1635,7 +1634,7 @@ function vcNewPeer(id,name){
     let dock=document.getElementById('voiceDock');
     if(!dock){dock=document.createElement('div');dock.id='voiceDock';dock.style.display='none';document.body.appendChild(dock)}
     const au=document.createElement('audio');
-    au.autoplay=true;au.playsInline=true;au.srcObject=e.streams[0];
+    au.autoplay=true;au.playsInline=true;au.srcObject=e.streams[0];au.volume=0.82;
     dock.appendChild(au);p.audio=au;
     try{ // speaking meter
       VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
@@ -1713,6 +1712,24 @@ async function voiceToggle(){
     try{
       VC.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       VC.state='live';
+      try{ // 🎚️ noise gate: the mic only transmits while you're talking (kills same-room echo loops)
+        VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
+        const mSrc=VC.ctx.createMediaStreamSource(VC.stream);
+        VC.meter=VC.ctx.createAnalyser();VC.meter.fftSize=256;
+        mSrc.connect(VC.meter);
+        VC.lastVoice=0;
+        VC.gateT=setInterval(()=>{
+          if(VC.state!=='live'||!VC.stream)return;
+          const buf=new Uint8Array(128);
+          VC.meter.getByteFrequencyData(buf);
+          let lvl=0;for(let i=0;i<buf.length;i++)lvl+=buf[i];
+          lvl/=buf.length;
+          const now=performance.now();
+          if(lvl>15)VC.lastVoice=now;
+          const open=now-VC.lastVoice<700;
+          for(const tr of VC.stream.getAudioTracks())tr.enabled=open;
+        },120);
+      }catch(e){}
     }catch(e){VC.stream=null;VC.state='listen'}
     try{
       const j=await fetch('/api/voice/join',{method:'POST'}).then(x=>x.json());
@@ -1728,6 +1745,7 @@ async function voiceToggle(){
     VC.state='muted';
   }else{ // muted or listen → leave
     clearInterval(VC.timer);VC.timer=null;
+    clearInterval(VC.gateT);VC.gateT=null;
     fetch('/api/voice/leave',{method:'POST'}).catch(()=>{});
     for(const id of [...VC.peers.keys()])vcDrop(id);
     VC.stream?.getTracks().forEach(t=>t.stop());VC.stream=null;
@@ -1742,6 +1760,7 @@ async function voiceToggle(){
     if(e.target?.id!=='ppVoice'||VC.state!=='muted')return;
     pt=setTimeout(()=>{
       for(const tr of VC.stream?.getAudioTracks()||[])tr.enabled=true;
+      VC.lastVoice=performance.now(); // gate opens with you
       VC.state='live';vcUI();pt='fired';
     },450);
   },true);
@@ -2432,7 +2451,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-44';
+const SV_BUILD='SV-46';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3106,8 +3125,10 @@ function ppBoot(){
           if(e&&!e.animations.length){e.animations=MINI_CLIPS;na++}
         }
         console.log('[locomotion]',na,'minis animated with',MINI_CLIPS.map(c=>c.name).join('/'));
+        window.__locoStatus={ok:MINI_CLIPS.length>=4&&na>=0,clips:MINI_CLIPS.length,minis:na};
       }
-    }catch(e){console.error('[locomotion]',e)}
+    }catch(e){console.error('[locomotion]',e);window.__locoStatus={ok:false,err:e.message}}
+    if(!window.__locoStatus)window.__locoStatus={ok:false,clips:0,minis:0}; // carriers never loaded
     $('#ppLoad')?.remove();
     const put=(key,x,z,h,ry=0,collide=0,blockH=999)=>{
       const o=ppSpawn(assets,PP_MODELS[key],h);
@@ -4826,6 +4847,12 @@ function ppBoot(){
       }catch(e){}
     }
     el.addEventListener('pointerdown',sndBoot);
+    if(window.__locoStatus&&!__locoStatus.ok){
+      const d3=document.createElement('div');d3.className='pphud';
+      d3.style.cssText='z-index:9;top:42%;background:#ffe9c2;color:#7a4a1a;font-size:12px';
+      d3.textContent='🕺 Locomotion clips not loaded ('+(__locoStatus.err||(__locoStatus.clips+' clips'))+') — check anim_*.glb + hard-refresh this device!';
+      wrap.appendChild(d3);setTimeout(()=>d3.remove(),9000);
+    }
     if(assets.__failed&&assets.__failed.length){
       const d2=document.createElement('div');d2.className='pphud';
       d2.style.cssText='z-index:9;top:34%;background:#ffe9c2;color:#7a4a1a;font-size:12px';
