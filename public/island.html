@@ -47,7 +47,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD/arrows run · SPACE jump · F/⚔️ attack · E/🎉 emote · ⭐ collect · 🎙️ talk</div>
-<div class="hud" id="tag">ISL-15</div>
+<div class="hud" id="tag">ISL-16</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
@@ -108,19 +108,39 @@ sun.shadow.camera.far=400;sun.shadow.bias=-0.0006;
 const hemi=new THREE.HemisphereLight(lin(0x9ecfff),lin(0x3e7a36),0.5);
 scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
 
-/* ---------- THREE.Sky: physically-based atmosphere (free, official) ---------- */
+/* ---------- hand-painted tropical sky: rich colors by choice, not chance ---------- */
 {
-  const sky=new THREE.Sky();
-  sky.scale.setScalar(4000);
-  scene.add(sky);
-  const u=sky.material.uniforms;
-  u.turbidity.value=6;u.rayleigh.value=2.2;
-  u.mieCoefficient.value=0.004;u.mieDirectionalG.value=0.8;
-  const phi=THREE.MathUtils.degToRad(90-26);   // sun elevation: golden afternoon
-  const theta=THREE.MathUtils.degToRad(35);
-  const sunPos=new THREE.Vector3().setFromSphericalCoords(1,phi,theta);
-  u.sunPosition.value.copy(sunPos);
-  sun.position.copy(sunPos).multiplyScalar(160);
+  const cv=document.createElement('canvas');cv.width=64;cv.height=1024;
+  const g=cv.getContext('2d');
+  const gr=g.createLinearGradient(0,0,0,1024);
+  gr.addColorStop(0.00,'#0e4fc4');  // deep azure zenith
+  gr.addColorStop(0.30,'#2a7de0');  // classic sky blue
+  gr.addColorStop(0.55,'#59b6f0');  // bright tropical
+  gr.addColorStop(0.74,'#a8e4f5');  // pale turquoise
+  gr.addColorStop(0.86,'#ffe9c2');  // warm cream horizon
+  gr.addColorStop(1.00,'#ffcf9e');  // peach at the waterline
+  g.fillStyle=gr;g.fillRect(0,0,64,1024);
+  const tex=new THREE.CanvasTexture(cv);tex.encoding=THREE.sRGBEncoding;
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(1200,24,20),
+    new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,fog:false}));
+  scene.add(dome);
+  // ☀️ the sun: bright core + soft golden glow, placed where the light comes from
+  const sunDir=new THREE.Vector3(60,90,40).normalize();
+  const mkGlow=(size,inner,outer,op)=>{
+    const c2=document.createElement('canvas');c2.width=128;c2.height=128;
+    const gg=c2.getContext('2d');
+    const rg=gg.createRadialGradient(64,64,4,64,64,62);
+    rg.addColorStop(0,inner);rg.addColorStop(1,outer);
+    gg.fillStyle=rg;gg.fillRect(0,0,128,128);
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c2),transparent:true,opacity:op,fog:false,depthWrite:false}));
+    sp.scale.setScalar(size);
+    sp.position.copy(sunDir).multiplyScalar(1100);
+    scene.add(sp);
+    return sp;
+  };
+  mkGlow(420,'rgba(255,244,200,0.9)','rgba(255,214,140,0)',0.85); // outer glow
+  mkGlow(120,'rgba(255,255,240,1)','rgba(255,240,190,0)',1);      // the sun itself
+  sun.position.copy(sunDir).multiplyScalar(160);
   // stylised cloud strips (flattened white blobs, slow drift)
   window.CLOUDS=[];
   const cm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.92,fog:false});
@@ -288,7 +308,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-15'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-16'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
