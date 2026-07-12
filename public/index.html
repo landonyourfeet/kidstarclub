@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -850,6 +849,9 @@ document.querySelectorAll('[data-ic]').forEach(el=>el.innerHTML=ICONS[el.dataset
 $('#chatBadge').insertAdjacentHTML('afterbegin',ICONS.burst);
 
 let ME=null;
+window.addEventListener('load',()=>{ // 🏝️ deep-link: /#arcade lands on the arcade (island exit button uses this)
+  if(location.hash==='#arcade')setTimeout(()=>{try{go('arcade')}catch(e){}},400);
+});
 function go(view){
   document.querySelectorAll('main section').forEach(s=>s.classList.toggle('hide',s.id!=='v-'+view));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
@@ -1390,6 +1392,7 @@ async function removeVid(id){
 
 // ---- ARCADE HUB ----
 const GAMES={
+  island:{title:'🏝️ STARVILLE ISLAND',blurb:'NEW! Explore a tropical island with friends — collect stars, meet the deer, bring your Shiba & talk on mic!',start:()=>{location.href='/island.html'}},
   puppy:{title:'🌟 STARVILLE',blurb:'A real 3D world! Animated heroes, a puppy, wildlife, houses, cars & AI friends!',start:()=>ppNew()},
   starblast:{title:'⭐ STAR BLAST',blurb:'Fill rows & columns to BLAST them!',start:()=>sbNew()},
   zaptap:{title:'⚡ ZAP TAP',blurb:'30 seconds. Tap the stars. Dodge the bombs!',start:()=>ztNew()},
@@ -1521,6 +1524,7 @@ async function arcade(){
   }).join('');
 }
 function openGame(id){
+  if(id==='island'){location.assign('/island.html');return} // 🏝️ real page, not an SPA panel
   gReset();stopRain();
   currentGame=id;
   $('#arcadeHub').classList.add('hide');
@@ -2386,7 +2390,7 @@ const PP_MODELS={
   trp_fern1:'trp_fern1.glb',trp_fern2:'trp_fern2.glb',trp_flower1:'trp_flower1.glb',trp_flower2:'trp_flower2.glb',
   trp_rock1:'trp_rock1.glb',trp_rock2:'trp_rock2.glb',trp_cliff1:'trp_cliff1.glb',trp_cliff2:'trp_cliff2.glb',
   trp_dock:'trp_dock.glb',trp_ropebridge:'trp_ropebridge.glb',
-  trp_canoe:'trp_canoe.glb',
+  trp_canoe:'trp_canoe.glb',trp_wreck:'trp_wreck.glb',trp_whale:'trp_whale.glb',trp_barrel:'trp_barrel.glb',
   trp_coral1:'trp_coral1.glb',trp_coral2:'trp_coral2.glb',trp_coral3:'trp_coral3.glb',trp_coral4:'trp_coral4.glb',
   trp_weed1:'trp_weed1.glb',trp_weed2:'trp_weed2.glb',trp_grass1:'trp_grass1.glb',trp_grass2:'trp_grass2.glb',
   trp_flame1:'trp_flame1.glb',trp_flame2:'trp_flame2.glb',
@@ -2491,7 +2495,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-62';
+const SV_BUILD='SV-66';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3305,6 +3309,11 @@ function ppBoot(){
         __plankton.frustumCulled=false;
         scene.add(__plankton);
       }
+      // 🏴‍☠️ castaway history: shipwreck on the south shore, whale bones in the shallows (the key-art icons)
+      put('trp_wreck',IC.x-18,IC.z+62,7,2.4,2,4);
+      put('trp_whale',IC.x+22,IC.z+66,6.5,-0.7,0,0);
+      put('trp_barrel',IC.x-56,IC.z+18,1.3,0.4,.6,1.5);
+      put('trp_barrel',IC.x-54,IC.z+21,1.3,2.1,.6,1.5);
       // 🌋 the crater: dark maw, ember glow, drifting smoke
       {
         const VX=176,VZ=-36,VH=21;
