@@ -2451,7 +2451,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-50';
+const SV_BUILD='SV-51';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3117,17 +3117,19 @@ function ppBoot(){
       };
       MINI_CLIPS.push('per-mini'); // marker: clips are built per character below
       {
-        let na=0;
+        let na=0, have=0;
         for(const k in PP_MODELS){
           if(!k.startsWith('mini_'))continue;
           const e=assets[PP_MODELS[k]];
-          if(e&&!e.animations.length){
+          if(!e)continue;
+          if(!e.animations.length){
             const clips=buildClipsFor(e.scene);
             if(clips.length){e.animations=clips;na++}
           }
+          if(e.animations.length)have++; // cached rounds count too — no false alarms
         }
-        console.log('[locomotion]',na,'minis animated (per-character rest correction)');
-        window.__locoStatus={ok:na>0,clips:4,minis:na};
+        console.log('[locomotion]',na,'newly animated,',have,'total (per-character rest correction)');
+        window.__locoStatus={ok:have>0,minis:have};
       }
     }catch(e){console.error('[locomotion]',e);window.__locoStatus={ok:false,err:e.message}}
     if(!window.__locoStatus)window.__locoStatus={ok:false,clips:0,minis:0}; // carriers never loaded
@@ -4871,7 +4873,7 @@ function ppBoot(){
     if(window.__locoStatus&&!__locoStatus.ok){
       const d3=document.createElement('div');d3.className='pphud';
       d3.style.cssText='z-index:9;top:42%;background:#ffe9c2;color:#7a4a1a;font-size:12px';
-      d3.textContent='🕺 Locomotion clips not loaded ('+(__locoStatus.err||(__locoStatus.clips+' clips'))+') — check anim_*.glb + hard-refresh this device!';
+      d3.textContent='🕺 Locomotion offline ('+(__locoStatus.err||'anim_*.glb missing from /assets')+') — upload anim_idle/walk/run/jump.glb + hard-refresh!';
       wrap.appendChild(d3);setTimeout(()=>d3.remove(),9000);
     }
     if(assets.__failed&&assets.__failed.length){
