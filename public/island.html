@@ -47,7 +47,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">WASD/arrows run · SPACE jump · F/⚔️ attack · E/🎉 emote · ⭐ collect · 🎙️ talk</div>
-<div class="hud" id="tag">ISL-14</div>
+<div class="hud" id="tag">ISL-15</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
 <button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
@@ -288,7 +288,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-14'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-15'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -885,6 +885,17 @@ function vcUI(){
     chipsEl.appendChild(d);
   }
 }
+async function vcJoinOnly(){
+  try{
+    const jn=await fetch('/api/voice/join',{method:'POST'}).then(x=>x.json());
+    if(jn&&jn.error)throw new Error(jn.error);
+    for(const pr of (jn&&jn.roster)||[])vcOffer(pr.id,pr.name);
+    VC.timer=setInterval(vcPoll,1100);
+  }catch(e){
+    toast('🎙️ Voice room unreachable — are you logged into the club?');
+    VC.state='off';VC.stream?.getTracks().forEach(t=>t.stop());VC.stream=null;
+  }
+}
 function vcNewPeer(id,name){
   const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   const pr={pc,name,audio:null,an:null};
@@ -960,8 +971,27 @@ async function vcPoll(){
 }
 async function voiceToggle(){
   if(VC.state==='off'){
+    // pre-flight: explain exactly what's wrong instead of failing silently
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      toast('🎙️ This browser blocks mic access — try Chrome or Safari over https');
+      return;
+    }
     try{
-      VC.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      if(navigator.permissions&&navigator.permissions.query){
+        const st=await navigator.permissions.query({name:'microphone'}).catch(()=>null);
+        if(st&&st.state==='denied'){
+          toast('🎙️ Mic is BLOCKED for this site — tap the 🔒 by the address bar → Site settings → allow Microphone, then reload');
+          VC.state='listen';await vcJoinOnly();vcUI();return;
+        }
+      }
+    }catch(e){}
+    try{
+      try{
+        VC.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      }catch(e1){ // some devices reject fancy constraints — plain request re-prompts
+        VC.stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      }
+      toast('🎙️ Mic LIVE — friends can hear you!');
       VC.state='live';
       try{ // VAD gate: only transmit while talking (kills same-room echo loops)
         VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
@@ -977,14 +1007,13 @@ async function voiceToggle(){
           for(const tr of VC.stream.getAudioTracks())tr.enabled=open;
         },120);
       }catch(e){}
-    }catch(e){VC.stream=null;VC.state='listen'}
-    try{
-      const jn=await fetch('/api/voice/join',{method:'POST'}).then(x=>x.json());
-      for(const pr of jn.roster||[])vcOffer(pr.id,pr.name);
-      VC.timer=setInterval(vcPoll,1100);
     }catch(e){
-      VC.state='off';VC.stream?.getTracks().forEach(t=>t.stop());VC.stream=null;
+      VC.stream=null;VC.state='listen';
+      toast(e&&e.name==='NotAllowedError'
+        ?'🎙️ Mic permission denied — you can hear friends but not talk. Allow the mic in browser settings to speak'
+        :'🎙️ Mic unavailable ('+(e&&e.name||'error')+') — listen-only mode');
     }
+    await vcJoinOnly();
   }else if(VC.state==='live'){
     for(const tr of VC.stream.getAudioTracks())tr.enabled=false;
     VC.state='muted';
