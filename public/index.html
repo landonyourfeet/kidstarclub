@@ -2082,7 +2082,7 @@ function btEnd(){
 
 // ---- GAME 9: STARVILLE 🌟 (full 3D world on real game assets — Quaternius CC0) ----
 let pp={};
-const PP_NPCS=['Zoe','Marco','Piper','Dev','Luna','Rex','Maya'];
+const PP_NPCS=['Zoe','Marco','Piper','Dev','Luna','Rex','Maya','Sunny','Ollie','Nova','Benny','Rosa'];
 const PP_HEROES={
   custom:{blocky:1,name:'My Kid',emoji:'✨'},
   kid:{file:'hero_kid.glb',name:'Adventure Kid',emoji:'🧢'},
@@ -2238,7 +2238,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-33';
+const SV_BUILD='SV-34';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2694,6 +2694,30 @@ function ppBoot(){
   }
   const road=new THREE.Mesh(new THREE.PlaneGeometry(16,B*2),mat(0x3a3a44));
   road.rotation.x=-Math.PI/2;road.position.set(42,.015,0);scene.add(road);
+  // 🏛️ TOWN PLAZA: paved square + fountain — the peaceful heart of the city
+  {
+    const plaza=new THREE.Mesh(new THREE.PlaneGeometry(26,26),mat(0xb0aab8));
+    plaza.rotation.x=-Math.PI/2;plaza.position.set(4,.018,-24);plaza.receiveShadow=true;scene.add(plaza);
+    const basin=new THREE.Mesh(new THREE.CylinderGeometry(3,3.3,.9,20),mat(0x8a8a96));
+    basin.position.set(4,.45,-24);basin.castShadow=true;scene.add(basin);
+    window.__fWater=new THREE.Mesh(new THREE.CircleGeometry(2.6,24),
+      new THREE.MeshPhongMaterial({color:0x2e9dff,shininess:160,specular:0xbfe6ff,transparent:true,opacity:.92}));
+    __fWater.rotation.x=-Math.PI/2;__fWater.position.set(4,.86,-24);scene.add(__fWater);
+    const spout=new THREE.Mesh(new THREE.ConeGeometry(.45,1.6,10),mat(0x8a8a96));
+    spout.position.set(4,1.6,-24);scene.add(spout);
+    const fGlow=new THREE.PointLight(0x7ac8ff,.7,16);
+    fGlow.position.set(4,2.4,-24);scene.add(fGlow);
+    COLL.push({x:4,z:-24,hw:3.4,hd:3.4,h:1.4});
+    for(const [bx3,bz3] of [[-6,-32],[14,-32],[-6,-16],[14,-16]]){ // simple benches
+      const seat=new THREE.Mesh(new THREE.BoxGeometry(2.6,.16,.8),mat(0x8a5a2b));
+      seat.position.set(bx3,.55,bz3);seat.castShadow=true;scene.add(seat);
+      for(const lx of [-1,1]){
+        const leg=new THREE.Mesh(new THREE.BoxGeometry(.16,.55,.7),mat(0x5a3a1a));
+        leg.position.set(bx3+lx,.27,bz3);scene.add(leg);
+      }
+      COLL.push({x:bx3,z:bz3,hw:1.4,hd:.5,h:.8});
+    }
+  }
   for(let i=0;i<29;i++){
     const dash=new THREE.Mesh(new THREE.PlaneGeometry(.5,4),mat(0xffe14d));
     dash.rotation.x=-Math.PI/2;dash.position.set(42,.02,-B+10+i*14);scene.add(dash);
@@ -3234,7 +3258,7 @@ function ppBoot(){
     // 🪂 STAR BANDITS: toy paratroopers who pickpocket your stars — bonk or zap them!
     const bandits=[];
     function spawnBanditWave(){
-      const n=2+Math.floor(Math.random()*2);
+      const n=1+Math.floor(Math.random()*2);
       for(let i=0;i<n;i++){
         const mesh=ppBlocky({body:'boy',skin:PP_SKINS[i%4],hairstyle:'short',
           hair:'#2a1a0f',top:'#3a5a2e',bottom:'#2e4a24'});
@@ -3452,8 +3476,8 @@ function ppBoot(){
     function worldEvents(dt3){
       if(pp.over||pp.chatting||pp.dropping||pp.skyfall)return;
       // bombs
-      pp.bombT=(pp.bombT??14)-dt3;
-      if(pp.bombT<=0&&bombs.length<3){pp.bombT=13+Math.random()*8;spawnBomb()}
+      pp.bombT=(pp.bombT??30)-dt3;
+      if(pp.bombT<=0&&bombs.length<2){pp.bombT=36+Math.random()*18;spawnBomb()}
       for(let i=bombs.length-1;i>=0;i--){
         const bm=bombs[i];
         bm.fuse-=dt3;
@@ -3465,8 +3489,8 @@ function ppBoot(){
         if(bm.fuse<=0){boom(bm);bombs.splice(i,1)}
       }
       // bandits
-      pp.banditT=(pp.banditT??30)-dt3;
-      if(pp.banditT<=0&&bandits.length<3){pp.banditT=26+Math.random()*14;spawnBanditWave()}
+      pp.banditT=(pp.banditT??60)-dt3;
+      if(pp.banditT<=0&&bandits.length===0){pp.banditT=75+Math.random()*40;spawnBanditWave()}
       for(let i=bandits.length-1;i>=0;i--){
         const bd=bandits[i];
         if(bd.state==='drop'){
@@ -3538,8 +3562,8 @@ function ppBoot(){
         if(pp.hpUi<=0){pp.hpUi=0.25;updateHp()}
       }
       // gloom patrol stalks, wasps orbit — 60s lifespan if ignored
-      pp.gloomT=(pp.gloomT??18)-dt3;
-      if(pp.gloomT<=0&&gloomies.length<6){pp.gloomT=30+Math.random()*15;spawnGloomWave()}
+      pp.gloomT=(pp.gloomT??40)-dt3;
+      if(pp.gloomT<=0&&gloomies.length<4){pp.gloomT=60+Math.random()*25;spawnGloomWave()}
       for(let i=gloomies.length-1;i>=0;i--){
         const gl=gloomies[i];
         if(performance.now()-gl.born>60000){scene.remove(gl.mesh);gloomies.splice(i,1);continue}
@@ -3547,14 +3571,22 @@ function ppBoot(){
         const d5=player.position.clone().sub(gl.mesh.position);d5.y=0;
         const dist5=d5.length();d5.normalize();
         if(gl.def.fly){
-          gl.mesh.position.x+=d5.x*gl.def.speed*(dist5>3?1:0);
-          gl.mesh.position.z+=d5.z*gl.def.speed*(dist5>3?1:0);
+          const chase5=dist5<26&&dist5>3?1:0; // peaceful unless you wander close
+          gl.mesh.position.x+=d5.x*gl.def.speed*chase5;
+          gl.mesh.position.z+=d5.z*gl.def.speed*chase5;
           gl.mesh.position.y=groundAt(gl.mesh.position.x,gl.mesh.position.z)+3.2+Math.sin(performance.now()/300+i)*0.6;
           gl.mesh.rotation.y=Math.atan2(d5.x,d5.z);
         }else if(gl.cool<=0&&dist5>1.4){
-          tryMove(gl.mesh,d5.x*gl.def.speed,d5.z*gl.def.speed,.5);
+          if(dist5<26){ // aggro radius — outside it they just wander
+            tryMove(gl.mesh,d5.x*gl.def.speed,d5.z*gl.def.speed,.5);
+            gl.mesh.rotation.y=Math.atan2(d5.x,d5.z);
+          }else{
+            gl.wt=(gl.wt||0)-dt3;
+            if(gl.wt<=0){gl.wt=2.5+Math.random()*3;gl.wd=Math.random()*6.3}
+            tryMove(gl.mesh,Math.sin(gl.wd)*0.03,Math.cos(gl.wd)*0.03,.5);
+            gl.mesh.rotation.y=gl.wd;
+          }
           gl.mesh.position.y=groundAt(gl.mesh.position.x,gl.mesh.position.z);
-          gl.mesh.rotation.y=Math.atan2(d5.x,d5.z);
         }
         // a nip if they reach you (ground crawlers only)
         if(!gl.def.fly&&gl.cool<=0&&dist5<1.5&&!pp.driving&&!pp.flying&&(pp.airH||0)<1){
@@ -3906,32 +3938,50 @@ function ppBoot(){
     const shb=$('#ppShoot');if(shb)shb.onclick=()=>ppShoot();
     pp.zoom=parseFloat(localStorage.getItem('ksc_zoom')||'1');
     const ptrs=new Map();let pinch0=0,zoom0=1;
+    // 🎮 twin-stick touch: first finger MOVES, second finger LOOKS (pinch still zooms)
+    let joyId=null,lookId=null,lookLast=null;
     el.addEventListener('pointerdown',e=>{
       ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-      if(ptrs.size===2){ // pinch begins — stop running
-        pp.joy=null;pp.vel.set(0,0);
+      if(joyId===null){
+        joyId=e.pointerId;
+        pp.joy={x:e.clientX,y:e.clientY};
+      }else if(lookId===null){
+        lookId=e.pointerId;
+        lookLast={x:e.clientX,y:e.clientY};
+        pp.lookHold=true; // manual camera while this finger is down
         const [a2,b2]=[...ptrs.values()];
         pinch0=Math.hypot(a2.x-b2.x,a2.y-b2.y);zoom0=pp.zoom;
-      }else pp.joy={x:e.clientX,y:e.clientY};
+      }
     });
     el.addEventListener('pointermove',e=>{
       const rec=ptrs.get(e.pointerId);
       if(rec){rec.x=e.clientX;rec.y=e.clientY}
-      if(ptrs.size===2){
-        const [a2,b2]=[...ptrs.values()];
-        const d=Math.hypot(a2.x-b2.x,a2.y-b2.y);
-        if(pinch0>0){pp.zoom=Math.max(0.5,Math.min(2.6,zoom0*(pinch0/d)));
-          localStorage.setItem('ksc_zoom',pp.zoom)}
+      if(e.pointerId===lookId&&lookLast){
+        const dx=e.clientX-lookLast.x, dy=e.clientY-lookLast.y;
+        lookLast={x:e.clientX,y:e.clientY};
+        pp.camYaw-=dx*0.0085; // drag right = look right
+        pp.camPitch=Math.max(-0.08,Math.min(1.25,pp.camPitch+dy*0.006));
+        if(ptrs.size===2&&pinch0>0){ // big pinch gestures still zoom
+          const [a2,b2]=[...ptrs.values()];
+          const d=Math.hypot(a2.x-b2.x,a2.y-b2.y);
+          if(Math.abs(d-pinch0)>30){pp.zoom=Math.max(0.5,Math.min(2.6,zoom0*(pinch0/d)));
+            localStorage.setItem('ksc_zoom',pp.zoom)}
+        }
         return;
       }
-      if(!pp.joy)return;
+      if(e.pointerId!==joyId||!pp.joy)return;
       const dx=e.clientX-pp.joy.x, dy=e.clientY-pp.joy.y;
       const len=Math.hypot(dx,dy)||1, cl=Math.min(len,60)/60;
       pp.vel.set(dx/len*cl, dy/len*cl);
     });
-    const stopJoy=e=>{if(e)ptrs.delete(e.pointerId);
-      if(ptrs.size<2)pinch0=0;
-      if(!ptrs.size){pp.joy=null;pp.vel.set(0,0)}};
+    const stopJoy=e=>{
+      if(e)ptrs.delete(e.pointerId);
+      if(e&&e.pointerId===lookId){
+        lookId=null;lookLast=null;pinch0=0;
+        pp.lookHold=false;pp.lookHoldT=performance.now()+1400; // grace before auto-cam resumes
+      }
+      if(e&&e.pointerId===joyId){joyId=null;pp.joy=null;pp.vel.set(0,0)}
+      if(!ptrs.size){joyId=null;lookId=null;lookLast=null;pinch0=0;pp.joy=null;pp.vel.set(0,0)}};
     el.addEventListener('pointerup',stopJoy);el.addEventListener('pointercancel',stopJoy);
     el.addEventListener('wheel',e=>{e.preventDefault();
       pp.zoom=Math.max(0.5,Math.min(2.6,pp.zoom*(1+e.deltaY*0.001)));
@@ -4392,6 +4442,7 @@ function ppBoot(){
       }
       pondPos.needsUpdate=true;
       pond.geometry.computeVertexNormals();
+      if(window.__fWater)__fWater.rotation.z+=dt*0.4; // fountain glimmer
       // 🌫️ motes drift around the player
       if(motes.pts){
         motes.pts.position.set(player.position.x,player.position.y,player.position.z);
@@ -4749,11 +4800,11 @@ function ppBoot(){
       // the CHOMPY pack hunts your bones — hide in a clubhouse or hop in a car!
       if(!pp.over&&!pp.chatting){
         // wave machine: calm -> HUNT (2 min) -> burrow away -> bigger wave
-        pp.wavePhase=pp.wavePhase||'calm';pp.waveT=(pp.waveT??10);pp.waveN=pp.waveN||0;
+        pp.wavePhase=pp.wavePhase||'calm';pp.waveT=(pp.waveT??45);pp.waveN=pp.waveN||0;
         if(!pp.dropping&&!pp.skyfall)pp.waveT-=dt;
         if(pp.wavePhase==='calm'&&pp.waveT<=0){
-          pp.waveN++;pp.wavePhase='hunt';pp.waveT=120;
-          const count=Math.min(5,pp.waveN);
+          pp.waveN++;pp.wavePhase='hunt';pp.waveT=70;
+          const count=Math.min(3,pp.waveN);
           const bossWave=pp.waveN%3===0;
           while(chompers.length<count)spawnChomper(false);
           chompers.forEach((c,i)=>{
@@ -4784,7 +4835,7 @@ function ppBoot(){
           popEl.textContent=bossWave?'👾👾 BOSS WAVE! MEGA CHOMPY TAKES 3 HITS!':'👾 WAVE '+pp.waveN+'! THE CHOMPERS ARE COMING!';
           wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1600);
         }else if(pp.wavePhase==='hunt'&&pp.waveT<=0){
-          pp.wavePhase='calm';pp.waveT=25;
+          pp.wavePhase='calm';pp.waveT=75; // long peaceful stretches
           chompers.forEach(c=>{c.waveOut=true;scene.remove(c.mesh)});
           const popEl=document.createElement('div');popEl.className='chomppop';
           popEl.style.color='#4ade80';
@@ -5003,7 +5054,7 @@ function ppBoot(){
       player.userData.mixer?.update(dt);ppBlockyUpdate(player,dt);
       buddy?.userData.mixer?.update(dt);
       for(const h of helis)if(h!==pp.flying&&h.rpm>0){h.rpm=Math.max(0,h.rpm-dt*.4);h.rotor.rotation.y+=h.rpm*dt*26}
-      if(!keys.Shift){ // ease the camera around behind the player/car
+      if(!keys.Shift&&!camHold){ // ease the camera around behind the player/car
         const want=pp.dropping?player.rotation.y+Math.PI
           :pp.flying?pp.flying.mesh.rotation.y+Math.PI
           :pp.driving?pp.driving.mesh.rotation.y+Math.PI
@@ -5013,15 +5064,16 @@ function ppBoot(){
           pp.camYaw+=dd*Math.min(1,dt*3.6);
         }
       }
+      const camHold=pp.lookHold||(pp.lookHoldT||0)>performance.now();
       // slope-driven camera: climbing flattens the pitch AND zooms out for a wider view
       const fx2=Math.sin(player.rotation.y), fz2=Math.cos(player.rotation.y);
       const px2=player.position.x, pz2=player.position.z;
       const slope=(groundAt(px2+fx2*3,pz2+fz2*3)-groundAt(px2-fx2*3,pz2-fz2*3)); // rise over 6 units
       const zb=pp.dropping?1.15:Math.min(1.5,Math.max(0,slope)*0.42); // moderate pull-back; the lifted camera does the rest
       pp.zoomBoost=(pp.zoomBoost||0)+(zb-(pp.zoomBoost||0))*Math.min(1,dt*3);
-      if(pp.dropping&&!keys.Shift){
+      if(pp.dropping&&!keys.Shift&&!camHold){
         pp.camPitch+=(0.42-pp.camPitch)*Math.min(1,dt*2);
-      }else if(!keys.Shift&&!pp.flying){
+      }else if(!keys.Shift&&!camHold&&!pp.flying){
         const g3=groundAt(px2,pz2);
         // with the big zoom-out doing the work, keep a moderate angle so the crest stays in frame
         let want2=0.58 - Math.max(0,slope)*0.055
