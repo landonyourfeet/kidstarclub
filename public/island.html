@@ -44,8 +44,11 @@
   <div id="loadBar"><i></i></div><div id="loadPct">0%</div>
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
-<div class="hud" id="hint">WASD / drag to look · SPACE to jump</div>
-<div class="hud" id="tag">ISL-2</div>
+<div class="hud" id="hint">WASD/arrows to run · drag to look · SPACE jump · collect ⭐ · tap 🎙️ to talk</div>
+<div class="hud" id="tag">ISL-3</div>
+<div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#ffe14d;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">⭐ 0</div>
+<button id="mic" style="position:fixed;left:14px;top:56px;z-index:12;width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(6,20,40,.7);font-size:20px;opacity:.65">🎙️</button>
+<div id="vchips" style="position:fixed;left:14px;top:108px;z-index:11;display:flex;flex-direction:column;gap:4px;pointer-events:none"></div>
 <div id="joy"><i></i></div>
 <div id="jump">⬆︎</div>
 
@@ -251,7 +254,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-2'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-3'; // bump with every asset change: guarantees fresh files
 const FILES={
   palm1:'trp_palm1.glb',palm2:'trp_palm2.glb',palm3:'trp_palm3.glb',
   fern1:'trp_fern1.glb',fern2:'trp_fern2.glb',bush:'trp_bush.glb',
@@ -406,6 +409,277 @@ function buildWorld(){
 }
 
 /* ============================================================
+   ⭐ STARS · the core loop: spot it, run to it, grab it
+   ============================================================ */
+let starCount=0;
+const stars=[];
+const starGeo=new THREE.OctahedronGeometry(0.55);
+const starMat=new THREE.MeshLambertMaterial({color:lin(0xffd94d),emissive:lin(0x8a5f00)});
+function starSpot(){
+  for(let t=0;t<40;t++){
+    const a=Math.random()*6.28,r=8+Math.random()*62;
+    const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
+    const g=groundAt(x,z);
+    if(g>0.3&&Math.hypot(x-VOLC.x,z-VOLC.z)>7)return {x,z,g};
+  }
+  return {x:0,z:20,g:groundAt(0,20)};
+}
+function makeStar(){
+  const sp=starSpot();
+  const m=new THREE.Mesh(starGeo,starMat);
+  m.position.set(sp.x,sp.g+1.1,sp.z);
+  m.userData.spin=0.6+Math.random();
+  scene.add(m);stars.push(m);
+}
+for(let i=0;i<40;i++)makeStar();
+let sndCtx=null;
+function ping(){
+  try{
+    sndCtx=sndCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=sndCtx.createOscillator(),g=sndCtx.createGain();
+    o.frequency.setValueAtTime(880,sndCtx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(1760,sndCtx.currentTime+0.12);
+    g.gain.setValueAtTime(0.12,sndCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,sndCtx.currentTime+0.22);
+    o.connect(g).connect(sndCtx.destination);o.start();o.stop(sndCtx.currentTime+0.25);
+  }catch(e){}
+}
+function tickStars(dt,t){
+  for(let i=stars.length-1;i>=0;i--){
+    const st=stars[i];
+    st.rotation.y+=st.userData.spin*dt*2.4;
+    st.position.y+=Math.sin(t*3+st.userData.spin*9)*0.0035;
+    if(Math.hypot(st.position.x-P.x,st.position.z-P.z)<1.7&&P.air<1.4){
+      scene.remove(st);stars.splice(i,1);
+      starCount++;document.getElementById('stars').textContent='⭐ '+starCount;
+      ping();
+      setTimeout(makeStar,20000+Math.random()*15000);
+    }
+  }
+}
+
+/* ============================================================
+   👥 FRIENDS · presence over the club server (8s TTL feed)
+   ============================================================ */
+const remotes=new Map(); // name -> {root,mixer,actions,cur,tx,tz,ty,tr,last}
+let kingClipsShared=null;
+function nameSprite(txt){
+  const cv=document.createElement('canvas');cv.width=256;cv.height=64;
+  const g=cv.getContext('2d');
+  g.font='800 34px system-ui';g.textAlign='center';
+  g.fillStyle='rgba(6,20,40,.72)';
+  const w=Math.min(240,g.measureText(txt).width+30);
+  g.beginPath();g.roundRect(128-w/2,8,w,48,22);g.fill();
+  g.fillStyle='#fff';g.fillText(txt,128,42);
+  const tex=new THREE.CanvasTexture(cv);tex.encoding=THREE.sRGBEncoding;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+  sp.scale.set(3.4,0.85,1);
+  return sp;
+}
+function spawnRemote(o){
+  const root=spawn(FILES.king,1.9);
+  if(!root)return null;
+  root.traverse(m=>{if(m.isMesh)m.castShadow=true});
+  const tag=nameSprite(o.name);tag.position.y=2.7;root.add(tag);
+  let mixer=null,actions={};
+  if(kingClipsShared&&kingClipsShared.length){
+    mixer=new THREE.AnimationMixer(root.userData.inner);
+    for(const c of kingClipsShared)actions[c.name]=mixer.clipAction(c);
+  }
+  scene.add(root);
+  return {root,mixer,actions,cur:null,tx:o.x,tz:o.z,ty:o.y||0,tr:o.ry||0,last:performance.now()};
+}
+function remoteAnim(r,name){
+  if(r.cur===name||!r.actions[name])return;
+  if(r.cur&&r.actions[r.cur])r.actions[r.cur].fadeOut(0.15);
+  r.actions[name].reset().fadeIn(0.15).play();
+  r.cur=name;
+}
+let myName=null;
+async function presenceTick(){
+  if(!started)return;
+  try{
+    const r=await fetch('/api/park/pos',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({x:P.x,z:P.z,y:P.air,ry:P.yaw,hero:'aldric',mode:'walk',score:starCount})
+    }).then(x=>x.json());
+    const seen=new Set();
+    for(const o of r.others||[]){
+      if(myName===null&&Math.hypot(o.x-P.x,o.z-P.z)<0.6)myName=o.name; // best-effort self detect
+      if(o.name===myName)continue;
+      seen.add(o.name);
+      let rm=remotes.get(o.name);
+      if(!rm){rm=spawnRemote(o);if(!rm)continue;remotes.set(o.name,rm)}
+      rm.tx=o.x;rm.tz=o.z;rm.ty=o.y||0;rm.tr=o.ry||0;rm.last=performance.now();
+    }
+    for(const [nm,rm] of remotes)
+      if(!seen.has(nm)&&performance.now()-rm.last>12000){scene.remove(rm.root);remotes.delete(nm)}
+  }catch(e){}
+}
+setInterval(presenceTick,1200);
+function tickRemotes(dt){
+  for(const rm of remotes.values()){
+    const dx=rm.tx-rm.root.position.x,dz=rm.tz-rm.root.position.z;
+    const dist=Math.hypot(dx,dz);
+    const k=Math.min(1,dt*6);
+    rm.root.position.x+=dx*k;rm.root.position.z+=dz*k;
+    rm.root.position.y=groundAt(rm.root.position.x,rm.root.position.z)+(rm.ty||0);
+    rm.root.rotation.y+=(((rm.tr-rm.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*k;
+    remoteAnim(rm,dist>2.4?'Run':dist>0.25?'Walk':'Idle');
+    rm.mixer&&rm.mixer.update(dt);
+  }
+}
+
+/* ============================================================
+   🎙️ VOICE · WebRTC mesh over the club's signaling mailbox
+   states: off → live (green) → muted (tap=leave · hold=unmute) · listen
+   ============================================================ */
+const VC={state:'off',peers:new Map(),stream:null,timer:null,gateT:null,ctx:null,meter:null,lastVoice:0};
+const micBtn=document.getElementById('mic'),chipsEl=document.getElementById('vchips');
+function vcUI(){
+  micBtn.textContent=VC.state==='live'?'🎙️':VC.state==='muted'?'🔇':VC.state==='listen'?'🎧':'🎙️';
+  micBtn.style.opacity=VC.state==='off'?'0.65':'1';
+  micBtn.style.borderColor=VC.state==='live'?'#4ade80':VC.state==='muted'?'#ffe14d':VC.state==='listen'?'#45d8ff':'rgba(255,255,255,.7)';
+  micBtn.style.boxShadow=VC.state==='live'?'0 0 14px rgba(74,222,128,.8)':'none';
+  chipsEl.innerHTML='';
+  for(const [id,pr] of VC.peers){
+    const d=document.createElement('div');
+    d.dataset.vid=id;
+    d.style.cssText='background:rgba(6,20,40,.7);border:1.5px solid rgba(255,255,255,.4);border-radius:999px;padding:2px 10px;font-size:11px;color:#fff;font-weight:700';
+    d.textContent='🔊 '+(pr.name||'Star');
+    chipsEl.appendChild(d);
+  }
+}
+function vcNewPeer(id,name){
+  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  const pr={pc,name,audio:null,an:null};
+  VC.peers.set(id,pr);
+  if(VC.stream)for(const tr of VC.stream.getAudioTracks())pc.addTrack(tr,VC.stream);
+  else pc.addTransceiver('audio',{direction:'recvonly'});
+  pc.onicecandidate=e=>{if(e.candidate)vcSignal(id,{ice:e.candidate})};
+  pc.ontrack=e=>{
+    const au=document.createElement('audio');
+    au.autoplay=true;au.playsInline=true;au.srcObject=e.streams[0];au.volume=0.82;
+    au.style.display='none';document.body.appendChild(au);pr.audio=au;
+    try{
+      VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
+      const src=VC.ctx.createMediaStreamSource(e.streams[0]);
+      pr.an=VC.ctx.createAnalyser();pr.an.fftSize=256;src.connect(pr.an);
+    }catch(err){}
+  };
+  pc.onconnectionstatechange=()=>{if(['failed','closed','disconnected'].includes(pc.connectionState))vcDrop(id)};
+  vcUI();
+  return pr;
+}
+function vcDrop(id){
+  const pr=VC.peers.get(id);if(!pr)return;
+  try{pr.pc.close()}catch(e){}
+  pr.audio?.remove();VC.peers.delete(id);vcUI();
+}
+const vcSignal=(to,data)=>fetch('/api/voice/signal',{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({to,data})}).catch(()=>{});
+async function vcHandle(from,data){
+  let pr=VC.peers.get(from)||vcNewPeer(from,data.name);
+  try{
+    if(data.sdp){
+      await pr.pc.setRemoteDescription(data.sdp);
+      if(data.sdp.type==='offer'){
+        const ans=await pr.pc.createAnswer();
+        await pr.pc.setLocalDescription(ans);
+        vcSignal(from,{sdp:pr.pc.localDescription});
+      }
+    }else if(data.ice)await pr.pc.addIceCandidate(data.ice);
+  }catch(e){}
+}
+async function vcOffer(id,name){
+  const pr=vcNewPeer(id,name);
+  const off=await pr.pc.createOffer();
+  await pr.pc.setLocalDescription(off);
+  vcSignal(id,{sdp:pr.pc.localDescription});
+}
+async function vcPoll(){
+  if(VC.state==='off')return;
+  try{
+    const r=await fetch('/api/voice/poll',{method:'POST'}).then(x=>x.json());
+    if(r.gone){
+      const jn=await fetch('/api/voice/join',{method:'POST'}).then(x=>x.json());
+      for(const pr of jn.roster||[])if(!VC.peers.has(pr.id))vcOffer(pr.id,pr.name);
+      return;
+    }
+    const ids=new Set((r.roster||[]).map(p2=>p2.id));
+    for(const id of [...VC.peers.keys()])if(!ids.has(id))vcDrop(id);
+    for(const pr of r.roster||[])if(VC.peers.has(pr.id))VC.peers.get(pr.id).name=pr.name;
+    for(const m of r.msgs||[])await vcHandle(m.from,m.data);
+    const buf=new Uint8Array(128);
+    for(const [id,pr] of VC.peers){
+      if(!pr.an)continue;
+      pr.an.getByteFrequencyData(buf);
+      let lvl=0;for(let i=0;i<buf.length;i++)lvl+=buf[i];
+      const chip=chipsEl.querySelector('[data-vid="'+id+'"]');
+      if(chip){const talk=lvl/buf.length>18;
+        chip.style.borderColor=talk?'#4ade80':'rgba(255,255,255,.4)';
+        chip.style.boxShadow=talk?'0 0 10px rgba(74,222,128,.9)':'none'}
+    }
+  }catch(e){}
+}
+async function voiceToggle(){
+  if(VC.state==='off'){
+    try{
+      VC.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      VC.state='live';
+      try{ // VAD gate: only transmit while talking (kills same-room echo loops)
+        VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
+        const src=VC.ctx.createMediaStreamSource(VC.stream);
+        VC.meter=VC.ctx.createAnalyser();VC.meter.fftSize=256;src.connect(VC.meter);
+        VC.gateT=setInterval(()=>{
+          if(VC.state!=='live'||!VC.stream)return;
+          const buf=new Uint8Array(128);VC.meter.getByteFrequencyData(buf);
+          let lvl=0;for(let i=0;i<buf.length;i++)lvl+=buf[i];lvl/=buf.length;
+          const now=performance.now();
+          if(lvl>15)VC.lastVoice=now;
+          const open=now-VC.lastVoice<700;
+          for(const tr of VC.stream.getAudioTracks())tr.enabled=open;
+        },120);
+      }catch(e){}
+    }catch(e){VC.stream=null;VC.state='listen'}
+    try{
+      const jn=await fetch('/api/voice/join',{method:'POST'}).then(x=>x.json());
+      for(const pr of jn.roster||[])vcOffer(pr.id,pr.name);
+      VC.timer=setInterval(vcPoll,1100);
+    }catch(e){
+      VC.state='off';VC.stream?.getTracks().forEach(t=>t.stop());VC.stream=null;
+    }
+  }else if(VC.state==='live'){
+    for(const tr of VC.stream.getAudioTracks())tr.enabled=false;
+    VC.state='muted';
+  }else{
+    clearInterval(VC.timer);clearInterval(VC.gateT);VC.timer=VC.gateT=null;
+    fetch('/api/voice/leave',{method:'POST'}).catch(()=>{});
+    for(const id of [...VC.peers.keys()])vcDrop(id);
+    VC.stream?.getTracks().forEach(t=>t.stop());VC.stream=null;
+    VC.state='off';
+  }
+  vcUI();
+}
+{ // tap cycles · long-press while muted unmutes
+  let pt=null;
+  micBtn.addEventListener('pointerdown',e=>{
+    e.stopPropagation();
+    if(VC.state==='muted'){
+      pt=setTimeout(()=>{
+        for(const tr of VC.stream?.getAudioTracks()||[])tr.enabled=true;
+        VC.lastVoice=performance.now();VC.state='live';vcUI();pt='fired';
+      },450);
+    }
+  });
+  micBtn.addEventListener('pointerup',e=>{
+    e.stopPropagation();
+    if(pt==='fired'){pt=null;return}
+    clearTimeout(pt);pt=null;
+    voiceToggle();
+  });
+}
+
+/* ============================================================
    CONTROLS · third-person: orbit camera + move-relative-to-camera
    ============================================================ */
 const keys={};
@@ -514,6 +788,8 @@ function loop(){
     sp.material.opacity=0.45*(1-ph);
   }
   craterGlow.intensity=0.4+Math.random()*0.15;
+  tickStars(dt,t);
+  tickRemotes(dt);
 
   renderer.render(scene,cam);
 }
@@ -529,6 +805,7 @@ loadAll((n,total)=>{
   player=spawn(FILES.king,1.9);
   if(player){
     const clips=buildClips(assets[FILES.king].scene);
+    kingClipsShared=clips; // friends animate with the same verified moveset
     if(clips.length){
       mixer=new THREE.AnimationMixer(player.userData.inner);
       for(const c of clips)actions[c.name]=mixer.clipAction(c);
