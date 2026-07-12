@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2247,7 +2246,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-35';
+const SV_BUILD='SV-36';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3229,6 +3228,7 @@ function ppBoot(){
       {key:'mini_druid',  name:'Fern',    dx:-30,dz:24,  s:2.3},
       {key:'mini_baker',  name:'Marigold',dx:-4, dz:-16, s:2.2},
     ];
+    function spawnIsleFolk(){ // called once `npcs` exists (they join the talk roster)
     for(const f2 of ISLE_FOLK){
       const m=ppSpawn(assets,PP_MODELS[f2.key],f2.s);
       if(!m)continue;
@@ -3248,6 +3248,7 @@ function ppBoot(){
         scene.add(m);m.userData.isleIdle=1;
         npcs.push({name:'Plank',mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
       }
+    }
     }
     { // 🛸 THE STARFIGHTER: parked at the moon base — fastest thing in Starville
       const shipM=ppSpawn(assets,PP_MODELS.spShip,7);
@@ -4058,6 +4059,7 @@ function ppBoot(){
       return {name,mesh,target:new THREE.Vector3((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5),
         wait:Math.random()*3,frozen:false};
     });
+    spawnIsleFolk(); // the Islanders take their places in Starhaven
     // bones
     const bones=[];
     function boneMesh(){ // now a spinning gold STAR
