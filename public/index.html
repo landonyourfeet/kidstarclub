@@ -2202,7 +2202,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-29';
+const SV_BUILD='SV-30';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2484,7 +2484,7 @@ function ppBoot(){
   sun.shadow.mapSize.set(2048,2048);
   sun.shadow.camera.left=-150;sun.shadow.camera.right=150;
   sun.shadow.camera.top=150;sun.shadow.camera.bottom=-150;
-  sun.shadow.bias=-0.0004;
+  sun.shadow.bias=-0.0005;sun.shadow.normalBias=1.4; // no shadow-acne shimmer on slopes
   scene.add(sun.target); // shadow window follows the player across the huge map
   const hemi=new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9);
   scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.1));
@@ -2536,6 +2536,26 @@ function ppBoot(){
     {x:-120,z:330,R:34,P:6,H:12},
     {x:120,z:360,R:38,P:7,H:14}
   ];
+  // break the perfect cones: every big lone peak grows 2-3 satellite ridges
+  {
+    const sats=[];
+    for(let i=6;i<MTNS.length;i++){
+      const m=MTNS[i];
+      if(m.H<10)continue;
+      const n=2+(i%2);
+      for(let j=0;j<n;j++){
+        const an=(i*2.4+j*2.1)%6.28;
+        sats.push({
+          x:m.x+Math.cos(an)*m.R*0.85,
+          z:m.z+Math.sin(an)*m.R*0.85,
+          R:m.R*(0.38+((i+j)%3)*0.09),
+          P:Math.max(1,m.P*0.3),
+          H:m.H*(0.3+((j+i)%2)*0.14)
+        });
+      }
+    }
+    MTNS.push(...sats);
+  }
   function groundAt(x,z){
     let g=Math.max(duneAt(x,z),canyonAt(x,z));
     for(const m of MTNS){
@@ -2754,12 +2774,12 @@ function ppBoot(){
       for(const m of MTNS){
         const sm=zoneMat(m);if(sm.color)sm.color.convertSRGBToLinear();
         const slope=new THREE.Mesh(
-          new THREE.CylinderGeometry(Math.max(.6,m.P),m.R,m.H,26,1,true),sm);
+          new THREE.CylinderGeometry(Math.max(.6,m.P),m.R,m.H,13,1,true),sm);
         slope.position.set(m.x,m.H/2,m.z);slope.receiveShadow=true;scene.add(slope);
-        if(m.H>=14&&m.z>SPACE_Z+20){ // snow caps on the big peaks
-          const cap2=new THREE.Mesh(new THREE.CylinderGeometry(Math.max(.6,m.P),m.P+ (m.R-m.P)*0.22,m.H*0.22,20,1,true),
+        if(m.H>=14&&m.z>SPACE_Z+20){ // snow caps float a hair off the slope (kills z-fight strobing)
+          const cap2=new THREE.Mesh(new THREE.CylinderGeometry(Math.max(.6,m.P)*1.06,(m.P+(m.R-m.P)*0.22)*1.06,m.H*0.22,13,1,true),
             new THREE.MeshLambertMaterial({color:0xf4f8ff}));
-          cap2.position.set(m.x,m.H*0.89,m.z);scene.add(cap2);
+          cap2.position.set(m.x,m.H*0.89+0.06,m.z);scene.add(cap2);
         }
         if(m.P>1.2){ // little summit cap so plateaus read solid
           const pc=new THREE.Mesh(new THREE.CircleGeometry(m.P,20),
@@ -3566,14 +3586,37 @@ function ppBoot(){
       }else{
         bolt.position.copy(player.position);bolt.position.y+=1.3;
       }
+      // 🎯 aim assist: snap toward the nearest bad guy within ~45° of where you're facing
+      let aimTgt=null;
+      {
+        const fdx=Math.sin(ry),fdz=Math.cos(ry);
+        let best=0.7;
+        const consider=(pos,live)=>{
+          if(!live)return;
+          const dx3=pos.x-bolt.position.x,dz3=pos.z-bolt.position.z;
+          const d=Math.hypot(dx3,dz3);
+          if(d<2.5||d>48)return;
+          const dot=(dx3*fdx+dz3*fdz)/d;
+          if(dot>best){best=dot;aimTgt=pos}
+        };
+        if(pp.wavePhase==='hunt')for(const c of chompers)consider(c.mesh.position,!c.dead&&!c.waveOut);
+        for(const gl of gloomies)consider(gl.mesh.position,true);
+        for(const bd of bandits)consider(bd.mesh.position,bd.state!=='drop');
+        if(aimTgt){
+          const dx3=aimTgt.x-bolt.position.x,dz3=aimTgt.z-bolt.position.z,dy3=aimTgt.y+0.7-bolt.position.y;
+          const len=Math.hypot(dx3,dz3)||1;
+          ry=Math.atan2(dx3,dz3);
+          dy=Math.max(-0.6,Math.min(0.6,dy3/len)); // lofts up at wasps, dips at crawlers
+        }
+      }
       scene.add(bolt);
       if(pp.wtype==='cannon'){
         bolt.scale.setScalar(2.6);
-        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:2.2,big:true});
+        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:2.2,big:true,tp:aimTgt});
         sfxTone(90,0.3,'sine',0.3,0,45);
       }else if(pp.wtype==='repeater'){
         // triple burst with a little spread (each bolt costs ammo)
-        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:1.6});
+        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:1.6,tp:aimTgt});
         for(const off of [-0.12,0.12]){
           if(pp.ammo<=0)break;
           pp.ammo--;ammoUI();
@@ -3585,7 +3628,7 @@ function ppBoot(){
         }
         sfxTone(880,0.05,'square',0.1,0.05);sfxTone(990,0.05,'square',0.1,0.1);
       }else{
-        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:1.8});
+        bolts.push({mesh:bolt,dx:Math.sin(ry),dz:Math.cos(ry),dy,life:1.8,tp:aimTgt});
       }
     };
     window.ppBonk=()=>{
@@ -4040,6 +4083,28 @@ function ppBoot(){
     }
     el.addEventListener('pointerdown',sndBoot);
     if(pp.dropping)$('#ppDropJump')?.classList.remove('hide'); // world's ready — NOW you can jump
+    // 🧭 waypoint arrow: floats over your head, points at the nearest prize
+    const wayArrow=new THREE.Mesh(new THREE.ConeGeometry(.35,1,4),
+      new THREE.MeshBasicMaterial({color:0xffd24a,transparent:true,opacity:.85}));
+    wayArrow.rotation.x=Math.PI/2;
+    const wayGrp=new THREE.Group();wayGrp.add(wayArrow);
+    wayArrow.position.z=.6;
+    wayGrp.visible=false;scene.add(wayGrp);
+    function tickCompass(){
+      let poi=null,pc=0xffd24a;
+      if(mega.mesh){poi=mega.mesh.position;pc=0xb45cff}
+      else{
+        let bd2=1e9;
+        for(const cr of crates){const d=cr.mesh.position.distanceTo(player.position);if(d<bd2){bd2=d;poi=cr.mesh.position;pc=0xffd24a}}
+        for(const g of blasters){const d=g.position.distanceTo(player.position);if(d<bd2){bd2=d;poi=g.position;pc=0x45d8ff}}
+      }
+      if(!poi||poi.distanceTo(player.position)<8||pp.dropping){wayGrp.visible=false;return}
+      wayGrp.visible=true;
+      wayGrp.position.set(player.position.x,player.position.y+3.1,player.position.z);
+      wayGrp.rotation.y=Math.atan2(poi.x-player.position.x,poi.z-player.position.z);
+      wayArrow.material.color.setHex(pc);
+      wayArrow.position.y=Math.sin(performance.now()/250)*0.15;
+    }
     { // build the minimap canvas in JS — inline !important styles beat every stylesheet
       const old=document.getElementById('ppMap');if(old)old.remove();
       const mc=document.createElement('canvas');
@@ -4442,6 +4507,14 @@ function ppBoot(){
         for(let i=bolts.length-1;i>=0;i--){
           const bl=bolts[i];
           bl.life-=dt;
+          if(bl.tp){ // gentle homing toward the locked target
+            const dx4=bl.tp.x-bl.mesh.position.x,dz4=bl.tp.z-bl.mesh.position.z,dy4=(bl.tp.y+0.7)-bl.mesh.position.y;
+            const len4=Math.hypot(dx4,dz4)||1;
+            const k4=Math.min(1,dt*6);
+            bl.dx+=(dx4/len4-bl.dx)*k4;
+            bl.dz+=(dz4/len4-bl.dz)*k4;
+            bl.dy=(bl.dy||0)+((Math.max(-0.6,Math.min(0.6,dy4/len4)))-(bl.dy||0))*k4;
+          }
           bl.mesh.position.x+=bl.dx*38*dt;
           bl.mesh.position.z+=bl.dz*38*dt;
           if(bl.dy)bl.mesh.position.y+=bl.dy*38*dt;
@@ -4842,6 +4915,7 @@ function ppBoot(){
         pp.mapT=0.12;
         drawMiniMap();
       }
+      tickCompass();
       function drawMiniMap(){try{
         const mc=$('#ppMap');
         if(mc){
