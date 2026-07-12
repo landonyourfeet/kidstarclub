@@ -49,7 +49,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-24</div>
+<div class="hud" id="tag">ISL-25</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -321,7 +321,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-24'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-25'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -1304,8 +1304,8 @@ const HOOP={x:-74,z:104,ry:0.9,rimY:0,rim:null};
 function makeHoop(){
   const g=new THREE.Group();
   const steel=new THREE.MeshLambertMaterial({color:lin(0x8a93a5)});
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,3.6,8),steel);
-  pole.position.y=1.8;g.add(pole);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,3.9,8),steel);
+  pole.position.y=1.95;g.add(pole);
   // backboard with the classic square
   const cv=document.createElement('canvas');cv.width=128;cv.height=96;
   const gg=cv.getContext('2d');
@@ -1315,16 +1315,16 @@ function makeHoop(){
   const bbT=new THREE.CanvasTexture(cv);bbT.encoding=THREE.sRGBEncoding;
   const board=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.15,0.07),
     new THREE.MeshLambertMaterial({map:bbT}));
-  board.position.set(0,3.35,0.06);g.add(board);
+  board.position.set(0,3.5,0.06);g.add(board);
   // the rim
   const rim=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.035,7,20),
     new THREE.MeshLambertMaterial({color:lin(0xff7a1a),emissive:lin(0x5f2400)}));
   rim.rotation.x=Math.PI/2;
-  rim.position.set(0,2.95,0.52);g.add(rim);
+  rim.position.set(0,3.05,0.52);g.add(rim);
   // a simple net
   const net=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.24,0.5,8,3,true),
     new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.7}));
-  net.position.set(0,2.68,0.52);g.add(net);
+  net.position.set(0,2.78,0.52);g.add(net);
   g.traverse(m=>{if(m.isMesh)m.castShadow=true});
   g.position.set(HOOP.x,groundAt(HOOP.x,HOOP.z),HOOP.z);
   g.rotation.y=HOOP.ry;
@@ -1333,36 +1333,32 @@ function makeHoop(){
   HOOP.rimW=rw;HOOP.rimY=rw.y;
 }
 function makeCourt(){
-  // a painted beach court: paint box, free-throw circle, 3-point arc, half-court line
-  const W=17,L=26; // meters-ish
-  const cv=document.createElement('canvas');cv.width=340;cv.height=520;
+  // 🏀 regulation: 28.7m x 15.24m · rim 3.05m · 3pt arc 7.24m · FT line 5.8m · key 4.9m wide
+  const W=15.24,L=28.7,PX=20; // 20px per meter
+  const cv=document.createElement('canvas');cv.width=Math.round(W*PX);cv.height=Math.round(L*PX);
   const g=cv.getContext('2d');
-  g.fillStyle='#e8cf9b';g.fillRect(0,0,340,520);           // packed sand
-  g.strokeStyle='#fdfdf6';g.lineWidth=6;g.lineCap='round';
-  const px=u=>u*20; // 20px per unit
-  // boundary
-  g.strokeRect(6,6,328,508);
-  // hoop sits at top-center (y≈30px). the key / paint:
-  g.strokeStyle='#ff8c42';g.strokeRect(170-px(2.2),6,px(4.4),px(5.5));
-  // free-throw circle
-  g.beginPath();g.arc(170,6+px(5.5),px(1.9),0,7);g.stroke();
-  // 3-point arc
+  g.fillStyle='#e8cf9b';g.fillRect(0,0,cv.width,cv.height);
+  g.strokeStyle='#fdfdf6';g.lineWidth=5;g.lineCap='round';
+  const cx=cv.width/2;
+  g.strokeRect(4,4,cv.width-8,cv.height-8);
+  const rimPy=1.575*PX; // rim center 1.575m from baseline
+  g.strokeStyle='#ff8c42';
+  g.strokeRect(cx-2.45*PX,4,4.9*PX,5.8*PX);          // the key
+  g.beginPath();g.arc(cx,5.8*PX,1.8*PX,0,7);g.stroke(); // FT circle
   g.strokeStyle='#fdfdf6';
-  g.beginPath();g.arc(170,px(1.6),px(7.6),0.25,Math.PI-0.25);g.stroke();
-  // half-court line + center circle
-  g.beginPath();g.moveTo(6,260);g.lineTo(334,260);g.stroke();
-  g.beginPath();g.arc(170,260,px(2.2),0,7);g.stroke();
-  // downtown line (the +20 zone)
-  g.strokeStyle='#2bd9ff';g.setLineDash([14,10]);
-  g.beginPath();g.moveTo(6,px(13));g.lineTo(334,px(13));g.stroke();
+  g.beginPath();g.arc(cx,rimPy,7.24*PX,0.32,Math.PI-0.32);g.stroke(); // 3pt arc
+  g.beginPath();g.moveTo(4,cv.height/2);g.lineTo(cv.width-4,cv.height/2);g.stroke();
+  g.beginPath();g.arc(cx,cv.height/2,1.8*PX,0,7);g.stroke(); // center circle
+  g.strokeStyle='#2bd9ff';g.setLineDash([12,9]);
+  g.beginPath();g.moveTo(4,rimPy+14.35*PX);g.lineTo(cv.width-4,rimPy+14.35*PX);g.stroke(); // downtown
   g.setLineDash([]);
   const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
   const court=new THREE.Mesh(new THREE.PlaneGeometry(W,L),
     new THREE.MeshLambertMaterial({map:t,transparent:true,opacity:0.96}));
   court.rotation.x=-Math.PI/2;
-  // hoop at the top edge of the court, court extends away from it
-  const back=new THREE.Vector3(Math.sin(HOOP.ry),0,Math.cos(HOOP.ry)); // hoop faces this way
-  court.position.set(HOOP.x+back.x*(L/2-1.4),groundAt(HOOP.x,HOOP.z)+0.06,HOOP.z+back.z*(L/2-1.4));
+  const back=new THREE.Vector3(Math.sin(HOOP.ry),0,Math.cos(HOOP.ry));
+  HOOP.courtC={x:HOOP.x+back.x*(L/2-1.575),z:HOOP.z+back.z*(L/2-1.575)};
+  court.position.set(HOOP.courtC.x,groundAt(HOOP.x,HOOP.z)+0.06,HOOP.courtC.z);
   court.rotation.z=-HOOP.ry;
   court.receiveShadow=true;
   scene.add(court);
@@ -1385,17 +1381,18 @@ function makeBall(){
   BALL.y=groundAt(BALL.x,BALL.z)+0.34;
   scene.add(ball);
 }
-function onCourt(x,z){ // court-local rectangle test
-  const cx=x-(HOOP.x+Math.sin(HOOP.ry)*11.6), cz=z-(HOOP.z+Math.cos(HOOP.ry)*11.6);
+function onCourt(x,z){ // regulation court-local rectangle test
+  if(!HOOP.courtC)return false;
+  const cx=x-HOOP.courtC.x, cz=z-HOOP.courtC.z;
   const lx=cx*Math.cos(-HOOP.ry)-cz*Math.sin(-HOOP.ry);
   const lz=cx*Math.sin(-HOOP.ry)+cz*Math.cos(-HOOP.ry);
-  return Math.abs(lx)<9.5&&Math.abs(lz)<14;
+  return Math.abs(lx)<7.62&&Math.abs(lz)<14.35;
 }
 function ballRespawn(){
   BALL.mode='ground';BALL.scored=false;BALL.rest=0;
-  BALL.x=-68;BALL.z=100;BALL.y=groundAt(-68,100)+0.34;
+  const c=HOOP.courtC||{x:-68,z:100};
+  BALL.x=c.x;BALL.z=c.z;BALL.y=groundAt(c.x,c.z)+0.34;
   BALL.vx=BALL.vy=BALL.vz=0;
-  toast('🏀 Fresh ball at the court');
 }
 let evAfter=0;
 function postEvent(kind,pts,x,z){
@@ -1424,10 +1421,16 @@ function throwBall(){
 function tickBall(dt){
   if(!ball)return;
   if(BALL.mode==='ground'){
-    ball.position.set(BALL.x,BALL.y,BALL.z);
-    ball.rotation.y+=dt*0.4;
-    if(Math.hypot(P.x-BALL.x,P.z-BALL.z)<1.6&&performance.now()>downUntil){
-      BALL.mode='carried';toast('🏀 Got the ball! Hold ⚔️ to charge your shot');
+    // 🏀 on the hardwood, the ball comes to YOU: step on court → ball in hand
+    if(onCourt(P.x,P.z)&&performance.now()>downUntil){
+      BALL.mode='carried';
+      if(!BALL.toldOnce){toast('🏀 Ball up! Hold ⚔️ to charge your shot');BALL.toldOnce=true}
+    }else{
+      ball.position.set(BALL.x,BALL.y,BALL.z);
+      ball.rotation.y+=dt*0.4;
+      if(Math.hypot(P.x-BALL.x,P.z-BALL.z)<1.6&&performance.now()>downUntil){
+        BALL.mode='carried';toast('🏀 Got the ball! Hold ⚔️ to charge your shot');
+      }
     }
   }else if(BALL.mode==='carried'){
     ball.position.set(
@@ -1451,9 +1454,9 @@ function tickBall(dt){
         const sd=BALL.shotFrom||0;
         let pts=2,label='🏀 Layup! +2 💎';
         if(sd>=25){pts=50;label='🌋 FULL-COURT MIRACLE!! +50 💎'}
-        else if(sd>=13){pts=20;label='🚀 DOWNTOWN!! +20 💎'}
-        else if(sd>=7.6){pts=10;label='🎯 THREE-POINTER! +10 💎'}
-        else if(sd>=4.5){pts=5;label='🏀 Free-throw range! +5 💎'}
+        else if(sd>=14.35){pts=20;label='🚀 DOWNTOWN!! +20 💎'}
+        else if(sd>=7.24){pts=10;label='🎯 THREE-POINTER! +10 💎'}
+        else if(sd>=4.6){pts=5;label='🏀 Free-throw range! +5 💎'}
         starCount+=pts;
         document.getElementById('stars').textContent='💎 '+starCount;
         toast(label);
@@ -1479,14 +1482,16 @@ function tickBall(dt){
       }
     }
     if(BALL.y<0.2&&groundAt(BALL.x,BALL.z)<0.12){ // splashed into the sea — back to the court
-      BALL.mode='ground';BALL.x=-68;BALL.z=100;BALL.y=groundAt(-68,100)+0.34;
+      const c2=HOOP.courtC||{x:-68,z:100};
+      BALL.mode='ground';BALL.scored=false;BALL.x=c2.x;BALL.z=c2.z;BALL.y=groundAt(c2.x,c2.z)+0.34;
       toast('🌊 Splash! Ball back at the court');
     }
     ball.position.set(BALL.x,BALL.y,BALL.z);
   }
   // lost far from court while resting → wander home
   if(BALL.mode==='ground'&&BALL.rest&&performance.now()-BALL.rest>20000){
-    BALL.x=-68;BALL.z=100;BALL.y=groundAt(-68,100)+0.34;BALL.rest=0;
+    const c=HOOP.courtC||{x:-68,z:100};
+    BALL.x=c.x;BALL.z=c.z;BALL.y=groundAt(c.x,c.z)+0.34;BALL.rest=0;
   }
 }
 
