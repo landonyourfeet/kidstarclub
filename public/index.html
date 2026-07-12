@@ -2202,7 +2202,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-32';
+const SV_BUILD='SV-33';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -3073,8 +3073,10 @@ function ppBoot(){
       fin.position.set(-5.6,1.4,0);g.add(fin);
       scene.add(g);
       drop.mesh=g;drop.prop=prop;
-      drop.from=new THREE.Vector3(-B+30,34,-B+30);
-      drop.to=new THREE.Vector3(B-30,34,B-30);
+      const ci=Math.floor(Math.random()*4); // a different corner every round
+      const cx4=[-B+30,B-30,B-30,-B+30][ci], cz4=[-B+30,-B+30,B-30,B-30][ci];
+      drop.from=new THREE.Vector3(cx4,34,cz4);
+      drop.to=new THREE.Vector3(-cx4,34,-cz4); // diagonal across the whole world
       g.position.copy(drop.from);
       g.rotation.y=Math.atan2(drop.to.x-drop.from.x,drop.to.z-drop.from.z)+Math.PI/2;
     }
@@ -3128,6 +3130,8 @@ function ppBoot(){
         if(pp.jumpY<=gY3+0.02){ // touchdown
           pp.skyfall=false;pp.canopy=false;chuteMesh.visible=false;
           sfxTone(70,0.12,'square',0.25);burst('pop');
+          const mp2=document.getElementById('ppMap');
+          if(mp2)mp2.style.setProperty('opacity','1','important'); // radar comes online
           const popEl=document.createElement('div');popEl.className='chomppop';
           popEl.style.color='#4ade80';popEl.textContent='✨ TOUCHDOWN! GO GO GO!';
           wrap.appendChild(popEl);setTimeout(()=>popEl.remove(),1300);
@@ -4199,6 +4203,8 @@ function ppBoot(){
       st.setProperty('border-radius','12px','important');
       st.setProperty('border','2px solid rgba(255,255,255,.35)','important');
       st.setProperty('background','rgba(7,7,26,.55)','important');
+      st.setProperty('opacity','0','important');            // hidden during the banana ride…
+      st.setProperty('transition','opacity 1.4s ease','important'); // …fades in at touchdown
       wrap.appendChild(mc);
     }
     setTimeout(()=>window.__drawMap&&__drawMap(),50); // map appears immediately
