@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2145,6 +2146,14 @@ const PP_MODELS={
   cactus1:'Cactus_1.glb',cactus2:'Cactus_3.glb',cactus3:'Cactus_5.glb',cactusF:'CactusFlowers_2.glb',rockD:'Rock_1.glb',
   ranger:'hero_ranger.glb',cyber:'hero_cyber.glb',mechrae:'hero_mech_rae.glb',mechfinn:'hero_mech_finn.glb',
   gSpider:'Spider.glb',gRat:'Rat.glb',gWasp:'Wasp.glb',gSnake:'Snake_angry.glb',
+  medInn:'med_Inn.glb',medSmith:'med_Blacksmith.glb',medH1:'med_House_1.glb',medH2:'med_House_2.glb',
+  medH3:'med_House_3.glb',medH4:'med_House_4.glb',medBell:'med_Bell_Tower.glb',medMill:'med_Mill.glb',
+  medStand1:'med_MarketStand_1.glb',medStand2:'med_MarketStand_2.glb',medGazebo:'med_Gazebo.glb',
+  medWell:'med_Well.glb',medCart:'med_Cart.glb',medBarrel:'med_Barrel.glb',medFire:'med_Bonfire_Lit.glb',
+  mini_king:'mini_king.glb',mini_queen:'mini_queen.glb',mini_wizard:'mini_wizard.glb',mini_witch:'mini_witch.glb',
+  mini_bard:'mini_bard.glb',mini_knight:'mini_knight.glb',mini_dame:'mini_dame.glb',mini_smith:'mini_smith.glb',
+  mini_freya:'mini_freya.glb',mini_goblin:'mini_goblin.glb',mini_shaman:'mini_shaman.glb',mini_pirate:'mini_pirate.glb',
+  mini_druid:'mini_druid.glb',mini_baker:'mini_baker.glb',
   spDome:'space_GeodesicDome.glb',spBase:'space_Base_Large.glb',spHouse:'space_House_Cylinder.glb',spRover:'space_Rover_Round.glb',spShip:'space_Ship.glb',
   shiba:'animals_pack_ShibaInu.glb',husky:'animals_pack_Husky.glb',
   fox:'animals_pack_Fox.glb',deer:'Deer.glb',
@@ -2238,7 +2247,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-34';
+const SV_BUILD='SV-35';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2298,7 +2307,7 @@ function ppNew(){
           onkeydown="if(event.key==='Enter')ppcSend()"><button class="act-send" onclick="ppcSend()">➤</button></div>
       </div>
     </div>
-    <p class="sbhint">HUGE world: mesa, hills & dune desert 🏜️! Grab ⭐ before they fade, dodge 💣 bombs, and BONK the 🪂 Star Bandits before they pickpocket you! Waves of Chompies 👾, day & night 🌙, traffic & air patrol. Friends join your world 🧑‍🤝‍🧑 <span style="opacity:.4">${SV_BUILD}</span></p>
+    <p class="sbhint">🏝️ NEW: cross the great bridge to the FANTASY ISLE — meet the King & Queen of Starhaven! Desert, canyons, moon base, Chompy waves 👾, day & night 🌙. Friends join your world 🧑‍🤝‍🧑 <span style="opacity:.4">${SV_BUILD}</span></p>
     <button class="big cy" onclick="ppNew()">🔁 New round</button>`;
   loadWorldLibs(ppBoot,$('#ppwrap'));
 }
@@ -2538,11 +2547,22 @@ function ppBoot(){
   const hemi=new THREE.HemisphereLight(0x9ecfff,0x2e8b3a,0.9);
   scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.1));
   const mat=c=>{const m=new THREE.MeshLambertMaterial({color:c});m.color.convertSRGBToLinear();return m};
-  const B=470, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  const B=600, COLL=[], ROOFS=[]; // COLL: {x,z,hw,hd,h} blocks only below its height
+  // 🏝️ THE FANTASY ISLE: an island kingdom across the eastern sea
+  const OCEAN_X=452, IC={x:548,z:8,R:72};
+  function islandAt(x,z){
+    const d=Math.hypot(x-IC.x,z-IC.z);
+    if(d>IC.R)return 0;
+    if(d<26)return 3;                                 // the city plateau
+    if(d<45)return 3+ (1-(d-26)/19)*0 + Math.max(0,Math.sin((45-d)/19*Math.PI))*1.1; // rolling shoulder
+    return Math.max(0.15,3*(1-(d-45)/(IC.R-45)))*(d<58?1:Math.max(0.08,(IC.R-d)/(IC.R-58)*0.4+0.1)); // beach taper
+  }
+  const inOcean=(x,z)=>x>OCEAN_X&&islandAt(x,z)<=0.05;
+  const onBridge=(x,z)=>Math.abs(z-8)<2.3&&x>OCEAN_X-8&&x<IC.x-IC.R+14;
   // 🏜️ zones: dune desert (east band), 🏔️ red canyons (south), 🌌 moon base (north)
   const CANYON_Z=240, SPACE_Z=-240;
   function canyonAt(x,z){
-    if(z<CANYON_Z)return 0;
+    if(z<CANYON_Z||x>430)return 0; // canyons end at the coast
     const e=Math.min(1,(z-CANYON_Z)/34);
     const ridge=Math.pow(Math.max(0,Math.sin(x*0.055)+0.25),1.35);
     const cross=0.75+0.25*Math.sin(z*0.03+x*0.01);
@@ -2551,8 +2571,8 @@ function ppBoot(){
   const inSpace=z=>z<SPACE_Z;
   // 🏜️ rolling dunes east of the city (x > 72), blended in from the grass
   function duneAt(x,z){
-    if(x<72||z>CANYON_Z-10||z<SPACE_Z+10)return 0;
-    const e=Math.min(1,(x-72)/22)*Math.min(1,(CANYON_Z-10-z)/30,(z-(SPACE_Z+10))/30);
+    if(x<72||x>448||z>CANYON_Z-10||z<SPACE_Z+10)return 0;
+    const e=Math.min(1,(x-72)/22,(448-x)/26)*Math.min(1,(CANYON_Z-10-z)/30,(z-(SPACE_Z+10))/30);
     const h=(Math.sin(x*0.075)+Math.sin(z*0.09+x*0.028)+Math.sin((x+z)*0.045))/3;
     return Math.max(0,h*0.5+0.5)*4.6*e;
   }
@@ -2583,7 +2603,8 @@ function ppBoot(){
     {x:250,z:-340,R:40,P:8,H:16},
     // far-south sierra beyond the canyons
     {x:-120,z:330,R:34,P:6,H:12},
-    {x:120,z:360,R:38,P:7,H:14}
+    {x:120,z:360,R:38,P:7,H:14},
+    {x:548,z:-42,R:15,P:2,H:8} // 🏝️ the Isle's watch-hill
   ];
   // break the perfect cones: every big lone peak grows 2-3 satellite ridges
   {
@@ -2606,7 +2627,7 @@ function ppBoot(){
     MTNS.push(...sats);
   }
   function groundAt(x,z){
-    let g=Math.max(duneAt(x,z),canyonAt(x,z));
+    let g=Math.max(duneAt(x,z),canyonAt(x,z),islandAt(x,z));
     for(const m of MTNS){
       const d=Math.hypot(x-m.x,z-m.z);
       if(d<m.R){
@@ -2726,6 +2747,50 @@ function ppBoot(){
     const walk=new THREE.Mesh(new THREE.PlaneGeometry(3,B*2),mat(0xb8b8c0));
     walk.rotation.x=-Math.PI/2;walk.position.set(sx,.014,0);scene.add(walk);
   }
+  // 🌊 THE EASTERN SEA
+  {
+    const seabed=new THREE.Mesh(new THREE.PlaneGeometry(B-OCEAN_X+8,B*2),mat(0xd8c493));
+    seabed.rotation.x=-Math.PI/2;seabed.position.set((OCEAN_X+B)/2,.008,0);scene.add(seabed);
+    const og=new THREE.PlaneGeometry(B-OCEAN_X+8,B*2,26,80);
+    og.rotateX(-Math.PI/2);
+    window.__oceanPos=og.attributes.position;
+    window.__ocean=new THREE.Mesh(og,new THREE.MeshPhongMaterial({color:0x1e7ec8,shininess:170,
+      specular:0xbfe6ff,transparent:true,opacity:.88}));
+    __ocean.position.set((OCEAN_X+B)/2,.42,0);scene.add(__ocean);
+    // the great bridge to the Isle
+    const bx0=OCEAN_X-6, bx1=IC.x-IC.R+12, bw=(bx1-bx0);
+    const deck=new THREE.Mesh(new THREE.BoxGeometry(bw,.22,4),mat(0x8a5a2b));
+    deck.position.set((bx0+bx1)/2,.95,8);deck.castShadow=true;scene.add(deck);
+    for(let i=0;i<=6;i++){
+      const px6=bx0+ (bw/6)*i;
+      for(const side of [-1.7,1.7]){
+        const post=new THREE.Mesh(new THREE.CylinderGeometry(.14,.16,2.1,7),mat(0x5a3a1a));
+        post.position.set(px6,.6,8+side);scene.add(post);
+      }
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(bw,.09,.09),mat(0x5a3a1a));
+      rail.position.set((bx0+bx1)/2,1.55,8+(i<1?-1.7:1.7));
+      if(i<2)scene.add(rail);
+    }
+    ROOFS.push({x:(bx0+bx1)/2,z:8,hw:bw/2,hd:2.1,h:1.06}); // walkable deck
+    // the Isle: one vertex-colored mesh — golden beaches melting into green
+    const ig=new THREE.PlaneGeometry(IC.R*2+10,IC.R*2+10,52,52);
+    ig.rotateX(-Math.PI/2);
+    const ip=ig.attributes.position;
+    const cols=new Float32Array(ip.count*3);
+    const sand=new THREE.Color(0xe6cd96), grass2=new THREE.Color(0x43b243), cob=new THREE.Color(0x9a94a4);
+    for(let i=0;i<ip.count;i++){
+      const wx=IC.x+ip.getX(i), wz=IC.z+ip.getZ(i);
+      const h=islandAt(wx,wz);
+      ip.setY(i,h+0.03);
+      const d=Math.hypot(wx-IC.x,wz-IC.z);
+      const c=d<26?cob:(h<0.85?sand:grass2);
+      cols[i*3]=c.r;cols[i*3+1]=c.g;cols[i*3+2]=c.b;
+    }
+    ig.setAttribute('color',new THREE.BufferAttribute(cols,3));
+    ig.computeVertexNormals();
+    const isle=new THREE.Mesh(ig,new THREE.MeshLambertMaterial({vertexColors:true}));
+    isle.position.set(IC.x,0,IC.z);isle.receiveShadow=true;scene.add(isle);
+  }
   // 🏜️ the dune sea: displaced sand mesh matching the walkable heightfield
   {
     const cv2=document.createElement('canvas');cv2.width=256;cv2.height=256;
@@ -2844,6 +2909,13 @@ function ppBoot(){
       put('cactusF',80+Math.random()*(B-88),(Math.random()-.5)*B*1.8,1.4,Math.random()*6.3,.4,2);
     for(let i=0;i<18;i++)
       put('rockD',78+Math.random()*(B-86),(Math.random()-.5)*B*1.8,1.0+Math.random(),Math.random()*6.3,.6,2);
+    // the Isle's woods (outside the city walls)
+    for(let i=0;i<16;i++){
+      const an4=Math.random()*6.3, rr4=32+Math.random()*30;
+      const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
+      if(inOcean(tx4,tz4))continue;
+      put(TREES[i%TREES.length],tx4,tz4,5+Math.random()*3,Math.random()*6.3,.7,9);
+    }
     // canyon dressing: giant red rocks along the rims
     for(let i=0;i<22;i++)
       put('rockD',(Math.random()-.5)*B*1.9,CANYON_Z+16+Math.random()*(B-CANYON_Z-28),2.2+Math.random()*2.4,Math.random()*6.3,1.2,5);
@@ -2903,6 +2975,7 @@ function ppBoot(){
     {
       // one grassy cone per peak = a natural multi-summit silhouette
       const zoneMat=m=>{
+        if(Math.hypot(m.x-IC.x,m.z-IC.z)<IC.R+6)return new THREE.MeshLambertMaterial({map:grassTex}); // isle peaks are green
         if(m.z<SPACE_Z+20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0x3a3454)}); // moon rock
         if(m.x>110)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xd9bd7e)});        // desert butte
         if(m.z>CANYON_Z-20)return new THREE.MeshLambertMaterial({color:new THREE.Color(0xb5502e)});// red rock
@@ -3075,6 +3148,107 @@ function ppBoot(){
     makeHeli(0,-72,0xff2ec4);
     makeHeli(-62,42,0x45d8ff);
     makeHeli(112,-36,0xff8c1a); // desert bird
+    makeHeli(IC.x-30,IC.z+44,0xa78bfa); // the Isle ferry-bird
+
+    // ---- 🏰 STARHAVEN: the fantasy city at the heart of the Isle ----
+    const ISLE_FIRES=[];
+    {
+      const CX=IC.x, CZ=IC.z, bY2=3;
+      // stone ring wall with a west gate (facing the bridge)
+      const wallM2=new THREE.MeshLambertMaterial({color:new THREE.Color(0xb9b3c2)});
+      wallM2.color.convertSRGBToLinear();
+      const SEG=26;
+      for(let i=0;i<SEG;i++){
+        const a1=i/SEG*Math.PI*2, mid=a1+Math.PI/SEG;
+        if(Math.cos(mid)<-0.86&&Math.abs(Math.sin(mid))<0.42)continue; // the west gate gap
+        const wx=CX+Math.cos(mid)*25, wz=CZ+Math.sin(mid)*25;
+        const seg=new THREE.Mesh(new THREE.BoxGeometry(6.4,2.8,1),wallM2);
+        seg.position.set(wx,bY2+1.4,wz);
+        seg.rotation.y=-mid+Math.PI/2;
+        seg.castShadow=true;scene.add(seg);
+        COLL.push({x:wx,z:wz,hw:2.6,hd:2.6,h:bY2+2.8});
+      }
+      for(const ga of [0.42,-0.42]){ // gate towers
+        const tx=CX+Math.cos(Math.PI+ga)*25, tz=CZ+Math.sin(Math.PI+ga)*25;
+        const tw=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.5,4.6,10),wallM2);
+        tw.position.set(tx,bY2+2.3,tz);tw.castShadow=true;scene.add(tw);
+        const rf=new THREE.Mesh(new THREE.ConeGeometry(1.8,2.2,10),
+          new THREE.MeshLambertMaterial({color:new THREE.Color(0xe20074)}));
+        rf.material.color.convertSRGBToLinear();
+        rf.position.set(tx,bY2+5.7,tz);scene.add(rf);
+        COLL.push({x:tx,z:tz,hw:1.5,hd:1.5,h:bY2+4.6});
+      }
+      // the buildings of Starhaven
+      const B2=(key,dx,dz,sc,ry,cw,ch)=>{const o=put(key,CX+dx,CZ+dz,sc,ry,cw,ch);return o};
+      B2('medInn',   12, -9, 7,  -2.2, 3.4, 9);
+      B2('medSmith',-11, 13, 5.5, 0.9, 3.0, 8);
+      B2('medH1',    14,  8, 5.5, -1.7,2.6, 8);
+      B2('medH2',    -2,-17, 5.5,  0.2,2.6, 8);
+      B2('medH3',   -16, -6, 5.5,  1.4,2.6, 8);
+      B2('medH4',     4, 17, 5.5,  3.0,2.6, 8);
+      B2('medBell',   9,-18, 9,   -0.6,1.6,12);
+      B2('medMill', -34, 26, 8,    0.7,3.2,11); // just outside the walls, sails to the wind
+      B2('medGazebo', 0,  0, 4.5,  0,  0,  0); // the heart of the plaza — walk right in
+      B2('medWell',  -6,  6, 2.2,  0,  1.1, 2);
+      B2('medStand1', 6,  5, 2.8,  2.4,1.4, 3);
+      B2('medStand2',-7, -8, 2.8, -0.8,1.4, 3);
+      B2('medCart',  17,  1, 2.4,  1.1,1.3, 2);
+      for(const [bx7,bz7] of [[3,-8],[-12,2],[10,12]])
+        B2('medBarrel',bx7,bz7,1.2,Math.random()*3,.5,1.4);
+      // twin bonfires flank the gate — alive with flickering light
+      for(const fz of [4.5,11.5]){
+        B2('medFire',-21,fz-CZ+IC.z-8+8,1.6,0,0,0); // near the gate path
+        const fl2=new THREE.PointLight(0xff9a3a,1.1,22);
+        fl2.position.set(CX-21,bY2+1.6,fz+CZ-8);
+        scene.add(fl2);ISLE_FIRES.push(fl2);
+      }
+      // banners on the wall
+      for(const ba of [0.9,2.2,4.1,5.4]){
+        const bx8=CX+Math.cos(ba)*25, bz8=CZ+Math.sin(ba)*25;
+        const pole2=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,3.4,6),wallM2);
+        pole2.position.set(bx8,bY2+4.4,bz8);scene.add(pole2);
+        const flag2=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),
+          new THREE.MeshBasicMaterial({color:0xffd24a,side:THREE.DoubleSide}));
+        flag2.position.set(bx8+.6,bY2+5.6,bz8);scene.add(flag2);
+      }
+    }
+
+    // ---- 👑 THE ISLANDERS: Synty minis with gentle life, all talkable ----
+    const ISLE_FOLK=[
+      {key:'mini_king',   name:'Aldric',  dx:0,  dz:-3,  s:2.4},
+      {key:'mini_queen',  name:'Mara',    dx:2,  dz:-1,  s:2.4},
+      {key:'mini_wizard', name:'Wizzo',   dx:-9, dz:-12, s:2.3},
+      {key:'mini_witch',  name:'Hazel',   dx:-13,dz:9,   s:2.3},
+      {key:'mini_bard',   name:'Lute',    dx:3,  dz:3,   s:2.2},
+      {key:'mini_knight', name:'SirPots', dx:-23,dz:-2,  s:2.4},
+      {key:'mini_dame',   name:'Ivy',     dx:-23,dz:5,   s:2.4},
+      {key:'mini_smith',  name:'Bjorn',   dx:-9, dz:15,  s:2.4},
+      {key:'mini_freya',  name:'Freya',   dx:20, dz:-4,  s:2.3},
+      {key:'mini_goblin', name:'Grub',    dx:7,  dz:6,   s:2.0},
+      {key:'mini_shaman', name:'Zizzy',   dx:8,  dz:-6,  s:2.0},
+      {key:'mini_druid',  name:'Fern',    dx:-30,dz:24,  s:2.3},
+      {key:'mini_baker',  name:'Marigold',dx:-4, dz:-16, s:2.2},
+    ];
+    for(const f2 of ISLE_FOLK){
+      const m=ppSpawn(assets,PP_MODELS[f2.key],f2.s);
+      if(!m)continue;
+      const wx=IC.x+f2.dx, wz=IC.z+f2.dz;
+      m.position.set(wx,groundAt(wx,wz),wz);
+      m.rotation.y=Math.random()*6.3;
+      scene.add(m);
+      m.userData.isleIdle=Math.random()*6.3;
+      npcs.push({name:f2.name,mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
+    }
+    // Capt. Plank guards the bridge landing
+    {
+      const m=ppSpawn(assets,PP_MODELS.mini_pirate,2.3);
+      if(m){
+        const wx=IC.x-IC.R+15, wz=11;
+        m.position.set(wx,groundAt(wx,wz),wz);m.rotation.y=-Math.PI/2;
+        scene.add(m);m.userData.isleIdle=1;
+        npcs.push({name:'Plank',mesh:m,target:m.position.clone(),wait:1e9,frozen:false,isle:true});
+      }
+    }
     { // 🛸 THE STARFIGHTER: parked at the moon base — fastest thing in Starville
       const shipM=ppSpawn(assets,PP_MODELS.spShip,7);
       if(shipM){
@@ -3189,6 +3363,13 @@ function ppBoot(){
         ppAnim(player,['Jump_Idle','Jump','Fall']);
         if(pp.jumpY<=gY3+0.02){ // touchdown
           pp.skyfall=false;pp.canopy=false;chuteMesh.visible=false;
+          if(inOcean(player.position.x,player.position.z)&&!onBridge(player.position.x,player.position.z)){
+            player.position.set(OCEAN_X-10,groundAt(OCEAN_X-10,8),8);
+            pp.jumpY=player.position.y;
+            const popEl2=document.createElement('div');popEl2.className='chomppop';
+            popEl2.style.color='#45d8ff';popEl2.textContent='🌊 SPLASH! washed ashore by the bridge!';
+            wrap.appendChild(popEl2);setTimeout(()=>popEl2.remove(),1500);
+          }
           sfxTone(70,0.12,'square',0.25);burst('pop');
           const mp2=document.getElementById('ppMap');
           if(mp2)mp2.style.setProperty('opacity','1','important'); // radar comes online
@@ -3703,7 +3884,11 @@ function ppBoot(){
       ring.rotation.x=Math.PI/2;ring.position.y=.1;
       g.add(gun,ring);
       g.userData.wtype=wt;
-      const bx=(Math.random()-.5)*B*1.7,bz=(Math.random()-.5)*B*1.7;
+      let bx=0,bz=0;
+      for(let k2=0;k2<10;k2++){
+        bx=(Math.random()-.5)*B*1.7;bz=(Math.random()-.5)*B*1.7;
+        if(!inOcean(bx,bz))break;
+      }
       g.position.set(bx,groundAt(bx,bz),bz);
       scene.add(g);blasters.push(g);
     }
@@ -3820,7 +4005,11 @@ function ppBoot(){
       const g=boneMesh();g.scale.setScalar(1.7);
       const m=new THREE.MeshPhongMaterial({color:0xb45cff,emissive:0x5a0a8a,shininess:60});
       g.traverse(o=>{if(o.isMesh)o.material=m});
-      const mx2=(Math.random()-.5)*B*1.7,mz2=(Math.random()-.5)*B*1.7;
+      let mx2=0,mz2=0;
+      for(let k2=0;k2<10;k2++){
+        mx2=(Math.random()-.5)*B*1.7;mz2=(Math.random()-.5)*B*1.7;
+        if(!inOcean(mx2,mz2))break;
+      }
       g.position.set(mx2,1.1+groundAt(mx2,mz2),mz2);
       scene.add(g);
       mega.mesh=g;mega.mat=m;mega.until=performance.now()+12000;
@@ -3888,7 +4077,11 @@ function ppBoot(){
       return g;
     }
     function placeBone(b){
-      const bx=(Math.random()-.5)*B*1.8,bz=(Math.random()-.5)*B*1.8;
+      let bx=0,bz=0;
+      for(let k2=0;k2<10;k2++){
+        bx=(Math.random()-.5)*B*1.8;bz=(Math.random()-.5)*B*1.8;
+        if(!inOcean(bx,bz))break;
+      }
       b.position.set(bx,0.9+groundAt(bx,bz),bz);
       b.userData.ttl=Math.random()<0.35?performance.now()+9000:0; // some stars fade away!
     }
@@ -3906,6 +4099,7 @@ function ppBoot(){
     },1000);
 
     function hitC(x,z,r,y){
+      if(y<0.8&&inOcean(x,z)&&!onBridge(x,z))return true; // the sea says no (take the bridge!)
       for(const c of COLL)
         if(y<(c.h||999)-0.05&&Math.abs(x-c.x)<c.hw+r&&Math.abs(z-c.z)<c.hd+r)return true;
       return false;
@@ -4773,6 +4967,30 @@ function ppBoot(){
           if(hit||bl.life<=0){scene.remove(bl.mesh);bolts.splice(i,1)}
         }
       }
+      // 👑 islanders: gentle idle life, and they turn to greet you
+      for(const n of npcs){
+        if(!n.isle)continue;
+        const u3=n.mesh.userData;
+        n.mesh.position.y=groundAt(n.mesh.position.x,n.mesh.position.z)
+          +Math.abs(Math.sin(t*1.3+u3.isleIdle))*0.05;
+        const dP=player.position.distanceTo(n.mesh.position);
+        if(dP<7){
+          const wantR=Math.atan2(player.position.x-n.mesh.position.x,player.position.z-n.mesh.position.z);
+          let dr=((wantR-n.mesh.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;
+          n.mesh.rotation.y+=dr*Math.min(1,dt*3);
+        }else n.mesh.rotation.y+=Math.sin(t*0.35+u3.isleIdle)*dt*0.12;
+      }
+      // 🔥 the gate fires flicker
+      for(const fl3 of ISLE_FIRES)fl3.intensity=0.9+Math.sin(performance.now()/90+fl3.position.z)*0.25+Math.random()*0.12;
+      // 🌊 the sea rolls
+      if(window.__oceanPos){
+        const op=__oceanPos;
+        for(let i=0;i<op.count;i++){
+          const ox=op.getX(i),oz=op.getZ(i);
+          op.setY(i,Math.sin(t*1.1+ox*0.08+oz*0.06)*0.22+Math.sin(t*1.9+oz*0.13)*0.1);
+        }
+        op.needsUpdate=true;
+      }
       // engines: cool when parked, smoke when hot
       for(const c of cars){
         if(c!==pp.driving)c.heat=Math.max(0,c.heat-dt*0.9);
@@ -4918,6 +5136,7 @@ function ppBoot(){
             if(!tryMove(n.mesh,d.x*0.1,d.z*0.1,.45))n.target.set((Math.random()-.5)*B*1.5,0,(Math.random()-.5)*B*1.5);
             n.mesh.position.y=groundAt(n.mesh.position.x,n.mesh.position.z);
             n.mesh.rotation.y=Math.atan2(d.x,d.z);
+            if(n.isle)continue;
             ppAnim(n.mesh,A_WALK);
           }
         }
@@ -5121,6 +5340,11 @@ function ppBoot(){
           g5.clearRect(0,0,S2,S2);
           // zone tints
           g5.fillStyle='rgba(227,201,142,.20)';g5.fillRect(mx2(72),0,S2-mx2(72),S2);            // desert
+          g5.fillStyle='rgba(30,126,200,.5)';g5.fillRect(mx2(OCEAN_X),0,S2-mx2(OCEAN_X),S2);    // the sea
+          g5.fillStyle='rgba(67,178,67,.75)';
+          g5.beginPath();g5.arc(mx2(IC.x),mz2(IC.z),IC.R*(S2/(B*2)),0,7);g5.fill();             // the Isle
+          g5.fillStyle='#ffd24a';
+          g5.beginPath();g5.arc(mx2(IC.x),mz2(IC.z),2.4,0,7);g5.fill();                          // Starhaven
           g5.fillStyle='rgba(181,80,46,.25)';g5.fillRect(0,mz2(CANYON_Z),S2,S2-mz2(CANYON_Z)); // canyons
           g5.fillStyle='rgba(90,60,180,.28)';g5.fillRect(0,0,S2,mz2(SPACE_Z));                 // moon base
           // road + castle beacon
