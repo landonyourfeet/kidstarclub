@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2490,7 +2491,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-58';
+const SV_BUILD='SV-59';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2577,7 +2578,7 @@ async function ppLoadAssets(onProgress){
           const mats=Array.isArray(m.material)?m.material:[m.material];
           for(const mm of mats){
             const nm=(mm.name||'').toLowerCase();
-            if(f.startsWith('trp_')){mm.map=null;mm.alphaTest=0;mm.transparent=false;mm.side=THREE.DoubleSide} // party build: stylized solids — texture wiring resumes post-party
+            if(f.startsWith('trp_')){mm.side=THREE.DoubleSide;mm.transparent=false} // embedded atlas renders as authored; unmapped mats fall through to tints
             if(!mm.map&&mm.color){
               if(/leaf|palm|fern|flower|bush|frond|lambert|tree|foliage|leaves|plant/.test(nm))mm.color.setHex(0x3f9e46);
               else if(/bark|trunk|wood/.test(nm))mm.color.setHex(0x7a5a3a);
@@ -3211,12 +3212,12 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=48+Math.random()*18;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(TREES[(i*3+1)%TREES.length],tx4,tz4,5.5+Math.random()*2,Math.random()*6.3,.45,8);
+        put(['trp_palm1','trp_palm2','trp_palm3'][i%3],tx4,tz4,6+Math.random()*2.5,Math.random()*6.3,.45,9);
       }
       for(let i=0;i<12;i++){ // jungle interior
         const an4=Math.random()*6.3, rr4=30+Math.random()*14;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
-        put(TREES[(i*2)%TREES.length],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.7,10);
+        put([TREES[i%TREES.length],'trp_palm2','trp_palm1'][i%3],tx4,tz4,6.5+Math.random()*2.5,Math.random()*6.3,.7,10);
       }
       for(let i=0;i<4;i++){ // 🍌 banana groves (of course)
         const an4=1.1+i*0.5, rr4=36+Math.random()*10;
@@ -3226,7 +3227,7 @@ function ppBoot(){
         const an4=Math.random()*6.3, rr4=28+Math.random()*38;
         const tx4=IC.x+Math.cos(an4)*rr4, tz4=IC.z+Math.sin(an4)*rr4;
         if(inOcean(tx4,tz4))continue;
-        put(['trp_rock1','trp_coral2','trp_coral3','trp_coral4','trp_coral1'][i%5],tx4,tz4,1.0+Math.random()*0.7,Math.random()*6.3,0,0);
+        put(['trp_fern1','trp_fern2','trp_flower1','trp_coral2','trp_flower2'][i%5],tx4,tz4,1.1+Math.random()*0.8,Math.random()*6.3,0,0);
       }
       for(let i=0;i<5;i++){ // shoreline boulders
         const an4=Math.random()*6.3, rr4=60+Math.random()*7;
