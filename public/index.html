@@ -2451,7 +2451,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-52';
+const SV_BUILD='SV-53';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2536,7 +2536,7 @@ async function ppLoadAssets(onProgress){
           const mats=Array.isArray(m.material)?m.material:[m.material];
           for(const mm of mats){
             const nm=(mm.name||'').toLowerCase();
-            if(f.startsWith('trp_')&&/leaf|palm|fern|flower|bush|frond/.test(nm)){mm.side=THREE.DoubleSide;if(mm.map)mm.alphaTest=0.35}
+            if(f.startsWith('trp_')&&mm.map){mm.side=THREE.DoubleSide;mm.alphaTest=0.4;mm.transparent=false} // cutout foliage regardless of material name
             if(f.startsWith('trp_flower')){mm.map=null;mm.color=new THREE.Color(0xd8467a).convertSRGBToLinear()} // its FBX bound the purple emissive atlas — flat blossom pink instead
             if(!mm.map&&mm.color){
               if(/leaf|palm|fern|flower|bush|frond|lambert|tree|foliage|leaves|plant/.test(nm))mm.color.setHex(0x3f9e46);
@@ -3122,11 +3122,12 @@ function ppBoot(){
           if(!k.startsWith('mini_'))continue;
           const e=assets[PP_MODELS[k]];
           if(!e)continue;
-          if(!e.animations.length){
+          const hasCore=e.animations&&e.animations.some(c2=>c2.name==='Idle');
+          if(!hasCore){ // native 'Take 001' pose clips don't count — give them the real moveset
             const clips=buildClipsFor(e.scene);
             if(clips.length){e.animations=clips;na++}
           }
-          if(e.animations.length)have++; // cached rounds count too — no false alarms
+          if(e.animations.some(c2=>c2.name==='Idle'))have++; // only real locomotion counts
         }
         console.log('[locomotion]',na,'newly animated,',have,'total (per-character rest correction)');
         window.__locoStatus={ok:have>0,minis:have};
