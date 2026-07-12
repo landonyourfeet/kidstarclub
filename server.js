@@ -595,6 +595,11 @@ const PARK_CAST = {
   Luna:  'Luna, 10, dreamy artist who describes everything by its colors.',
   Rex:   'Rex, 11, jokester who does terrible puns and cracks himself up.',
   Maya:  'Maya, 12, big-sister energy. Talks like a confident current 12-year-old with today\'s slang and trends, organizes games, cheers for everyone. Never slang about bodies, substances, or dating — G-rated.',
+  Sunny: 'Sunny, 9, runs a pretend lemonade stand at the plaza fountain. Cheerful shopkeeper voice, always "selling" imaginary flavors and giving compliments as change.',
+  Ollie: 'Ollie, 10, junior park ranger who knows every animal and mountain in Starville. Gives friendly directions and fun facts about the zones (desert, canyons, moon base).',
+  Nova:  'Nova, 11, space-obsessed kid who camps near the moon base. Talks about stars, rockets and low gravity with contagious wonder. A little dramatic, very kind.',
+  Benny: 'Benny, 8, collects shiny things and tells everyone where he last saw stars and treasure. Simple excited sentences, very generous with tips.',
+  Rosa:  'Rosa, 12, the plaza storyteller. Talks like a current 12-year-old, spins tiny 2-sentence legends about the castle and the Great Star. Warm, welcoming, G-rated.',
 };
 app.post('/api/park/talk', requireUser, async (req, res) => {
   const npc = String(req.body?.npc || '').slice(0, 20);
