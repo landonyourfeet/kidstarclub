@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -229,6 +228,16 @@ h2.scrawl{font-family:var(--marker);color:var(--yellow);font-size:20px;margin-bo
   background:radial-gradient(circle,transparent 30%,rgba(226,0,60,.55));
   animation:chompfl .65s ease-out forwards}
 @keyframes chompfl{0%{opacity:1}100%{opacity:0}}
+.ppvoice{position:absolute;top:10px;left:112px;z-index:41;width:44px;height:44px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.7);background:rgba(7,7,26,.72);font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:box-shadow .2s,border-color .2s}
+.ppvoice.live{border-color:#4ade80;box-shadow:0 0 14px rgba(74,222,128,.8);animation:pillnudge 1.6s ease-in-out infinite}
+.ppvoice.muted{border-color:#ffe14d}
+.ppvoice.listen{border-color:#45d8ff}
+.voicechips{position:absolute;top:60px;left:10px;z-index:41;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.voicechip{background:rgba(7,7,26,.72);border:1.5px solid rgba(255,255,255,.4);border-radius:999px;
+  padding:2px 10px;font-size:11px;color:#fff;font-weight:700;transition:border-color .15s,box-shadow .15s}
+.voicechip.talking{border-color:#4ade80;box-shadow:0 0 10px rgba(74,222,128,.9);color:#b7ffce}
 .ppact{z-index:7;position:absolute;z-index:8;width:54px;height:54px;border-radius:50%;
   font-size:24px;cursor:pointer;border:3px solid #fff;box-shadow:0 4px 0 rgba(13,2,16,.5)}
 .ppjump{bottom:14px;left:12px;background:var(--cyan)}
@@ -1588,6 +1597,159 @@ function sndBlast(lines){
 }
 const sndWin  =()=>{[523,659,784,1046].forEach((f,i)=>sfxTone(f,0.18,'triangle',0.22,i*0.11))};
 
+// ---- 🎙️ IN-GAME VOICE CHAT (WebRTC mesh; server is signaling-only) ----
+const VC={state:'off',peers:new Map(),stream:null,myId:null,timer:null,ctx:null,meter:null};
+function vcUI(){
+  const b=document.getElementById('ppVoice');
+  if(b){
+    b.className='ppvoice '+(VC.state==='off'?'':VC.state);
+    b.textContent=VC.state==='live'?'🎙️':VC.state==='muted'?'🔇':VC.state==='listen'?'🎧':'🎙️';
+    b.title=VC.state==='off'?'Join voice chat'
+      :VC.state==='live'?'Talking — tap to mute'
+      :VC.state==='muted'?'Muted — tap to leave'
+      :'Listening — tap to leave';
+    b.style.opacity=VC.state==='off'?'0.65':'1';
+  }
+  vcChips();
+}
+function vcChips(){
+  const c=document.getElementById('voiceChips');
+  if(!c)return;
+  c.innerHTML='';
+  for(const [id,p] of VC.peers){
+    const d=document.createElement('div');
+    d.className='voicechip';d.dataset.vid=id;
+    d.textContent='🔊 '+(p.name||'Star');
+    c.appendChild(d);
+  }
+}
+function vcNewPeer(id,name){
+  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  const p={pc,name,audio:null,an:null};
+  VC.peers.set(id,p);
+  if(VC.stream)for(const tr of VC.stream.getAudioTracks())pc.addTrack(tr,VC.stream);
+  else pc.addTransceiver('audio',{direction:'recvonly'});
+  pc.onicecandidate=e=>{if(e.candidate)vcSignal(id,{ice:e.candidate})};
+  pc.ontrack=e=>{
+    let dock=document.getElementById('voiceDock');
+    if(!dock){dock=document.createElement('div');dock.id='voiceDock';dock.style.display='none';document.body.appendChild(dock)}
+    const au=document.createElement('audio');
+    au.autoplay=true;au.playsInline=true;au.srcObject=e.streams[0];
+    dock.appendChild(au);p.audio=au;
+    try{ // speaking meter
+      VC.ctx=VC.ctx||new (window.AudioContext||window.webkitAudioContext)();
+      const src=VC.ctx.createMediaStreamSource(e.streams[0]);
+      p.an=VC.ctx.createAnalyser();p.an.fftSize=256;
+      src.connect(p.an);
+    }catch(err){}
+  };
+  pc.onconnectionstatechange=()=>{if(['failed','closed','disconnected'].includes(pc.connectionState))vcDrop(id)};
+  vcChips();
+  return p;
+}
+function vcDrop(id){
+  const p=VC.peers.get(id);
+  if(!p)return;
+  try{p.pc.close()}catch(e){}
+  p.audio?.remove();
+  VC.peers.delete(id);
+  vcChips();
+}
+async function vcSignal(to,data){
+  try{await fetch('/api/voice/signal',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({to,data})})}catch(e){}
+}
+async function vcHandle(from,data){
+  let p=VC.peers.get(from)||vcNewPeer(from,data.name);
+  const pc=p.pc;
+  try{
+    if(data.sdp){
+      await pc.setRemoteDescription(data.sdp);
+      if(data.sdp.type==='offer'){
+        const ans=await pc.createAnswer();
+        await pc.setLocalDescription(ans);
+        vcSignal(from,{sdp:pc.localDescription});
+      }
+    }else if(data.ice){
+      await pc.addIceCandidate(data.ice);
+    }
+  }catch(e){console.warn('[voice]',e.message)}
+}
+async function vcOffer(id,name){
+  const p=vcNewPeer(id,name);
+  const off=await p.pc.createOffer();
+  await p.pc.setLocalDescription(off);
+  vcSignal(id,{sdp:p.pc.localDescription,name:'me'});
+}
+async function vcPoll(){
+  if(VC.state==='off')return;
+  try{
+    const r=await fetch('/api/voice/poll',{method:'POST'}).then(x=>x.json());
+    if(r.gone){ // server forgot us (sleep/timeout) — rejoin quietly
+      const j=await fetch('/api/voice/join',{method:'POST'}).then(x=>x.json());
+      for(const peer of j.roster||[])if(!VC.peers.has(peer.id))vcOffer(peer.id,peer.name);
+      return;
+    }
+    const ids=new Set((r.roster||[]).map(p=>p.id));
+    for(const id of [...VC.peers.keys()])if(!ids.has(id))vcDrop(id);
+    for(const peer of r.roster||[])
+      if(VC.peers.has(peer.id))VC.peers.get(peer.id).name=peer.name;
+    for(const m of r.msgs||[])await vcHandle(m.from,m.data);
+    // speaking glow
+    const buf=new Uint8Array(128);
+    for(const [id,p] of VC.peers){
+      if(!p.an)continue;
+      p.an.getByteFrequencyData(buf);
+      let lvl=0;for(let i=0;i<buf.length;i++)lvl+=buf[i];
+      const chip=document.querySelector('.voicechip[data-vid="'+id+'"]');
+      if(chip)chip.classList.toggle('talking',lvl/buf.length>18);
+    }
+  }catch(e){}
+}
+async function voiceToggle(){
+  if(VC.state==='off'){
+    // join: try for a mic; denied = listen-only
+    try{
+      VC.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      VC.state='live';
+    }catch(e){VC.stream=null;VC.state='listen'}
+    try{
+      const j=await fetch('/api/voice/join',{method:'POST'}).then(x=>x.json());
+      VC.myId=j.you;
+      for(const peer of j.roster||[])vcOffer(peer.id,peer.name); // newcomer calls everyone
+      VC.timer=setInterval(vcPoll,1100);
+    }catch(e){
+      VC.state='off';
+      VC.stream?.getTracks().forEach(t=>t.stop());VC.stream=null;
+    }
+  }else if(VC.state==='live'){
+    for(const tr of VC.stream.getAudioTracks())tr.enabled=false;
+    VC.state='muted';
+  }else{ // muted or listen → leave
+    clearInterval(VC.timer);VC.timer=null;
+    fetch('/api/voice/leave',{method:'POST'}).catch(()=>{});
+    for(const id of [...VC.peers.keys()])vcDrop(id);
+    VC.stream?.getTracks().forEach(t=>t.stop());VC.stream=null;
+    VC.state='off';
+  }
+  vcUI();
+}
+// unmute path: tapping while muted leaves; long-press unmutes back to live
+(function(){
+  let pt=null;
+  addEventListener('pointerdown',e=>{
+    if(e.target?.id!=='ppVoice'||VC.state!=='muted')return;
+    pt=setTimeout(()=>{
+      for(const tr of VC.stream?.getAudioTracks()||[])tr.enabled=true;
+      VC.state='live';vcUI();pt='fired';
+    },450);
+  },true);
+  addEventListener('pointerup',e=>{
+    if(e.target?.id!=='ppVoice')return;
+    if(pt==='fired'){e.stopPropagation();e.preventDefault();pt=null;return}
+    clearTimeout(pt);pt=null;
+  },true);
+})();
 // ---- GAME 1: STAR BLAST ----
 const SB_SHAPES=[
   [[1]],[[1,1]],[[1],[1]],[[1,1,1]],[[1],[1],[1]],[[1,1,1,1]],[[1],[1],[1],[1]],
@@ -2266,7 +2428,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-42';
+const SV_BUILD='SV-43';
 function ppNew(){
   gReset();
   const hero=ppHero();
@@ -2317,6 +2479,8 @@ function ppNew(){
       <div id="ppAmmo" class="ppammo hide">⚡ <b>3</b></div>
       <div id="ppMist" class="ppmist"></div>
       <div class="pphpwrap"><div id="ppHp"><i style="width:100%"></i></div></div>
+      <button id="ppVoice" class="ppvoice" onclick="voiceToggle()" title="Voice chat">🎙️</button>
+      <div id="voiceChips" class="voicechips"></div>
       <!-- minimap canvas is created in JS with inline styles -->
       <button id="ppDropJump" class="ppdropjump hide">🪂 JUMP!</button>
       <div id="ppChat" class="ppchat hide">
@@ -4638,6 +4802,7 @@ function ppBoot(){
       wrap.appendChild(mc);
     }
     setTimeout(()=>window.__drawMap&&__drawMap(),50); // map appears immediately
+    vcUI(); // voice button reflects live state across round restarts
     // 🔄 hot-swap: change hero/skin/pet MID-GAME without relaunching the round
     window.__svHotSwap=()=>{
       try{
