@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-40</div>
+<div class="hud" id="tag">ISL-42</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -536,7 +536,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-40'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-42'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -600,14 +600,19 @@ const put=(key,x,z,h,ry)=>{
    princess = Mage + golden tiara · superhero = Knight + cape & star emblem
    kid = Rogue at kid scale · every one ships 76 real animations */
 const ROSTER={
-  captain:{file:'kk_knight.glb',name:'Captain Star',emoji:'🦸',h:1.9,costume:'super'},
+  // 💖 THE SUPER GIRLS — first in the picker, because they're who this is for
+  nova:{file:'kk_rogue.glb',name:'Nova Star',emoji:'⭐',h:1.80,costume:'nova'},
+  aurora:{file:'kk_mage.glb',name:'Aurora Skye',emoji:'🌈',h:1.78,costume:'aurora'},
+  pixie:{file:'kk_rogue.glb',name:'Pixie',emoji:'🦋',h:1.56,costume:'pixie',reach:2.6},
+  kit:{file:'kk_knight.glb',name:'Kit Nine',emoji:'🐱',h:1.74,costume:'kit',reach:3.0},
   princess:{file:'kk_mage.glb',name:'Princess Luna',emoji:'👸',h:1.85,costume:'tiara'},
+  surfer:{file:'kk_rogue.glb',name:'Kai the Surfer',emoji:'🏄‍♀️',h:1.72,costume:'surf',surf:true,reach:3.2},
+  // the rest of the crew
+  captain:{file:'kk_knight.glb',name:'Captain Star',emoji:'🦸',h:1.9,costume:'super'},
   kid:{file:'kk_rogue.glb',name:'Pip',emoji:'🧒',h:1.5},
-  knight:{file:'kk_knight.glb',name:'Sir Valor',emoji:'🛡️',h:1.9},
   bruno:{file:'kk_barb.glb',name:'Bruno the Brave',emoji:'💪',h:1.95},
   shadow:{file:'kk_hood.glb',name:'Shadow Fox',emoji:'🥷',h:1.8,costume:'cape'},
   wizard:{file:'kk_mage.glb',name:'Wizard Wren',emoji:'🧙',h:1.85},
-  surfer:{file:'kk_rogue.glb',name:'Kai the Surfer',emoji:'🏄‍♀️',h:1.72,costume:'surf',surf:true,reach:3.2},
   maui:{file:'kk_barb.glb',name:'Maui',emoji:'🌊',h:2.06,costume:'surf2',surf:true,reach:3.4},
 };
 let heroKey=localStorage.getItem('isl_hero');
@@ -624,6 +629,156 @@ if(!ROSTER[heroKey])heroKey='captain';
 function skinMat(color,opt){
   return new THREE.MeshLambertMaterial(Object.assign({color:lin(color),skinning:true},opt||{}));
 }
+
+/* ============================================================
+   📏 THE BODY, MEASURED. (Read this before you add a hat.)
+   Straight out of the GLBs, in BONE space:
+     head bone → skull half-width 0.55 · centre y 0.43 · crown y 0.95 · FACE PLANE z +0.52
+     chest bone → torso front z +0.37 · torso back z -0.33
+   Every hat, tiara and hairdo in this file had been built around r≈0.16-0.26 at
+   y≈0.25 — which is *entirely inside the skull*. That's why nobody could see
+   Luna's tiara or Kai's blonde ponytail. Same on the chest: the star emblem sat
+   at z +0.19, sunk 18cm into her ribcage.
+   And both bones are axis-aligned with the model, so **+Z is the FACE**. The old
+   tiara put its spikes and gem at −Z — on the back of her head.
+   These constants are the ground truth. Build against them.
+   ============================================================ */
+const SKULL={r:0.55, cy:0.43, top:0.95, face:0.52};
+const TORSO={front:0.37, back:-0.33};
+const hairMat=c=>new THREE.MeshLambertMaterial({color:lin(c)});
+
+function hairCap(g,m){
+  /* ✂️ THE HAIRLINE. A full sphere cap here would swallow her face — the eyes sit
+     around y 0.50, so the crown must stop above them. thetaLength = 0.42π puts the
+     rim at y ≈ 0.61: a fringe, not a blindfold. The back/side mass then hangs below
+     it, with its front edge held at z ≈ 0.35 so it never creeps over her cheeks. */
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(SKULL.r*1.06,18,13,0,6.283,0,Math.PI*0.42),m);
+  cap.position.y=SKULL.cy+0.03; cap.scale.set(1.0,1.02,1.03); g.add(cap);
+  const back=new THREE.Mesh(new THREE.SphereGeometry(SKULL.r*1.02,16,12),m);
+  back.scale.set(1.06,1.02,0.95); back.position.set(0,SKULL.cy-0.02,-0.18); g.add(back);
+}
+function longHair(g,m){ // falls down the back
+  for(let i=0;i<4;i++){
+    const s=new THREE.Mesh(new THREE.SphereGeometry(0.34-i*0.055,11,9),m);
+    s.scale.set(1.3,1.0,0.5);
+    s.position.set(0, SKULL.cy-0.30-i*0.30, -0.44-i*0.02);
+    g.add(s);
+  }
+}
+function ponytail(g,m,tieCol){
+  const tie=new THREE.Mesh(new THREE.TorusGeometry(0.17,0.05,7,14),hairMat(tieCol||0xff6f61));
+  tie.rotation.x=Math.PI/2; tie.position.set(0,SKULL.cy+0.30,-0.48); g.add(tie);
+  for(let i=0;i<5;i++){
+    const s=new THREE.Mesh(new THREE.SphereGeometry(0.20-i*0.028,10,8),m);
+    s.position.set(0, SKULL.cy+0.22-i*0.25, -0.56-i*0.11);
+    g.add(s);
+  }
+}
+function twinBuns(g,m,tieCol){
+  for(const sx of [-1,1]){
+    const bun=new THREE.Mesh(new THREE.SphereGeometry(0.27,13,11),m);
+    bun.position.set(sx*0.50, SKULL.cy+0.50, -0.06); g.add(bun);
+    const tie=new THREE.Mesh(new THREE.TorusGeometry(0.20,0.05,7,14),hairMat(tieCol||0xffd24d));
+    tie.rotation.y=Math.PI/2; tie.position.set(sx*0.43, SKULL.cy+0.44, -0.06); g.add(tie);
+  }
+}
+function pigtails(g,m,tieCol){
+  for(const sx of [-1,1]){
+    const tie=new THREE.Mesh(new THREE.TorusGeometry(0.16,0.05,7,14),hairMat(tieCol||0xff4fd8));
+    tie.rotation.y=Math.PI/2; tie.position.set(sx*0.52, SKULL.cy+0.16, -0.14); g.add(tie);
+    for(let i=0;i<4;i++){
+      const s=new THREE.Mesh(new THREE.SphereGeometry(0.18-i*0.026,10,8),m);
+      s.position.set(sx*(0.56+i*0.045), SKULL.cy+0.06-i*0.23, -0.18-i*0.04);
+      g.add(s);
+    }
+  }
+}
+function domino(g,col){ // the hero mask, with real eye-holes punched through
+  const cv=document.createElement('canvas');cv.width=160;cv.height=56;
+  const c=cv.getContext('2d');
+  c.fillStyle=col;
+  c.beginPath();c.moveTo(6,22);c.quadraticCurveTo(80,-4,154,22);
+  c.quadraticCurveTo(152,52,118,48);c.quadraticCurveTo(80,34,42,48);
+  c.quadraticCurveTo(8,52,6,22);c.closePath();c.fill();
+  c.globalCompositeOperation='destination-out';
+  c.beginPath();c.ellipse(46,28,20,11,0,0,7);c.fill();
+  c.beginPath();c.ellipse(114,28,20,11,0,0,7);c.fill();
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(1.04,0.37),
+    new THREE.MeshLambertMaterial({map:t,transparent:true,alphaTest:0.4,side:THREE.DoubleSide}));
+  m.position.set(0, SKULL.cy+0.12, SKULL.face+0.03); // 🔴 +Z = her FACE
+  g.add(m);
+}
+function catEars(g,fur,inner){
+  for(const sx of [-1,1]){
+    const e=new THREE.Mesh(new THREE.ConeGeometry(0.23,0.40,4),fur);
+    e.position.set(sx*0.34, SKULL.top+0.10, -0.02);
+    e.rotation.set(0,Math.PI/4,sx*0.20); g.add(e);
+    const i2=new THREE.Mesh(new THREE.ConeGeometry(0.12,0.22,4),hairMat(inner));
+    i2.position.set(sx*0.34, SKULL.top+0.09, 0.07);
+    i2.rotation.set(0,Math.PI/4,sx*0.20); g.add(i2);
+  }
+}
+function heroTiara(g,goldCol,gemCol){
+  const gold=new THREE.MeshLambertMaterial({color:lin(goldCol),emissive:lin(0x6b4d00)});
+  const band=new THREE.Mesh(new THREE.TorusGeometry(SKULL.r*0.86,0.055,8,22),gold);
+  band.rotation.x=Math.PI/2; band.position.y=SKULL.cy+0.34; g.add(band);
+  for(let i=0;i<5;i++){
+    const a=(-0.55+i*0.275);
+    const sp=new THREE.Mesh(new THREE.ConeGeometry(0.075,i===2?0.34:0.21,5),gold);
+    sp.position.set(Math.sin(a)*SKULL.r*0.86, SKULL.cy+0.46, Math.cos(a)*SKULL.r*0.86); // 🔴 FRONT
+    g.add(sp);
+  }
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.095),
+    new THREE.MeshLambertMaterial({color:lin(gemCol),emissive:lin(0x7a1060)}));
+  gem.position.set(0, SKULL.cy+0.48, SKULL.r*0.86);
+  g.add(gem);
+}
+function heroCape(chest,col){
+  const cv=document.createElement('canvas');cv.width=cv.height=64;
+  const cg=cv.getContext('2d');cg.fillStyle=col;cg.fillRect(0,0,64,64);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const L=1.2;
+  const cape=new THREE.Mesh(new THREE.PlaneGeometry(0.9,L,1,5),
+    new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide}));
+  const pos=cape.geometry.attributes.position;
+  for(let vi=0;vi<pos.count;vi++){const q=(L/2-pos.getY(vi))/L;pos.setZ(vi,-q*q*0.3)}
+  pos.needsUpdate=true; cape.geometry.computeVertexNormals();
+  cape.position.set(0,-0.20,TORSO.back-0.10);   // 🔴 BEHIND the torso, not sunk in it
+  chest.add(cape);
+}
+function chestStar(chest,bg,fg){
+  const cv=document.createElement('canvas');cv.width=cv.height=72;
+  const eg=cv.getContext('2d');
+  eg.fillStyle=bg;eg.beginPath();eg.arc(36,36,33,0,7);eg.fill();
+  eg.fillStyle=fg;eg.font='900 50px system-ui';eg.textAlign='center';eg.fillText('★',36,54);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const em=new THREE.Mesh(new THREE.CircleGeometry(0.19,24),
+    new THREE.MeshLambertMaterial({map:t}));
+  em.position.set(0,0.02,TORSO.front+0.03);     // 🔴 ON her chest, not inside it
+  chest.add(em);
+}
+function fairyWings(chest,col){
+  const cv=document.createElement('canvas');cv.width=cv.height=64;
+  const g2=cv.getContext('2d');
+  const gr=g2.createLinearGradient(0,0,64,64);
+  gr.addColorStop(0,col);gr.addColorStop(1,'#ffffff');
+  g2.fillStyle=gr;g2.fillRect(0,0,64,64);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const mat=new THREE.MeshLambertMaterial({map:t,transparent:true,opacity:0.7,
+    side:THREE.DoubleSide,depthWrite:false});
+  for(const sx of [-1,1]){
+    const w=new THREE.Mesh(new THREE.CircleGeometry(0.52,18),mat);
+    w.scale.set(0.6,1,1);
+    w.position.set(sx*0.30,0.16,TORSO.back-0.06);
+    w.rotation.set(0.1,sx*0.6,sx*0.4); chest.add(w);
+    const w2=new THREE.Mesh(new THREE.CircleGeometry(0.36,16),mat);
+    w2.scale.set(0.58,0.9,1);
+    w2.position.set(sx*0.34,-0.26,TORSO.back-0.06);
+    w2.rotation.set(0.08,sx*0.6,sx*0.22); chest.add(w2);
+  }
+}
+const GEAR=['Knife','Crossbow','Throwable','Sword','Shield','Helmet','Hat','Wand','Staff','Spellbook','Axe','Mug','Cape'];
 function hideParts(root,keys){
   root.userData.inner.traverse(m=>{
     if(!(m.isMesh||m.isSkinnedMesh))return;
@@ -681,6 +836,108 @@ function inkMat(rx,ry){
     side:THREE.DoubleSide,depthWrite:false});
 }
 
+/* ⭐ NOVA STAR · the leader. Magenta suit, cyan cape, mask, blonde ponytail. */
+function sculptNova(root){
+  hideParts(root,GEAR);
+  paintPart(root,'Body',0xff2ec4);        // magenta suit
+  paintPart(root,'ArmLeft',0xf2bd93); paintPart(root,'ArmRight',0xf2bd93);
+  paintPart(root,'LegLeft',0xf2f5ff); paintPart(root,'LegRight',0xf2f5ff); // silver boots
+  const head=bone(root,'head'), chest=bone(root,'chest');
+  if(head){
+    const g=new THREE.Group(), m=hairMat(0xf7d774); // sun-gold
+    hairCap(g,m); ponytail(g,m,0x45d8ff);
+    domino(g,'#45d8ff');
+    head.add(g);
+  }
+  if(chest){ heroCape(chest,'#45d8ff'); chestStar(chest,'#ffffff','#ff2ec4'); }
+}
+
+/* 🌈 AURORA SKYE · tiara, twin buns, violet suit, rainbow cape. */
+function sculptAurora(root){
+  hideParts(root,GEAR);
+  paintPart(root,'Body',0x8a5cff);
+  paintPart(root,'ArmLeft',0xf6c9a4); paintPart(root,'ArmRight',0xf6c9a4);
+  paintPart(root,'LegLeft',0x2bd9c8); paintPart(root,'LegRight',0x2bd9c8);
+  const head=bone(root,'head'), chest=bone(root,'chest');
+  if(head){
+    const g=new THREE.Group(), m=hairMat(0xff77dd); // candy pink
+    hairCap(g,m); twinBuns(g,m,0xffe14d); longHair(g,m);
+    heroTiara(g,0xffd24d,0x45d8ff);
+    head.add(g);
+  }
+  if(chest){
+    // a proper rainbow cape
+    const cv=document.createElement('canvas');cv.width=cv.height=64;
+    const cg=cv.getContext('2d');
+    const gr=cg.createLinearGradient(0,0,64,64);
+    ['#ff2ec4','#ff9ad5','#ffe14d','#5ef0c8','#45d8ff','#8a5cff'].forEach((c,i,a)=>gr.addColorStop(i/(a.length-1),c));
+    cg.fillStyle=gr;cg.fillRect(0,0,64,64);
+    const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+    const L=1.2;
+    const cape=new THREE.Mesh(new THREE.PlaneGeometry(0.9,L,1,5),
+      new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide}));
+    const pos=cape.geometry.attributes.position;
+    for(let vi=0;vi<pos.count;vi++){const q=(L/2-pos.getY(vi))/L;pos.setZ(vi,-q*q*0.3)}
+    pos.needsUpdate=true;cape.geometry.computeVertexNormals();
+    cape.position.set(0,-0.20,TORSO.back-0.10);
+    chest.add(cape);
+    chestStar(chest,'#ffe14d','#8a5cff');
+  }
+}
+
+/* 🦋 PIXIE · the tiny one. Mint suit, pink pigtails, glitter wings. */
+function sculptPixie(root){
+  hideParts(root,GEAR);
+  paintPart(root,'Body',0x5ef0c8);
+  paintPart(root,'ArmLeft',0xf7cdaa); paintPart(root,'ArmRight',0xf7cdaa);
+  paintPart(root,'LegLeft',0xff9ad5); paintPart(root,'LegRight',0xff9ad5);
+  const head=bone(root,'head'), chest=bone(root,'chest');
+  if(head){
+    const g=new THREE.Group(), m=hairMat(0xff4fd8);
+    hairCap(g,m); pigtails(g,m,0xffe14d);
+    // a little flower over one ear
+    const petal=hairMat(0xffe14d), fl=new THREE.Group();
+    for(let i=0;i<5;i++){
+      const pt=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6),petal);
+      pt.scale.set(1,0.45,1.5);
+      const a=i*1.256; pt.position.set(Math.cos(a)*0.1,0,Math.sin(a)*0.1); fl.add(pt);
+    }
+    fl.position.set(0.42,SKULL.cy+0.42,0.22); fl.rotation.z=0.5; g.add(fl);
+    head.add(g);
+  }
+  if(chest)fairyWings(chest,'#bdf0ff');
+}
+
+/* 🐱 KIT NINE · cat ears, tail, black-and-gold suit, gold mask. */
+function sculptKit(root){
+  hideParts(root,GEAR);
+  paintPart(root,'Body',0x241d2e);
+  paintPart(root,'ArmLeft',0x241d2e); paintPart(root,'ArmRight',0x241d2e);
+  paintPart(root,'LegLeft',0xffd24d); paintPart(root,'LegRight',0xffd24d); // gold boots
+  const head=bone(root,'head'), chest=bone(root,'chest'), hips=bone(root,'hips');
+  if(head){
+    const g=new THREE.Group(), m=hairMat(0x241d2e);
+    hairCap(g,m); longHair(g,m);
+    catEars(g,m,0xff9ad5);
+    domino(g,'#ffd24d');
+    head.add(g);
+  }
+  if(chest)chestStar(chest,'#241d2e','#ffd24d');
+  if(hips){ // the tail — it hangs, it counts
+    const m=hairMat(0x241d2e), tail=new THREE.Group();
+    for(let i=0;i<6;i++){
+      const seg=new THREE.Mesh(new THREE.SphereGeometry(0.11-i*0.012,9,7),m);
+      seg.position.set(0, -0.05-i*0.02, -0.34-i*0.17);
+      seg.position.y += Math.sin(i*0.55)*0.16;
+      tail.add(seg);
+    }
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,6),hairMat(0xffd24d));
+    tip.position.set(0,-0.05-5*0.02+Math.sin(6*0.55)*0.16,-0.34-6*0.17);
+    tail.add(tip);
+    hips.add(tail);
+  }
+}
+
 /* 🏄‍♀️ KAI · the teen surfer girl — sun-bleached hair, teal rashguard, coral boardies */
 function sculptKai(root){
   hideParts(root,['Knife','Crossbow','Throwable','Cape']);
@@ -691,41 +948,26 @@ function sculptKai(root){
   paintPart(root,'LegRight',0xff6f61);
   const head=bone(root,'head'),chest=bone(root,'chest');
   if(head){
-    const hair=new THREE.MeshLambertMaterial({color:lin(0xf0cf7c)}); // sun-bleached blonde
-    const g=new THREE.Group();
-    const cap=new THREE.Mesh(new THREE.SphereGeometry(0.245,14,11,0,6.283,0,Math.PI*0.66),hair);
-    cap.scale.set(1.05,0.98,1.08);cap.position.y=0.255;g.add(cap);
-    const back=new THREE.Mesh(new THREE.SphereGeometry(0.2,12,10),hair);
-    back.scale.set(0.92,1.15,0.6);back.position.set(0,0.16,-0.15);g.add(back);
-    for(let i=0;i<4;i++){ // the ponytail, swinging down her back
-      const seg=new THREE.Mesh(new THREE.SphereGeometry(0.085-i*0.013,9,7),hair);
-      seg.position.set(0,0.05-i*0.115,-0.24-i*0.045);g.add(seg);
-    }
-    const tie=new THREE.Mesh(new THREE.TorusGeometry(0.075,0.018,6,12),
-      new THREE.MeshLambertMaterial({color:lin(0xff6f61)}));
-    tie.rotation.x=Math.PI/2;tie.position.set(0,0.075,-0.22);g.add(tie);
+    const g=new THREE.Group(), m=hairMat(0xf0cf7c); // sun-bleached blonde
+    hairCap(g,m); ponytail(g,m,0xff6f61);
     // shades pushed up on her forehead
-    const dark=new THREE.MeshLambertMaterial({color:lin(0x1d2a33)});
-    const shades=new THREE.Mesh(new THREE.BoxGeometry(0.33,0.055,0.04),dark);
-    shades.position.set(0,0.285,0.155);shades.rotation.x=-0.25;g.add(shades);
+    const shades=new THREE.Mesh(new THREE.BoxGeometry(0.86,0.14,0.09),hairMat(0x1d2a33));
+    shades.position.set(0,SKULL.cy+0.44,SKULL.face-0.08);shades.rotation.x=-0.3;g.add(shades);
     // hibiscus behind the ear
-    const petal=new THREE.MeshLambertMaterial({color:lin(0xff3d8b)});
-    const fl=new THREE.Group();
+    const petal=hairMat(0xff3d8b), fl=new THREE.Group();
     for(let i=0;i<5;i++){
-      const pt=new THREE.Mesh(new THREE.SphereGeometry(0.035,7,6),petal);
+      const pt=new THREE.Mesh(new THREE.SphereGeometry(0.095,8,6),petal);
       pt.scale.set(1,0.45,1.5);
-      const a=i*1.256;pt.position.set(Math.cos(a)*0.04,0,Math.sin(a)*0.04);fl.add(pt);
+      const a=i*1.256;fl.add(pt);pt.position.set(Math.cos(a)*0.105,0,Math.sin(a)*0.105);
     }
-    const mid=new THREE.Mesh(new THREE.SphereGeometry(0.018,6,5),
-      new THREE.MeshLambertMaterial({color:lin(0xffd24d)}));
+    const mid=new THREE.Mesh(new THREE.SphereGeometry(0.05,7,6),hairMat(0xffd24d));
     fl.add(mid);
-    fl.position.set(0.185,0.2,0.02);fl.rotation.z=0.5;g.add(fl);
+    fl.position.set(0.46,SKULL.cy+0.38,0.20);fl.rotation.z=0.5;g.add(fl);
     head.add(g);
   }
-  if(chest){ // puka-shell necklace
-    const n=new THREE.Mesh(new THREE.TorusGeometry(0.125,0.017,6,16),
-      new THREE.MeshLambertMaterial({color:lin(0xfff2dd)}));
-    n.rotation.x=Math.PI/2-0.25;n.position.set(0,0.06,0.03);chest.add(n);
+  if(chest){ // puka-shell necklace — sits ON her collarbone now
+    const n=new THREE.Mesh(new THREE.TorusGeometry(0.30,0.032,7,20),hairMat(0xfff2dd));
+    n.rotation.x=Math.PI/2-0.30;n.position.set(0,0.12,0.05);chest.add(n);
   }
 }
 
@@ -768,54 +1010,29 @@ function sculptMaui(root){
     wrap.position.y=-0.22;hips.add(wrap);
   }
   if(head){
-    const hair=new THREE.MeshLambertMaterial({color:lin(0x1c1512)});
-    const g=new THREE.Group();
-    const cap=new THREE.Mesh(new THREE.SphereGeometry(0.26,14,11,0,6.283,0,Math.PI*0.7),hair);
-    cap.scale.set(1.06,1.05,1.08);cap.position.y=0.25;g.add(cap);
-    const mane=new THREE.Mesh(new THREE.SphereGeometry(0.23,12,10),hair);
-    mane.scale.set(1.0,1.15,0.7);mane.position.set(0,0.1,-0.14);g.add(mane);
-    for(let i=0;i<3;i++){ // thick locks down the back
-      const lock=new THREE.Mesh(new THREE.SphereGeometry(0.1-i*0.012,9,7),hair);
-      lock.position.set((i-1)*0.12,-0.06-i*0.03,-0.26);
-      lock.scale.set(0.8,1.5,0.7);g.add(lock);
-    }
+    const g=new THREE.Group(), m=hairMat(0x1c1512);
+    hairCap(g,m); longHair(g,m);
     head.add(g);
   }
 }
 function addCostume(root,kind){
+  if(kind==='nova')  return sculptNova(root);
+  if(kind==='aurora')return sculptAurora(root);
+  if(kind==='pixie') return sculptPixie(root);
+  if(kind==='kit')   return sculptKit(root);
   if(kind==='surf'){sculptKai(root)}
   if(kind==='surf2'){sculptMaui(root)}
   const inner=root.userData.inner;
   const head=inner.getObjectByName('head');
   const chest=inner.getObjectByName('chest')||inner.getObjectByName('spine');
-  if(kind==='tiara'&&head){
-    const g=new THREE.Group();
-    const gold=new THREE.MeshLambertMaterial({color:lin(0xffd24d),emissive:lin(0x6b4d00)});
-    const band=new THREE.Mesh(new THREE.TorusGeometry(0.16,0.025,6,18),gold);
-    band.rotation.x=Math.PI/2;g.add(band);
-    for(let i=0;i<5;i++){
-      const spike=new THREE.Mesh(new THREE.ConeGeometry(0.03,i===2?0.13:0.08,5),gold);
-      const a2=(-0.5+i*0.25);
-      spike.position.set(Math.sin(a2)*0.16,0.05,-Math.cos(a2)*0.16);
-      g.add(spike);
-    }
-    const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.035),
-      new THREE.MeshLambertMaterial({color:lin(0xff4fd8),emissive:lin(0x7a1060)}));
-    gem.position.set(0,0.1,-0.16);g.add(gem);
-    g.position.y=0.24;head.add(g);
+  if(kind==='tiara'&&head){ // 👸 rebuilt to the real skull: was buried inside her head, gem facing backwards
+    const g=new THREE.Group(), m=hairMat(0xe8d9a8); // silver-blonde
+    hairCap(g,m); longHair(g,m);
+    heroTiara(g,0xffd24d,0xff4fd8);
+    head.add(g);
   }
-  if((kind==='super'||kind==='cape')&&chest){
-    const capeCv=document.createElement('canvas');capeCv.width=64;capeCv.height=64;
-    const cg=capeCv.getContext('2d');
-    cg.fillStyle=kind==='super'?'#d92b3a':'#2b2f4a';cg.fillRect(0,0,64,64);
-    const capeT=new THREE.CanvasTexture(capeCv);capeT.encoding=THREE.sRGBEncoding;
-    const cape=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.85,1,4),
-      new THREE.MeshLambertMaterial({map:capeT,side:THREE.DoubleSide}));
-    const pos=cape.geometry.attributes.position;
-    for(let vi=0;vi<pos.count;vi++){const t=(0.425-pos.getY(vi))/0.85;pos.setZ(vi,-t*t*0.22)}
-    pos.needsUpdate=true;cape.geometry.computeVertexNormals();
-    cape.position.set(0,-0.28,-0.16);
-    chest.add(cape);
+  if((kind==='super'||kind==='cape')&&chest){ // was sunk INTO the torso — now it hangs behind it
+    heroCape(chest,kind==='super'?'#d92b3a':'#2b2f4a');
   }
   if((kind==='surf'||kind==='surf2')&&chest){
     // 🏄 two boards, two riders: Kai = teal/coral · Maui = koa wood/sunset
@@ -840,23 +1057,34 @@ function addCostume(root,kind){
     fin.position.set(0,-0.08,-0.62);fin.rotation.x=0.4;
     const bg=new THREE.Group();bg.add(board);bg.add(fin);
     if(kind==='surf2')bg.scale.setScalar(1.22); // Maui rides BIG
-    bg.position.set(0,-0.1,-0.24);        // slung across the back
-    bg.rotation.set(0.12,0,1.05);
+    /* 🏄 SLUNG ACROSS THE BACK — properly this time.
+       The board's long axis is its local Z… which is also the body's front-to-back
+       axis, so the old (0.12, 0, 1.05) left it SKEWERED straight through her torso.
+       rotation.x = +90° swings the length into the body's up/down plane (and points
+       the fin AWAY from her back, not into it), and rotation.order='ZYX' means the
+       X-swing happens FIRST so the Z-tilt then rakes it diagonally across her back.
+       Measured against the real GLB volumes in chest space:
+         torso back z = -0.35 · head back z = -0.50  (the head cube juts further!)
+       At z = -0.62 the board clears BOTH. Verified: zero overlap, Kai and Maui. */
+    bg.rotation.order='ZYX';
+    bg.position.set(0.06,-0.05,-0.62);
+    bg.rotation.set(Math.PI/2,0,0.62);
     chest.add(bg);
     root.userData.board=bg;
-    root.userData.boardHome={pos:bg.position.clone(),rot:bg.rotation.clone(),parent:chest};
+    root.userData.boardHome={pos:bg.position.clone(),rot:bg.rotation.clone(),
+                             scl:bg.scale.x,parent:chest}; // Maui's board is 1.22 — don't lose it
+    // the strap that holds it there — a sash round the torso, raked to match the board
+    {
+      const t2=0.62;
+      const axis=new THREE.Vector3(-Math.cos(t2),-Math.sin(t2),0).normalize();
+      const sash=new THREE.Mesh(new THREE.TorusGeometry(0.47,0.028,6,22),
+        new THREE.MeshLambertMaterial({color:lin(kind==='surf'?0xff6f61:0x6b4b2a)}));
+      sash.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),axis);
+      sash.position.set(0,-0.05,0);
+      chest.add(sash);
+    }
   }
-  if(kind==='super'&&chest){
-    const emCv=document.createElement('canvas');emCv.width=64;emCv.height=64;
-    const eg=emCv.getContext('2d');
-    eg.fillStyle='#ffd24d';eg.beginPath();eg.arc(32,32,28,0,7);eg.fill();
-    eg.fillStyle='#d92b3a';eg.font='900 40px system-ui';eg.textAlign='center';eg.fillText('★',32,46);
-    const emT=new THREE.CanvasTexture(emCv);emT.encoding=THREE.sRGBEncoding;
-    const emblem=new THREE.Mesh(new THREE.CircleGeometry(0.11,20),
-      new THREE.MeshLambertMaterial({map:emT}));
-    emblem.position.set(0,0.05,0.19);
-    chest.add(emblem);
-  }
+  if(kind==='super'&&chest)chestStar(chest,'#ffd24d','#d92b3a'); // was buried in his chest
 }
 function nativeActions(root,anims){ // Quaternius clips ship inside the GLB — just normalize names
   const mixer=new THREE.AnimationMixer(root);
@@ -3090,6 +3318,7 @@ function loop(){
     const bg=player.userData.board;
     if(bg&&bg.parent!==player){
       bg.parent.remove(bg);player.add(bg);
+      bg.rotation.order='XYZ';               // under her feet: plain tilt, no back-rake
       bg.position.set(0,0.06,0);bg.rotation.set(0,0,0);
       bg.scale.setScalar(1.35);
     }
@@ -3101,7 +3330,9 @@ function loop(){
   }else if(player.userData.board&&player.userData.boardHome&&player.userData.board.parent===player){
     const bg=player.userData.board,h=player.userData.boardHome;
     player.remove(bg);h.parent.add(bg);
-    bg.position.copy(h.pos);bg.rotation.copy(h.rot);bg.scale.setScalar(1);
+    bg.rotation.order='ZYX';                 // back on her back: restore the rake order FIRST
+    bg.position.copy(h.pos);bg.rotation.copy(h.rot);
+    bg.scale.setScalar(h.scl||1);
   }
   if(onSlide)py=RIDE.y;   // hero AND camera boom ride the flume
   player.position.set(P.x,py,P.z);
