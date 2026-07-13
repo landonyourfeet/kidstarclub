@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-46</div>
+<div class="hud" id="tag">ISL-47</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -541,7 +541,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-46'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-47'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -2561,9 +2561,13 @@ function postEvent(kind,pts,x,z){
   fetch('/api/island/event',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({kind,pts,x,z})}).catch(()=>{});
 }
-/* one plan, used by BOTH the green bar and the release — so what she SEES is
-   exactly what she GETS. If these ever disagree, the bar is lying. */
-function shotPlan(R){
+/* 🟢 the GREEN-WINDOW planner. Used by BOTH the bar and the release, so what she
+   SEES is exactly what she GETS — if these ever disagree, the bar is lying.
+   ⚠️ Named greenPlan, NOT shotPlan: `shotPlan` is already the camera-aim shot
+   solver below. Two top-level `function` declarations with the same name don't
+   error — the second silently REPLACES the first, and the survivor ended up
+   calling itself. That was the court crash. */
+function greenPlan(R){
   if(!R)return null;
   const d=Math.max(0.5,Math.hypot(R.x-P.x,R.z-P.z)-RELEASE_FWD); // from the RELEASE point
   const w=makeWindow(d,groundAt(P.x,P.z)+RELEASE_H,R.y);         // R.y = the rim's WORLD height
@@ -2596,7 +2600,7 @@ function shotPlan(wobble){
     th=shotAngle(d,R.y-(groundAt(P.x,P.z)+RELEASE_H)); // she puts the right arc on it
   }
   let speed=SHOT_V0+chargeT*SHOT_VR;
-  const plan=shotPlan(R);
+  const plan=greenPlan(R);   // ⚠️ greenPlan, never shotPlan — this IS shotPlan
   if(plan&&plan.cMid>=0&&plan.cMid<=1&&Math.abs(chargeT-plan.cMid)<=plan.band){
     // 🟢 she hit the green — it goes in. The human wobble has to SHRINK with range:
     // range error ≈ 2·d/v·dv, and the hole is only 0.107m wide, so a flat ±0.3%
@@ -2699,7 +2703,7 @@ function tickBall(dt){
       const wrap=document.getElementById('pwrwrap');
       const cue=document.getElementById('pwrcue');
       const R=aimRim();
-      let hot=false, w=shotPlan(R);
+      let hot=false, w=greenPlan(R);
       if(w&&w.cMid>=0&&w.cMid<=1){
         const l=Math.max(0,w.cMid-w.band), r2=Math.min(1,w.cMid+w.band);
         zone.style.display='block';
@@ -3363,7 +3367,7 @@ function loop(){
 let crashSeen={}, crashN=0;
 function crashReport(e){
   const msg=(e&&(e.message||e))+'';
-  const where=((e&&e.stack)||'').split('\n')[1]||'';
+  const where=((e&&e.stack)||'').split('\n').slice(1,4).join(' | ')||''; // 3 frames, not 1 — one frame nearly cost me the real culprit
   const key=msg+where;
   console.error('[STARVILLE]',e);
   if(crashSeen[key]){crashSeen[key]++;return}
@@ -3373,7 +3377,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-46 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-47 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
