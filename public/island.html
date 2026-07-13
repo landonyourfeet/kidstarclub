@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-49</div>
+<div class="hud" id="tag">ISL-50</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -235,6 +235,19 @@ scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
     cl.userData.sp=0.5+Math.random();
     scene.add(cl);CLOUDS.push(cl);
   }
+  /* 🪞 SKY ENVMAP — baked ONCE, right here.
+     The reference shader reflects the sky off the water via a cubemap, and it's the
+     single biggest thing our ocean was missing. It's also nearly free: our sky never
+     changes, so we render it into a cube map exactly one time at boot and sample it
+     forever after. Done at THIS point in the file on purpose — the island, the ocean
+     and every prop are created below, so the cube contains ONLY sky. Move this line
+     down and you'll bake the island into the sea's reflection. */
+  const envRT=new THREE.WebGLCubeRenderTarget(256,{format:THREE.RGBAFormat,
+    generateMipmaps:true,minFilter:THREE.LinearMipmapLinearFilter});
+  const envCam=new THREE.CubeCamera(1,2400,envRT);
+  envCam.position.set(0,25,0);
+  envCam.update(renderer,scene);
+  window.SKY_ENV=envRT.texture;
 }
 
 /* ============================================================
@@ -357,12 +370,22 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
    outrun short ones. Amplitude ramps with distance offshore:
      flat at the beach  ->  3.8m amplitude = 7.6m crest-to-trough = 25 FEET.
    ============================================================ */
+/* 7 incommensurate swells. The reference uses 12 + hash-noise to break the
+   periodicity of the wave sum — but hash noise CANNOT be mirrored in JS: GLSL
+   runs highp float (24-bit mantissa) and JS runs double (53-bit), so `fract()`
+   diverges and Kai would slowly sink through the water. Incommensurate
+   wavelengths buy the same non-repeating look with exact parity. */
 const SWELL=[            // amplitude share, wavelength (m), direction
-  {A:0.50, L:140, dx: 0.86, dz: 0.51},
-  {A:0.28, L: 95, dx: 0.50, dz:-0.87},
-  {A:0.14, L: 60, dx:-0.30, dz: 0.95},
-  {A:0.08, L: 52, dx: 0.70, dz: 0.71},  // ⚠️ not shorter: 12m quads alias below ~48m
+  {A:0.34, L:172, dx: 0.92, dz: 0.39},
+  {A:0.24, L:129, dx: 0.71, dz:-0.70},
+  {A:0.16, L: 97, dx: 0.29, dz: 0.96},
+  {A:0.11, L: 76, dx:-0.55, dz: 0.84},
+  {A:0.07, L: 61, dx: 0.83, dz: 0.56},
+  {A:0.05, L: 53, dx:-0.31, dz:-0.95},
+  {A:0.03, L: 48, dx: 0.62, dz:-0.78},  // ⚠️ not shorter: 12m quads alias below ~48m
 ];
+const GERST=1.2;         // Gerstner pinch: sharp crests, round troughs (real ocean).
+                         // Sum(k*a) = 0.28 at full height — well under 1.0, so no loops.
 const SWELL_RAMP=360;    // metres offshore to reach full height
 const SWELL_MAX=3.70;    // + the 0.12 base = 3.82m amplitude = 25ft peak-to-trough
 function swellAmp(x,z){
@@ -374,18 +397,33 @@ function swellAmp(x,z){
 // height + slope of the open sea at (x,z), time t. Mirrors the vertex shader exactly.
 function oceanAt(x,z,t){
   const amp=swellAmp(x,z);
-  let y=0,sx=0,sz=0;
+  let y=0,sx=0,sz=0,hx=0,hz=0;
   for(const w of SWELL){
     const k=6.28318/w.L, c=Math.sqrt(9.81/k);
     const ph=k*(w.dx*x+w.dz*z)-c*t;
-    const a=amp*w.A;
+    const a=amp*w.A, cs=Math.cos(ph);
     y+=a*Math.sin(ph);
-    sx+=a*k*w.dx*Math.cos(ph);
-    sz+=a*k*w.dz*Math.cos(ph);
+    sx+=a*k*w.dx*cs;
+    sz+=a*k*w.dz*cs;
+    hx+=w.dx*a*GERST*cs;      // the Gerstner horizontal shove
+    hz+=w.dz*a*GERST*cs;
   }
-  return {y,sx,sz,amp};
+  return {y,sx,sz,amp,hx,hz};
 }
-const oceanY=(x,z,t)=>0.42+oceanAt(x,z,t).y;   // 0.42 = the ocean mesh's own height
+/* ⚠️ GERSTNER MOVES THE WATER SIDEWAYS, so the surface is no longer a function of
+   (x,z) — the crest that ENDS UP over Kai started somewhere else. Sampling oceanAt()
+   at her feet would float her up to half a metre off. So invert it: three fixed-point
+   steps to find the wave point whose DISPLACED position lands where she is. Converges
+   fast because Sum(k*a) is well under 1. This is what keeps her ON the water. */
+function oceanSurface(x,z,t){
+  let sx=x, sz=z;
+  for(let i=0;i<3;i++){
+    const d=oceanAt(sx,sz,t);
+    sx=x-d.hx; sz=z-d.hz;
+  }
+  return oceanAt(sx,sz,t);
+}
+const oceanY=(x,z,t)=>0.42+oceanSurface(x,z,t).y;   // 0.42 = the ocean mesh's own height
 
 /* ---------- the sea: depth-gradient, gentle swell, shore foam ---------- */
 /* 🌊 A TILING RIPPLE NORMAL MAP, baked once in a canvas.
@@ -455,6 +493,7 @@ let ocean,oceanPos,oceanPhase;
     sh.uniforms.uTime={value:0};
     sh.uniforms.uRipple={value:RIPPLE};
     sh.uniforms.uChop={value:0.42};   // how hard the ripple normals bite
+    sh.uniforms.uEnv={value:window.SKY_ENV};   // 🪞 the sky, baked once
     oceanMat.userData.sh=sh;
     sh.vertexShader='uniform float uTime;\nvarying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvarying float vAmp;\n'+sh.vertexShader
       .replace('#include <begin_vertex>',
@@ -472,20 +511,24 @@ let ocean,oceanPos,oceanPhase;
   float amp    = 0.12 + off*off*3.70;
   float dy=0.0, dYdx=0.0, dYdz=0.0;
   vec2  hz=vec2(0.0);
-  vec4 SW[4];
-  SW[0]=vec4(0.50,140.0, 0.86, 0.51);
-  SW[1]=vec4(0.28, 95.0, 0.50,-0.87);
-  SW[2]=vec4(0.14, 60.0,-0.30, 0.95);
-  SW[3]=vec4(0.08, 52.0, 0.70, 0.71);   // ⚠️ keep >= 48m: below that, 12m quads alias
-  for(int i=0;i<4;i++){
+  vec4 SW[7];   // ⚠️ MUST match SWELL[] in JS, value for value. There's a parity test.
+  SW[0]=vec4(0.34,172.0, 0.92, 0.39);
+  SW[1]=vec4(0.24,129.0, 0.71,-0.70);
+  SW[2]=vec4(0.16, 97.0, 0.29, 0.96);
+  SW[3]=vec4(0.11, 76.0,-0.55, 0.84);
+  SW[4]=vec4(0.07, 61.0, 0.83, 0.56);
+  SW[5]=vec4(0.05, 53.0,-0.31,-0.95);
+  SW[6]=vec4(0.03, 48.0, 0.62,-0.78);   // ⚠️ keep >= 48m: below that, 12m quads alias
+  for(int i=0;i<7;i++){
     float k  = 6.28318/SW[i].y;
     float cS = sqrt(9.81/k);
     float ph = k*(SW[i].z*wp.x + SW[i].w*wp.z) - cS*uTime;
     float a  = amp*SW[i].x;
+    float cs = cos(ph);
     dy   += a*sin(ph);
-    dYdx += a*k*SW[i].z*cos(ph);
-    dYdz += a*k*SW[i].w*cos(ph);
-    hz   += vec2(SW[i].z,SW[i].w)*a*0.30*cos(ph);   // Gerstner pinch — sharper crests
+    dYdx += a*k*SW[i].z*cs;
+    dYdz += a*k*SW[i].w*cs;
+    hz   += vec2(SW[i].z,SW[i].w)*a*1.2*cs;   // GERST=1.2 — sharp crests, round troughs
   }
   transformed.y += dy;
   transformed.x += hz.x;
@@ -517,7 +560,7 @@ let ocean,oceanPos,oceanPhase;
   vWorldPos = (modelMatrix * vec4(transformed,1.0)).xyz;
 }`);
     sh.fragmentShader=
-      'uniform float uTime;\nuniform sampler2D uRipple;\nuniform float uChop;\n'+
+      'uniform float uTime;\nuniform sampler2D uRipple;\nuniform float uChop;\nuniform samplerCube uEnv;\n'+
       'varying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvarying float vAmp;\nvec3 gWorldN;\n'+
       sh.fragmentShader
       .replace('#include <normal_fragment_begin>',
@@ -537,14 +580,27 @@ let ocean,oceanPos,oceanPhase;
       .replace('#include <output_fragment>',
 `{
   vec3 V = normalize(cameraPosition - vWorldPos);
-  // ── Fresnel horizon sheen, now off the REAL normal ──
-  float fres = pow(1.0 - clamp(dot(gWorldN, V), 0.0, 1.0), 4.0);
-  outgoingLight += vec3(0.55,0.75,0.85) * fres * 0.40;
-  // ── glitter: a tight sun lobe off the perturbed normal = a million moving specks ──
   vec3 L = normalize(vec3(60.0,90.0,40.0));      // = sunDir
+  // ── Fresnel (Schlick), off the REAL normal ──
+  float NdotV = max(dot(gWorldN, V), 0.001);
+  float fres  = 0.02 + 0.98*pow(1.0 - NdotV, 5.0);
+  // ── 🪞 THE SKY, REFLECTED. Grazing angles mirror it hard; look straight down and
+  //    you see the water instead. This is what makes it read as a liquid.
+  vec3 refl = reflect(-V, gWorldN);
+  refl.y = abs(refl.y);                          // never sample the underside of the cube
+  vec3 skyRefl = textureCube(uEnv, refl).rgb;
+  outgoingLight = mix(outgoingLight, skyRefl, clamp(fres*0.85, 0.0, 0.8));
+  // ── 💚 SUBSURFACE SCATTERING: sun glowing THROUGH the back of a wave. On a 25-footer
+  //    with the light behind it, the crest lights up green. This is the shot.
+  vec3 sssDir = normalize(L + gWorldN*0.7);
+  float sss  = pow(max(dot(V, -sssDir), 0.0), 4.0);
+  float lift = clamp(vWaveH/max(0.6,vAmp), 0.0, 1.0);
+  outgoingLight += vec3(0.06,0.60,0.46) * sss * lift * 0.85;
+  // ── ☀️ triple-lobe sun: tight disc + medium scatter + broad sheen ──
   vec3 Hv = normalize(L + V);
-  float glint = pow(max(dot(gWorldN, Hv), 0.0), 96.0);
-  outgoingLight += vec3(1.0,0.97,0.90) * glint * 0.75;
+  float NdotH = max(dot(gWorldN, Hv), 0.0);
+  float spec = pow(NdotH,300.0)*1.7 + pow(NdotH,90.0)*0.30 + pow(NdotH,26.0)*0.07;
+  outgoingLight += vec3(1.0,0.97,0.90) * spec;
   // ── WHITECAPS: streaks stretched ALONG the wind, gated by the crests ──
   vec2 wd = normalize(vec2(0.85,0.35));
   vec2 sp = vec2(dot(vWorldPos.xz,wd)*0.045, dot(vWorldPos.xz,vec2(-wd.y,wd.x))*0.20);
@@ -612,7 +668,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-49'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-50'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -3454,7 +3510,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-49 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-50 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
@@ -3521,7 +3577,7 @@ function frame(){
   let py=g0+P.air;
   if(window.surfing){
     // 🌊 ON the wave, not through it — same model the shader draws with.
-    const W=oceanAt(P.x,P.z,t);
+    const W=oceanSurface(P.x,P.z,t);   // inverted Gerstner — the crest that's actually under her
     py=0.42+W.y+0.13+P.air;
     // lean into the face: slope along her travel = pitch, slope across it = roll
     const fx=Math.sin(P.yaw), fz=Math.cos(P.yaw);
