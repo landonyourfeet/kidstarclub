@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="icon" href="/favicon.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0a1a2f">
 <title>STARVILLE ISLAND</title>
 <style>
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0a1a2f;font-family:system-ui,-apple-system,sans-serif;
@@ -49,7 +53,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-29</div>
+<div class="hud" id="tag">ISL-31</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -174,7 +178,7 @@ scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
 const IC={x:0,z:0,R:156}; // 4x the island, same soul
 const VOLC={x:16,z:-88,R:36,H:34};
 function isleR(a){return IC.R+Math.sin(a*3+1.2)*16+Math.sin(a*7+0.5)*7}
-function groundAt(x,z){
+function groundNat(x,z){ // the raw island, before anything is built on it
   const dx=x-IC.x,dz=z-IC.z,d=Math.hypot(dx,dz);
   let h=0;
   if(d<IC.R+14){
@@ -188,13 +192,56 @@ function groundAt(x,z){
       if(d>R-22)h*=Math.max(.06,(R-d)/22);                   // beach taper
     }
   }
-  if(window.__courtReady&&onCourt(x,z))return window.__courtY; // level hardwood (flag avoids TDZ on HOOP)
   const vd=Math.hypot(x-VOLC.x,z-VOLC.z);                    // the volcano
   if(vd<VOLC.R){
     const t=1-vd/VOLC.R;
     h=Math.max(h,Math.pow(t,1.35)*VOLC.H*(vd<6?0.86:1));   // crater dip at the top
   }
   return h;
+}
+
+/* ============================================================
+   🏀 ELIKAI'S COURT · THE PAD
+   Declared HERE — above the terrain mesh — so the island is
+   *built* with a level slab under the court instead of the
+   court being dropped onto a hill afterwards. (That was the
+   bug: the mesh baked its vertices before __courtReady flipped,
+   so grass grew straight through the hardwood.)
+   Regulation NBA full court: 28.65m x 15.24m (94ft x 50ft).
+   ============================================================ */
+const COURT={
+  W:15.24, L:28.65,     // regulation full court
+  cx:-58, cz:98,        // west shelf above the beach — flattest legal site on the island
+  ry:0.9,               // heading (long axis points out to sea)
+  pad:2.4,              // sand apron outside the painted lines
+  blend:8,              // terrain ramps back to natural over this many metres
+  y:0
+};
+COURT.y=groundNat(COURT.cx,COURT.cz);
+COURT.cos=Math.cos(COURT.ry);COURT.sin=Math.sin(COURT.ry);
+const CHW=COURT.W/2+COURT.pad, CHL=COURT.L/2+COURT.pad;
+function courtLocal(x,z){ // world -> court-local (inverse of holder rotation.y = ry)
+  const dx=x-COURT.cx, dz=z-COURT.cz;
+  return {lx:dx*COURT.cos-dz*COURT.sin, lz:dx*COURT.sin+dz*COURT.cos};
+}
+function courtBlend(x,z){ // 1 = dead-flat pad · 0 = untouched island · smooth in between
+  const L=courtLocal(x,z);
+  const d=Math.max(Math.abs(L.lx)-CHW, Math.abs(L.lz)-CHL);
+  if(d<=0)return 1;
+  if(d>=COURT.blend)return 0;
+  const t=1-d/COURT.blend;
+  return t*t*(3-2*t); // smoothstep — no cliff edge
+}
+function onCourt(x,z){ // inside the painted lines
+  const L=courtLocal(x,z);
+  return Math.abs(L.lx)<COURT.W/2 && Math.abs(L.lz)<COURT.L/2;
+}
+const onPad=(x,z)=>courtBlend(x,z)>0.02; // nothing grows, spawns or scatters here
+
+function groundAt(x,z){
+  const h=groundNat(x,z);
+  const w=courtBlend(x,z);
+  return w>0 ? h+(COURT.y-h)*w : h;
 }
 const inOcean=(x,z)=>groundAt(x,z)<0.12;
 
@@ -219,6 +266,14 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
     // hand-jitter so the ground never reads flat
     const j=(Math.sin(x*12.9+z*7.7)*0.5+0.5)*0.08;
     cols[i*3]=c.r*(1-j);cols[i*3+1]=c.g*(1-j*0.6);cols[i*3+2]=c.b*(1-j);
+    // 🏀 the court pad reads as raked sand, so nothing green can peek under the hardwood
+    const cb=courtBlend(x,z);
+    if(cb>0){
+      c.copy(sand);
+      cols[i*3]  +=(c.r-cols[i*3])  *cb;
+      cols[i*3+1]+=(c.g-cols[i*3+1])*cb;
+      cols[i*3+2]+=(c.b-cols[i*3+2])*cb;
+    }
   }
   g.setAttribute('color',new THREE.BufferAttribute(cols,3));
   g.computeVertexNormals();
@@ -339,7 +394,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-29'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-31'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -386,6 +441,7 @@ function spawn(file,targetH){
   return root;
 }
 const put=(key,x,z,h,ry)=>{
+  if(onPad(x,z))return null; // 🏀 hands off Elikai's court
   const o=spawn(FILES[key],h);
   if(!o)return null;
   o.position.set(x,groundAt(x,z),z);
@@ -409,12 +465,184 @@ const ROSTER={
   bruno:{file:'kk_barb.glb',name:'Bruno the Brave',emoji:'💪',h:1.95},
   shadow:{file:'kk_hood.glb',name:'Shadow Fox',emoji:'🥷',h:1.8,costume:'cape'},
   wizard:{file:'kk_mage.glb',name:'Wizard Wren',emoji:'🧙',h:1.85},
-  surfer:{file:'kk_rogue.glb',name:'Kai the Surfer',emoji:'🏄‍♀️',h:1.78,costume:'surf',surf:true,reach:3.2},
-  maui:{file:'kk_barb.glb',name:'Maui',emoji:'🌊',h:1.98,costume:'surf2',surf:true,reach:3.4},
+  surfer:{file:'kk_rogue.glb',name:'Kai the Surfer',emoji:'🏄‍♀️',h:1.72,costume:'surf',surf:true,reach:3.2},
+  maui:{file:'kk_barb.glb',name:'Maui',emoji:'🌊',h:2.06,costume:'surf2',surf:true,reach:3.4},
 };
 let heroKey=localStorage.getItem('isl_hero');
 if(!ROSTER[heroKey])heroKey='captain';
+/* ============================================================
+   🧬 HERO SCULPTING · KayKit adventurers are modular rigs:
+   Rogue_Head / Rogue_Body / Rogue_ArmLeft / Rogue_LegRight / Rogue_Cape
+   + weapon nodes, all sharing ONE flat palette atlas.
+   Hide the adventurer gear, repaint the body parts, graft on new
+   hair + tattoos, and you get a genuinely different human — no new GLBs.
+   ⚠️ r128: a new material on a SkinnedMesh MUST set skinning:true
+   or the limbs freeze in bind pose.
+   ============================================================ */
+function skinMat(color,opt){
+  return new THREE.MeshLambertMaterial(Object.assign({color:lin(color),skinning:true},opt||{}));
+}
+function hideParts(root,keys){
+  root.userData.inner.traverse(m=>{
+    if(!(m.isMesh||m.isSkinnedMesh))return;
+    for(const k of keys)if(m.name.indexOf(k)>=0){m.visible=false;return}
+  });
+}
+function paintPart(root,key,color){
+  root.userData.inner.traverse(m=>{
+    if((m.isMesh||m.isSkinnedMesh)&&m.name.indexOf(key)>=0)m.material=skinMat(color);
+  });
+}
+function bone(root,name){
+  const inner=root.userData.inner;
+  return inner.getObjectByName(name)                       // as authored
+      || inner.getObjectByName(name.replace(/[.\-\s]/g,'')) // GLTFLoader strips '.' — 'upperarm.r' -> 'upperarmr'
+      || inner.getObjectByName(name.replace(/\./g,'_'));
+}
+// a tattoo sleeve that actually follows the limb: the child bone's local
+// position IS the limb direction, so we can align without guessing axes
+function inkBand(root,boneName,childName,frac,r,h,mat){
+  const b=bone(root,boneName);
+  if(!b)return;
+  const want=childName.replace(/[.\-\s]/g,'');
+  const kid=b.children.find(c=>c.name.replace(/[.\-\s]/g,'')===want)||b.children.find(c=>c.isBone);
+  const dir=kid?kid.position.clone():new THREE.Vector3(0,1,0);
+  const len=dir.length()||0.3;
+  dir.normalize();
+  const band=new THREE.Mesh(new THREE.CylinderGeometry(r,r*0.92,h,14,1,true),mat);
+  band.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+  band.position.copy(dir).multiplyScalar(len*frac);
+  b.add(band);
+}
+function tribalTex(){ // Polynesian-style banding: transparent everywhere but the ink
+  const cv=document.createElement('canvas');cv.width=128;cv.height=128;
+  const g=cv.getContext('2d');
+  g.clearRect(0,0,128,128);
+  g.fillStyle='#1b1410';
+  for(let row=0;row<4;row++){
+    const y=row*32;
+    for(let i=0;i<8;i++){ // rows of teeth
+      const x=i*16;
+      g.beginPath();g.moveTo(x,y+26);g.lineTo(x+8,y+8);g.lineTo(x+16,y+26);g.closePath();g.fill();
+    }
+    g.fillRect(0,y+27,128,4);
+  }
+  g.strokeStyle='#1b1410';g.lineWidth=3;
+  for(let i=0;i<128;i+=16){g.beginPath();g.arc(i,64,7,Math.PI,0);g.stroke()} // wave motif
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+function inkMat(rx,ry){
+  const t=tribalTex();t.repeat.set(rx,ry);
+  return new THREE.MeshLambertMaterial({map:t,transparent:true,alphaTest:0.35,
+    side:THREE.DoubleSide,depthWrite:false});
+}
+
+/* 🏄‍♀️ KAI · the teen surfer girl — sun-bleached hair, teal rashguard, coral boardies */
+function sculptKai(root){
+  hideParts(root,['Knife','Crossbow','Throwable','Cape']);
+  paintPart(root,'Body',0x1fbcae);          // teal rashguard
+  paintPart(root,'ArmLeft',0xf2bd93);       // bare arms
+  paintPart(root,'ArmRight',0xf2bd93);
+  paintPart(root,'LegLeft',0xff6f61);       // coral boardshorts
+  paintPart(root,'LegRight',0xff6f61);
+  const head=bone(root,'head'),chest=bone(root,'chest');
+  if(head){
+    const hair=new THREE.MeshLambertMaterial({color:lin(0xf0cf7c)}); // sun-bleached blonde
+    const g=new THREE.Group();
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(0.245,14,11,0,6.283,0,Math.PI*0.66),hair);
+    cap.scale.set(1.05,0.98,1.08);cap.position.y=0.255;g.add(cap);
+    const back=new THREE.Mesh(new THREE.SphereGeometry(0.2,12,10),hair);
+    back.scale.set(0.92,1.15,0.6);back.position.set(0,0.16,-0.15);g.add(back);
+    for(let i=0;i<4;i++){ // the ponytail, swinging down her back
+      const seg=new THREE.Mesh(new THREE.SphereGeometry(0.085-i*0.013,9,7),hair);
+      seg.position.set(0,0.05-i*0.115,-0.24-i*0.045);g.add(seg);
+    }
+    const tie=new THREE.Mesh(new THREE.TorusGeometry(0.075,0.018,6,12),
+      new THREE.MeshLambertMaterial({color:lin(0xff6f61)}));
+    tie.rotation.x=Math.PI/2;tie.position.set(0,0.075,-0.22);g.add(tie);
+    // shades pushed up on her forehead
+    const dark=new THREE.MeshLambertMaterial({color:lin(0x1d2a33)});
+    const shades=new THREE.Mesh(new THREE.BoxGeometry(0.33,0.055,0.04),dark);
+    shades.position.set(0,0.285,0.155);shades.rotation.x=-0.25;g.add(shades);
+    // hibiscus behind the ear
+    const petal=new THREE.MeshLambertMaterial({color:lin(0xff3d8b)});
+    const fl=new THREE.Group();
+    for(let i=0;i<5;i++){
+      const pt=new THREE.Mesh(new THREE.SphereGeometry(0.035,7,6),petal);
+      pt.scale.set(1,0.45,1.5);
+      const a=i*1.256;pt.position.set(Math.cos(a)*0.04,0,Math.sin(a)*0.04);fl.add(pt);
+    }
+    const mid=new THREE.Mesh(new THREE.SphereGeometry(0.018,6,5),
+      new THREE.MeshLambertMaterial({color:lin(0xffd24d)}));
+    fl.add(mid);
+    fl.position.set(0.185,0.2,0.02);fl.rotation.z=0.5;g.add(fl);
+    head.add(g);
+  }
+  if(chest){ // puka-shell necklace
+    const n=new THREE.Mesh(new THREE.TorusGeometry(0.125,0.017,6,16),
+      new THREE.MeshLambertMaterial({color:lin(0xfff2dd)}));
+    n.rotation.x=Math.PI/2-0.25;n.position.set(0,0.06,0.03);chest.add(n);
+  }
+}
+
+/* 🌊 MAUI · the big Hawaiian — bare chest, lavalava, real tribal ink */
+function sculptMaui(root){
+  hideParts(root,['Axe','Shield','Mug','Hat','Cape']);
+  const SKIN=0xb5794c;                       // deep island tan
+  paintPart(root,'Body',SKIN);               // shirtless
+  paintPart(root,'ArmLeft',SKIN);
+  paintPart(root,'ArmRight',SKIN);
+  paintPart(root,'LegLeft',SKIN);            // barefoot
+  paintPart(root,'LegRight',SKIN);
+  const head=bone(root,'head'),chest=bone(root,'chest'),hips=bone(root,'hips');
+  // 🖋️ the ink: half-sleeve on the right, band on the left, chest panel, thigh band
+  inkBand(root,'upperarm.r','lowerarm.r',0.50,0.152,0.36,inkMat(3,2));   // half-sleeve
+  inkBand(root,'lowerarm.r','wrist.r',   0.50,0.125,0.26,inkMat(3,1.4));  // forearm
+  inkBand(root,'upperarm.l','lowerarm.l',0.45,0.152,0.20,inkMat(3,1));    // shoulder band
+  inkBand(root,'upperleg.r','lowerleg.r',0.35,0.185,0.24,inkMat(3,1.2));  // thigh band
+  if(chest){
+    const panel=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.44,0.34,18,1,true),inkMat(4,1.6));
+    panel.scale.z=0.92;panel.position.y=0.02;chest.add(panel);
+    // shark-tooth pendant
+    const cord=new THREE.Mesh(new THREE.TorusGeometry(0.135,0.016,6,16),
+      new THREE.MeshLambertMaterial({color:lin(0x6b4b2a)}));
+    cord.rotation.x=Math.PI/2-0.25;cord.position.set(0,0.08,0.03);chest.add(cord);
+    const tooth=new THREE.Mesh(new THREE.ConeGeometry(0.045,0.11,4),
+      new THREE.MeshLambertMaterial({color:lin(0xfff4e2)}));
+    tooth.rotation.x=Math.PI;tooth.position.set(0,-0.02,0.17);chest.add(tooth);
+  }
+  if(hips){ // lavalava wrap
+    const cv=document.createElement('canvas');cv.width=64;cv.height=64;
+    const g=cv.getContext('2d');
+    g.fillStyle='#c0392b';g.fillRect(0,0,64,64);
+    g.fillStyle='#f4e3c1';for(let i=0;i<64;i+=16)g.fillRect(0,i,64,3);
+    g.fillStyle='#1b1410';
+    for(let i=0;i<8;i++){g.beginPath();g.moveTo(i*8,40);g.lineTo(i*8+4,30);g.lineTo(i*8+8,40);g.closePath();g.fill()}
+    const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+    const wrap=new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.46,0.62,16,1,true),
+      new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide}));
+    wrap.position.y=-0.22;hips.add(wrap);
+  }
+  if(head){
+    const hair=new THREE.MeshLambertMaterial({color:lin(0x1c1512)});
+    const g=new THREE.Group();
+    const cap=new THREE.Mesh(new THREE.SphereGeometry(0.26,14,11,0,6.283,0,Math.PI*0.7),hair);
+    cap.scale.set(1.06,1.05,1.08);cap.position.y=0.25;g.add(cap);
+    const mane=new THREE.Mesh(new THREE.SphereGeometry(0.23,12,10),hair);
+    mane.scale.set(1.0,1.15,0.7);mane.position.set(0,0.1,-0.14);g.add(mane);
+    for(let i=0;i<3;i++){ // thick locks down the back
+      const lock=new THREE.Mesh(new THREE.SphereGeometry(0.1-i*0.012,9,7),hair);
+      lock.position.set((i-1)*0.12,-0.06-i*0.03,-0.26);
+      lock.scale.set(0.8,1.5,0.7);g.add(lock);
+    }
+    head.add(g);
+  }
+}
 function addCostume(root,kind){
+  if(kind==='surf'){sculptKai(root)}
+  if(kind==='surf2'){sculptMaui(root)}
   const inner=root.userData.inner;
   const head=inner.getObjectByName('head');
   const chest=inner.getObjectByName('chest')||inner.getObjectByName('spine');
@@ -650,7 +878,7 @@ function makeWhaleBones(x,z,ry){
   g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);
   return g;
 }
-const putPalm=(x,z,h)=>{const pl=makePalm(h);pl.position.set(x,groundAt(x,z),z);pl.rotation.y=Math.random()*6.28;scene.add(pl)};
+const putPalm=(x,z,h)=>{if(onPad(x,z))return; const pl=makePalm(h);pl.position.set(x,groundAt(x,z),z);pl.rotation.y=Math.random()*6.28;scene.add(pl)};
 const putCoral=(x,z,sc)=>{const c=makeCoral();c.scale.setScalar(sc);c.position.set(x,groundAt(x,z),z);scene.add(c)};
 
 /* ============================================================
@@ -784,7 +1012,7 @@ function starSpot(){
     const a=Math.random()*6.28,r=14+Math.random()*136;
     const x=IC.x+Math.cos(a)*r,z=IC.z+Math.sin(a)*r;
     const g=groundAt(x,z);
-    if(g>0.3&&Math.hypot(x-VOLC.x,z-VOLC.z)>7)return {x,z,g};
+    if(g>0.3&&Math.hypot(x-VOLC.x,z-VOLC.z)>7&&!onPad(x,z))return {x,z,g};
   }
   return {x:0,z:20,g:groundAt(0,20)};
 }
@@ -1352,78 +1580,125 @@ addEventListener('keydown',e=>{if(e.key==='e'||e.key==='E')document.getElementBy
    🏀 ELIKAI'S COURT · walk to the ball to pick it up ·
    hold ⚔️ to charge · release to launch — up to 100 feet!
    ============================================================ */
-const HOOP={x:-74,z:104,ry:0.9,rimY:0,rim:null};
-function makeHoop(){
+const HOOP={ry:COURT.ry,rimY:0,rimW:null,courtC:{x:COURT.cx,z:COURT.cz}};
+const RIMS=[]; // both hoops score
+const c2w=(lx,lz)=>({x:COURT.cx+lx*COURT.cos+lz*COURT.sin, z:COURT.cz-lx*COURT.sin+lz*COURT.cos});
+
+/* one regulation hoop: cantilever pole *behind* the baseline, rim 1.575m in.
+   Group origin sits directly under the rim centre, facing local +Z (into the court). */
+function makeHoopAt(lz,flip){
   const g=new THREE.Group();
   const steel=new THREE.MeshLambertMaterial({color:lin(0x8a93a5)});
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,3.9,8),steel);
-  pole.position.y=1.95;g.add(pole);
-  // backboard with the classic square
-  const cv=document.createElement('canvas');cv.width=128;cv.height=96;
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.10,0.13,4.2,10),steel);
+  pole.position.set(0,2.1,-2.0);g.add(pole);                       // outside the baseline
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.14,1.6),steel);
+  arm.position.set(0,3.72,-1.2);g.add(arm);                        // cantilever out to the board
+  const brace=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,1.35),steel);
+  brace.position.set(0,3.16,-1.32);brace.rotation.x=-0.42;g.add(brace);
+  // backboard (front face lands exactly 1.2m inside the baseline)
+  const cv=document.createElement('canvas');cv.width=144;cv.height=96;
   const gg=cv.getContext('2d');
-  gg.fillStyle='#f4f7fb';gg.fillRect(0,0,128,96);
-  gg.strokeStyle='#e8483f';gg.lineWidth=6;gg.strokeRect(40,34,48,40);
-  gg.strokeStyle='#c9d2df';gg.lineWidth=5;gg.strokeRect(3,3,122,90);
+  gg.fillStyle='#f4f7fb';gg.fillRect(0,0,144,96);
+  gg.strokeStyle='#e8483f';gg.lineWidth=6;gg.strokeRect(48,36,48,40); // the shooter's square
+  gg.strokeStyle='#c9d2df';gg.lineWidth=5;gg.strokeRect(3,3,138,90);
   const bbT=new THREE.CanvasTexture(cv);bbT.encoding=THREE.sRGBEncoding;
-  const board=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.15,0.07),
+  const board=new THREE.Mesh(new THREE.BoxGeometry(1.83,1.07,0.07),
     new THREE.MeshLambertMaterial({map:bbT}));
-  board.position.set(0,3.5,0.06);g.add(board);
-  // the rim
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.035,7,20),
+  board.position.set(0,3.5,-0.505);g.add(board);                   // rim is 0.375m off the face
+  // the rim — dead centre of the group
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(0.4572,0.035,8,22),
     new THREE.MeshLambertMaterial({color:lin(0xff7a1a),emissive:lin(0x5f2400)}));
-  rim.rotation.x=Math.PI/2;
-  rim.position.set(0,3.05,0.52);g.add(rim);
-  // a simple net
-  const net=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.24,0.5,8,3,true),
-    new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.7}));
-  net.position.set(0,2.78,0.52);g.add(net);
+  rim.rotation.x=Math.PI/2;rim.position.set(0,3.05,0);g.add(rim);
+  const net=new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.26,0.52,10,3,true),
+    new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.72}));
+  net.position.set(0,2.79,0);g.add(net);
   g.traverse(m=>{if(m.isMesh)m.castShadow=true});
-  g.position.set(HOOP.x,groundAt(HOOP.x,HOOP.z),HOOP.z);
-  g.rotation.y=HOOP.ry;
+  const w=c2w(0,lz);
+  g.position.set(w.x,COURT.y,w.z);
+  g.rotation.y=COURT.ry+(flip?Math.PI:0);
   scene.add(g);
-  const rw=new THREE.Vector3();rim.getWorldPosition(rw);
-  HOOP.rimW=rw;HOOP.rimY=rw.y;
+  RIMS.push({x:w.x,y:COURT.y+3.05,z:w.z});
 }
+function makeHoop(){
+  makeHoopAt(-(COURT.L/2-1.575),false); // north basket
+  makeHoopAt( (COURT.L/2-1.575),true);  // south basket
+  HOOP.rimW=RIMS[0];HOOP.rimY=RIMS[0].y;
+}
+
 function makeCourt(){
-  // 🏀 regulation: 28.7m x 15.24m · rim 3.05m · 3pt arc 7.24m · FT line 5.8m · key 4.9m wide
-  const W=15.24,L=28.7,PX=20; // 20px per meter
-  const cv=document.createElement('canvas');cv.width=Math.round(W*PX);cv.height=Math.round(L*PX);
+  /* 🏀 REGULATION, painted properly:
+     28.65 x 15.24 · rim 1.575 in from baseline · key 4.88 wide x 5.79 deep
+     FT circle r1.83 · restricted arc r1.22 · 3pt arc r7.24 with 0.914 corner inset */
+  const W=COURT.W,L=COURT.L,PX=26;
+  const cw=Math.round(W*PX), ch=Math.round(L*PX);
+  const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;
   const g=cv.getContext('2d');
-  g.fillStyle='#e8cf9b';g.fillRect(0,0,cv.width,cv.height);
-  g.strokeStyle='#fdfdf6';g.lineWidth=5;g.lineCap='round';
-  const cx=cv.width/2;
-  g.strokeRect(4,4,cv.width-8,cv.height-8);
-  const rimPy=1.575*PX; // rim center 1.575m from baseline
-  g.strokeStyle='#ff8c42';
-  g.strokeRect(cx-2.45*PX,4,4.9*PX,5.8*PX);          // the key
-  g.beginPath();g.arc(cx,5.8*PX,1.8*PX,0,7);g.stroke(); // FT circle
-  g.strokeStyle='#fdfdf6';
-  g.beginPath();g.arc(cx,rimPy,7.24*PX,0.32,Math.PI-0.32);g.stroke(); // 3pt arc
-  g.beginPath();g.moveTo(4,cv.height/2);g.lineTo(cv.width-4,cv.height/2);g.stroke();
-  g.beginPath();g.arc(cx,cv.height/2,1.8*PX,0,7);g.stroke(); // center circle
-  g.strokeStyle='#2bd9ff';g.setLineDash([12,9]);
-  g.beginPath();g.moveTo(4,rimPy+14.35*PX);g.lineTo(cv.width-4,rimPy+14.35*PX);g.stroke(); // downtown
+  const X=lx=>cw/2+lx*PX, Y=lz=>ch/2+lz*PX;   // canvas top = court-local -Z
+  // hardwood
+  g.fillStyle='#d8b781';g.fillRect(0,0,cw,ch);
+  g.strokeStyle='rgba(150,110,62,0.20)';g.lineWidth=2;
+  for(let lx=-W/2;lx<=W/2;lx+=0.85){g.beginPath();g.moveTo(X(lx),0);g.lineTo(X(lx),ch);g.stroke()} // planks
+  g.lineCap='round';g.lineJoin='round';
+  const white='#fdfdf6', paint='rgba(255,140,66,0.32)', orange='#ff8c42';
+  const T3=Math.atan2(2.729,6.706); // where the 3pt arc meets the corner straights
+  for(const e of [-1,1]){
+    const base=e*L/2, rim=e*(L/2-1.575), ft=e*(L/2-5.79);
+    // the key
+    g.fillStyle=paint;
+    g.fillRect(X(-2.44),Math.min(Y(base),Y(ft)),4.88*PX,Math.abs(Y(ft)-Y(base)));
+    g.strokeStyle=orange;g.lineWidth=5;
+    g.strokeRect(X(-2.44),Math.min(Y(base),Y(ft)),4.88*PX,Math.abs(Y(ft)-Y(base)));
+    // free-throw circle
+    g.strokeStyle=white;g.lineWidth=5;
+    g.beginPath();g.arc(X(0),Y(ft),1.83*PX,0,7);g.stroke();
+    // restricted arc under the rim
+    g.lineWidth=4;
+    g.beginPath();
+    if(e<0)g.arc(X(0),Y(rim),1.22*PX,0,Math.PI);
+    else    g.arc(X(0),Y(rim),1.22*PX,Math.PI,Math.PI*2);
+    g.stroke();
+    // the three-point line: two corner straights + the big arc
+    g.lineWidth=6;
+    g.beginPath();
+    g.moveTo(X(-6.706),Y(base));g.lineTo(X(-6.706),Y(e*(L/2-4.304)));
+    g.moveTo(X( 6.706),Y(base));g.lineTo(X( 6.706),Y(e*(L/2-4.304)));
+    g.stroke();
+    g.beginPath();
+    if(e<0)g.arc(X(0),Y(rim),7.24*PX,T3,Math.PI-T3);
+    else    g.arc(X(0),Y(rim),7.24*PX,-(Math.PI-T3),-T3);
+    g.stroke();
+  }
+  // 🚀 DOWNTOWN: the half-court line (≈14.3m from either rim — cross it and it's +20)
+  g.strokeStyle='#2bd9ff';g.lineWidth=7;g.setLineDash([16,11]);
+  g.beginPath();g.moveTo(X(-W/2),Y(0));g.lineTo(X(W/2),Y(0));g.stroke();
   g.setLineDash([]);
+  // centre circle + a Starville star
+  g.strokeStyle=white;g.lineWidth=5;
+  g.beginPath();g.arc(X(0),Y(0),1.83*PX,0,7);g.stroke();
+  g.fillStyle='#2bd9ff';g.beginPath();
+  for(let i=0;i<10;i++){const r=(i%2?0.5:1.25)*PX,a=-Math.PI/2+i*Math.PI/5;
+    const px=X(0)+Math.cos(a)*r,py=Y(0)+Math.sin(a)*r;i?g.lineTo(px,py):g.moveTo(px,py)}
+  g.closePath();g.fill();
+  // boundary last, so it sits on top of everything
+  g.strokeStyle=white;g.lineWidth=8;
+  g.strokeRect(4,4,cw-8,ch-8);
+
   const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  t.anisotropy=renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1;
   const court=new THREE.Mesh(new THREE.PlaneGeometry(W,L),
-    new THREE.MeshLambertMaterial({map:t,transparent:true,opacity:0.96}));
-  court.rotation.x=-Math.PI/2; // canvas-top (the rim end) now faces local -Z
-  // deterministic placement: a holder group carries ALL the rotation
+    new THREE.MeshLambertMaterial({map:t}));
+  court.rotation.x=-Math.PI/2;   // canvas-top -> court-local -Z
   const holder=new THREE.Group();
-  holder.rotation.y=HOOP.ry;
-  // hoop sits at the holder's local -Z end; court center is (L/2 - 1.575) toward local +Z from the hoop
-  const fwd=new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0),HOOP.ry);
-  HOOP.courtC={x:HOOP.x+fwd.x*(L/2-1.575),z:HOOP.z+fwd.z*(L/2-1.575)};
-  holder.position.set(HOOP.courtC.x,groundAt(HOOP.x,HOOP.z)+0.06,HOOP.courtC.z);
+  holder.rotation.y=COURT.ry;
+  holder.position.set(COURT.cx,COURT.y+0.045,COURT.cz); // the pad under it is already dead flat
   holder.add(court);
   court.receiveShadow=true;
   scene.add(holder);
-  // flatten the court zone so lines never sink into terrain bumps
-  window.__courtY=groundAt(HOOP.x,HOOP.z);
-  window.__courtReady=true;
+  HOOP.courtC={x:COURT.cx,z:COURT.cz};
+  window.__courtY=COURT.y;window.__courtReady=true;
 }
 let ball=null;
-const BALL={mode:'ground',x:-68,z:100,y:0,vx:0,vy:0,vz:0,rest:0,prevY:0};
+const BALL={mode:'ground',x:COURT.cx,z:COURT.cz,y:0,vx:0,vy:0,vz:0,rest:0,prevY:0};
 function makeBall(){
   const cv=document.createElement('canvas');cv.width=128;cv.height=64;
   const g=cv.getContext('2d');
@@ -1439,14 +1714,6 @@ function makeBall(){
   ball.castShadow=true;
   BALL.y=groundAt(BALL.x,BALL.z)+0.34;
   scene.add(ball);
-}
-function onCourt(x,z){ // regulation court-local rectangle test (Y-rotation inverse, matching the holder)
-  if(!HOOP.courtC)return false;
-  const dx=x-HOOP.courtC.x, dz=z-HOOP.courtC.z;
-  const c=Math.cos(HOOP.ry), s2=Math.sin(HOOP.ry);
-  const lx=dx*c-dz*s2;   // inverse of rotation.y=ry applied to (x,z)
-  const lz=dx*s2+dz*c;
-  return Math.abs(lx)<7.62&&Math.abs(lz)<14.35;
 }
 function ballRespawn(){
   BALL.mode='ground';BALL.scored=false;BALL.rest=0;
@@ -1468,7 +1735,7 @@ function startCharge(){
 function throwBall(){
   if(!charging||BALL.mode!=='carried')return;
   charging=false;
-  BALL.shotFrom=HOOP.rimW?Math.hypot(P.x-HOOP.rimW.x,P.z-HOOP.rimW.z):0;
+  BALL.fromX=P.x;BALL.fromZ=P.z;
   document.getElementById('pwrwrap').style.display='none';
   const power=8+chargeT*22; // full charge ≈ 100 feet of flight
   BALL.mode='flying';
@@ -1506,24 +1773,26 @@ function tickBall(dt){
     BALL.vy-=13.5*dt;
     BALL.x+=BALL.vx*dt;BALL.y+=BALL.vy*dt;BALL.z+=BALL.vz*dt;
     ball.rotation.x+=dt*9;
-    // 🎯 the swish check: falling through the rim circle
-    if(HOOP.rimW&&BALL.prevY>HOOP.rimY&&BALL.y<=HOOP.rimY&&BALL.vy<0){
-      const d=Math.hypot(BALL.x-HOOP.rimW.x,BALL.z-HOOP.rimW.z);
-      if(d<0.45){
+    // 🎯 the swish check: falling through EITHER rim
+    if(!BALL.scored&&BALL.vy<0){
+      for(const R of RIMS){
+        if(BALL.prevY<=R.y||BALL.y>R.y)continue;
+        if(Math.hypot(BALL.x-R.x,BALL.z-R.z)>=0.44)continue;
         // 🎯 points by where you shot from — the court lines tell the story
-        const sd=BALL.shotFrom||0;
+        const sd=Math.hypot((BALL.fromX||0)-R.x,(BALL.fromZ||0)-R.z);
         let pts=2,label='🏀 Layup! +2 💎';
         if(sd>=25){pts=50;label='🌋 FULL-COURT MIRACLE!! +50 💎'}
-        else if(sd>=14.35){pts=20;label='🚀 DOWNTOWN!! +20 💎'}
+        else if(sd>=12.75){pts=20;label='🚀 DOWNTOWN!! +20 💎'}
         else if(sd>=7.24){pts=10;label='🎯 THREE-POINTER! +10 💎'}
         else if(sd>=4.6){pts=5;label='🏀 Free-throw range! +5 💎'}
         starCount+=pts;
         document.getElementById('stars').textContent='💎 '+starCount;
         toast(label);
-        celebrate(myName||'You',pts,HOOP.rimW.x,HOOP.rimW.z); // 🎆 the big one
-        postEvent('swish',pts,HOOP.rimW.x,HOOP.rimW.z);       // …and everyone sees it
+        celebrate(myName||'You',pts,R.x,R.z); // 🎆 the big one
+        postEvent('swish',pts,R.x,R.z);       // …and everyone sees it
         BALL.scored=true;
         BALL.vx*=0.15;BALL.vz*=0.15; // drops through the net
+        break;
       }
     }
     const g0b=groundAt(BALL.x,BALL.z);
@@ -1836,7 +2105,7 @@ function playerHurt(dmg=1,from=null){
     document.getElementById('stars').textContent='💎 0';
     playAnim('Down',0.1);
     setTimeout(()=>{
-      P.x=-60;P.z=88;hp=HP_MAX;heartsUI();playAnim('Idle',0.1);
+      P.x=-84;P.z=74;hp=HP_MAX;heartsUI();playAnim('Idle',0.1);
     },2500);
   }
 }
@@ -2100,7 +2369,7 @@ function tickTitan(dt){
 /* ============================================================
    GAME STATE + MAIN LOOP
    ============================================================ */
-const P={x:-60,z:88,vy:0,air:0,yaw:0};   // spawn on the cove beach by the dock
+const P={x:-84,z:74,vy:0,air:0,yaw:0};   // spawn on the cove shelf by the dock — clear of the court
 let started=false,last=performance.now();
 
 let lobby=false;
