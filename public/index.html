@@ -849,8 +849,10 @@ document.querySelectorAll('[data-ic]').forEach(el=>el.innerHTML=ICONS[el.dataset
 $('#chatBadge').insertAdjacentHTML('afterbegin',ICONS.burst);
 
 let ME=null;
-window.addEventListener('load',()=>{ // 🏝️ deep-link: /#arcade lands on the arcade (island exit button uses this)
-  if(location.hash==='#arcade')setTimeout(()=>{try{go('arcade')}catch(e){}},400);
+window.addEventListener('load',()=>{ // 🏝️ deep-link: the island's exit button + its KidStarClub bar land you on the right tab
+  const DEEP={'#arcade':'arcade','#feed':'feed','#stage':'feed','#chat':'chat','#me':'me','#mystar':'me'};
+  const v=DEEP[location.hash];
+  if(v)setTimeout(()=>{try{go(v)}catch(e){}},400);
 });
 function go(view){
   document.querySelectorAll('main section').forEach(s=>s.classList.toggle('hide',s.id!=='v-'+view));
@@ -2509,7 +2511,7 @@ function loadWorldLibs(cb,failEl){
     next();
   },failEl);
 }
-const SV_BUILD='SV-68';
+const SV_BUILD='SV-69';
 function ppNew(){
   gReset();
   const hero=ppHero();
