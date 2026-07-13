@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-50</div>
+<div class="hud" id="tag">ISL-51</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -376,16 +376,24 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
    diverges and Kai would slowly sink through the water. Incommensurate
    wavelengths buy the same non-repeating look with exact parity. */
 const SWELL=[            // amplitude share, wavelength (m), direction
-  {A:0.34, L:172, dx: 0.92, dz: 0.39},
-  {A:0.24, L:129, dx: 0.71, dz:-0.70},
-  {A:0.16, L: 97, dx: 0.29, dz: 0.96},
-  {A:0.11, L: 76, dx:-0.55, dz: 0.84},
-  {A:0.07, L: 61, dx: 0.83, dz: 0.56},
-  {A:0.05, L: 53, dx:-0.31, dz:-0.95},
-  {A:0.03, L: 48, dx: 0.62, dz:-0.78},  // ⚠️ not shorter: 12m quads alias below ~48m
+  {A:0.26, L:278, dx:  0.94, dz:  0.34},
+  {A:0.19, L:212, dx:  0.82, dz:  0.57},
+  {A:0.15, L:163, dx:  0.98, dz: -0.20},
+  {A:0.11, L:129, dx:  0.62, dz:  0.78},
+  {A:0.09, L:104, dx:  0.87, dz: -0.49},
+  {A:0.07, L: 83, dx:  0.34, dz:  0.94},
+  {A:0.05, L: 68, dx: -0.42, dz: -0.91},
+  {A:0.04, L: 57, dx:  0.71, dz:  0.70},
+  {A:0.04, L: 49, dx: -0.86, dz:  0.51},
 ];
-const GERST=1.2;         // Gerstner pinch: sharp crests, round troughs (real ocean).
-                         // Sum(k*a) = 0.28 at full height — well under 1.0, so no loops.
+/* ⏱️ SEA_TIME — the whole sea, slowed. This is the single most important number here.
+   Our waves were TALL but SHORT (172m max, 10.5s period) = steep chop, and chop reads
+   SMALL no matter how high you make it. A real 25ft groundswell is 225-300m long with
+   a 12-14s period; slowed to 0.65 it lands at 18-22s, which is exactly what big-wave
+   surf actually does. And the film trick: we judge scale from the ratio of speed to
+   size, so SLOWING water is what makes it read BIG. */
+const SEA_TIME=0.65;
+const GERST=1.6;
 const SWELL_RAMP=360;    // metres offshore to reach full height
 const SWELL_MAX=3.70;    // + the 0.12 base = 3.82m amplitude = 25ft peak-to-trough
 function swellAmp(x,z){
@@ -398,9 +406,10 @@ function swellAmp(x,z){
 function oceanAt(x,z,t){
   const amp=swellAmp(x,z);
   let y=0,sx=0,sz=0,hx=0,hz=0;
+  const tS=t*SEA_TIME;
   for(const w of SWELL){
     const k=6.28318/w.L, c=Math.sqrt(9.81/k);
-    const ph=k*(w.dx*x+w.dz*z)-c*t;
+    const ph=k*(w.dx*x+w.dz*z)-c*tS;
     const a=amp*w.A, cs=Math.cos(ph);
     y+=a*Math.sin(ph);
     sx+=a*k*w.dx*cs;
@@ -511,25 +520,29 @@ let ocean,oceanPos,oceanPhase;
   float amp    = 0.12 + off*off*3.70;
   float dy=0.0, dYdx=0.0, dYdz=0.0;
   vec2  hz=vec2(0.0);
-  vec4 SW[7];   // ⚠️ MUST match SWELL[] in JS, value for value. There's a parity test.
-  SW[0]=vec4(0.34,172.0, 0.92, 0.39);
-  SW[1]=vec4(0.24,129.0, 0.71,-0.70);
-  SW[2]=vec4(0.16, 97.0, 0.29, 0.96);
-  SW[3]=vec4(0.11, 76.0,-0.55, 0.84);
-  SW[4]=vec4(0.07, 61.0, 0.83, 0.56);
-  SW[5]=vec4(0.05, 53.0,-0.31,-0.95);
-  SW[6]=vec4(0.03, 48.0, 0.62,-0.78);   // ⚠️ keep >= 48m: below that, 12m quads alias
-  for(int i=0;i<7;i++){
+  vec4 SW[9];   // ⚠️ GENERATED — must match SWELL[] in JS. There's a parity test.
+  SW[0]=vec4(0.26,278.0,0.94,0.34);
+  SW[1]=vec4(0.19,212.0,0.82,0.57);
+  SW[2]=vec4(0.15,163.0,0.98,-0.20);
+  SW[3]=vec4(0.11,129.0,0.62,0.78);
+  SW[4]=vec4(0.09,104.0,0.87,-0.49);
+  SW[5]=vec4(0.07,83.0,0.34,0.94);
+  SW[6]=vec4(0.05,68.0,-0.42,-0.91);
+  SW[7]=vec4(0.04,57.0,0.71,0.70);
+  SW[8]=vec4(0.04,49.0,-0.86,0.51);
+  float tS = uTime*0.65;   // SEA_TIME — the sea, slowed. Big water reads big BECAUSE it's slow.
+  for(int i=0;i<9;i++){
     float k  = 6.28318/SW[i].y;
     float cS = sqrt(9.81/k);
-    float ph = k*(SW[i].z*wp.x + SW[i].w*wp.z) - cS*uTime;
+    float ph = k*(SW[i].z*wp.x + SW[i].w*wp.z) - cS*tS;
     float a  = amp*SW[i].x;
     float cs = cos(ph);
     dy   += a*sin(ph);
     dYdx += a*k*SW[i].z*cs;
     dYdz += a*k*SW[i].w*cs;
-    hz   += vec2(SW[i].z,SW[i].w)*a*1.2*cs;   // GERST=1.2 — sharp crests, round troughs
+    hz   += vec2(SW[i].z,SW[i].w)*a*1.6*cs;   // GERST
   }
+
   transformed.y += dy;
   transformed.x += hz.x;
   transformed.z += hz.y;
@@ -570,9 +583,9 @@ let ocean,oceanPos,oceanPhase;
   // This is the whole trick: the mesh is only 22m per quad, but the *normal* can
   // carry centimetre detail for free. Ripples, chop and glitter, no extra vertices.
   vec2 wxz = vWorldPos.xz;
-  vec3 r1 = texture2D(uRipple, wxz*0.030 + vec2( 0.011, 0.006)*uTime).rgb*2.0-1.0;
-  vec3 r2 = texture2D(uRipple, wxz*0.088 + vec2(-0.016, 0.010)*uTime).rgb*2.0-1.0;
-  vec3 r3 = texture2D(uRipple, wxz*0.245 + vec2( 0.024,-0.019)*uTime).rgb*2.0-1.0;
+  vec3 r1 = texture2D(uRipple, wxz*0.030 + vec2( 0.007, 0.004)*uTime).rgb*2.0-1.0;
+  vec3 r2 = texture2D(uRipple, wxz*0.088 + vec2(-0.010, 0.006)*uTime).rgb*2.0-1.0;
+  vec3 r3 = texture2D(uRipple, wxz*0.245 + vec2( 0.015,-0.012)*uTime).rgb*2.0-1.0;
   vec3 rn = r1*0.55 + r2*0.30 + r3*0.19;
   gWorldN = normalize(vWaveN + vec3(rn.r, 0.0, rn.b) * uChop);
   normal  = normalize(mat3(viewMatrix) * gWorldN);   // three lights in VIEW space
@@ -604,8 +617,8 @@ let ocean,oceanPos,oceanPhase;
   // ── WHITECAPS: streaks stretched ALONG the wind, gated by the crests ──
   vec2 wd = normalize(vec2(0.85,0.35));
   vec2 sp = vec2(dot(vWorldPos.xz,wd)*0.045, dot(vWorldPos.xz,vec2(-wd.y,wd.x))*0.20);
-  float streak = abs(texture2D(uRipple, sp + vec2(0.030,0.012)*uTime).r - 0.5)*2.0;
-  float cell   = abs(texture2D(uRipple, vWorldPos.xz*0.19 + vec2(-0.02,0.03)*uTime).b - 0.5)*2.0;
+  float streak = abs(texture2D(uRipple, sp + vec2(0.018,0.007)*uTime).r - 0.5)*2.0;
+  float cell   = abs(texture2D(uRipple, vWorldPos.xz*0.19 + vec2(-0.012,0.018)*uTime).b - 0.5)*2.0;
   float crest  = smoothstep(0.30, 0.80, vWaveH/max(0.30,vAmp)); // relative to the LOCAL swell,
                                                                 // or the deep sea turns solid white
   float caps   = crest * smoothstep(0.34,0.80,streak) * smoothstep(0.18,0.62,cell);
@@ -668,7 +681,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-50'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-51'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -3510,7 +3523,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-50 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-51 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
