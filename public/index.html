@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-39</div>
+<div class="hud" id="tag">ISL-40</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -334,8 +334,49 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
 }
 
 /* ---------- the sea: depth-gradient, gentle swell, shore foam ---------- */
+/* 🌊 A TILING RIPPLE NORMAL MAP, baked once in a canvas.
+   The reference ocean shader gets its texture from ~20 simplex-noise calls per
+   pixel. That is a beautiful desktop demo and it would melt a kid's tablet.
+   Same idea, ~1/20th the cost: bake the noise ONCE into a seamless normal map,
+   then scroll three octaves of it in the fragment shader. Integer frequencies
+   keep it perfectly tileable, so it never seams. */
+function rippleNormalTex(size){
+  size=size||256;
+  let seed=1337>>>0;
+  const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+  const W=[];
+  for(let i=0;i<10;i++)W.push({
+    fx:1+Math.floor(rnd()*7), fz:1+Math.floor(rnd()*7),
+    ph:rnd()*6.2832, a:1/(1+i*0.62)
+  });
+  const H=new Float32Array(size*size);
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const u=x/size*6.2832, v=y/size*6.2832;
+    let h=0;
+    for(const w of W)h+=Math.sin(w.fx*u+w.fz*v+w.ph)*w.a;
+    H[y*size+x]=h;
+  }
+  const cv=document.createElement('canvas');cv.width=cv.height=size;
+  const g=cv.getContext('2d'), img=g.createImageData(size,size);
+  const S=1.9;
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const l=H[y*size+((x-1+size)%size)], r=H[y*size+((x+1)%size)];
+    const d=H[((y-1+size)%size)*size+x], u2=H[((y+1)%size)*size+x];
+    let nx=(l-r)*S, nz=(d-u2)*S;
+    const len=Math.hypot(nx,1,nz), i4=(y*size+x)*4;
+    img.data[i4]  =(nx/len*0.5+0.5)*255;   // R = x slope
+    img.data[i4+1]=(1 /len*0.5+0.5)*255;   // G = up
+    img.data[i4+2]=(nz/len*0.5+0.5)*255;   // B = z slope
+    img.data[i4+3]=255;
+  }
+  g.putImageData(img,0,0);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;   // ⚠️ LINEAR encoding — a normal map is data, not colour
+  return t;
+}
 let ocean,oceanPos,oceanPhase;
 {
+  const RIPPLE=rippleNormalTex(256);
   const g=new THREE.PlaneGeometry(2400,2400,110,110);
   g.rotateX(-Math.PI/2);
   oceanPos=g.attributes.position;
@@ -353,42 +394,92 @@ let ocean,oceanPos,oceanPhase;
   g.setAttribute('color',new THREE.BufferAttribute(cols,3));
   const oceanMat=new THREE.MeshPhongMaterial({color:0xffffff,vertexColors:true,
     shininess:220,specular:lin(0xdff2ff),transparent:true,opacity:.92});
-  oceanMat.onBeforeCompile=(sh)=>{ // 🌊 stylized Gerstner waves + Fresnel rim — the free 'Water Pro' look
+  oceanMat.onBeforeCompile=(sh)=>{ // 🌊 swell + REAL surface texture + Fresnel + whitecaps
     sh.uniforms.uTime={value:0};
+    sh.uniforms.uRipple={value:RIPPLE};
+    sh.uniforms.uChop={value:0.42};   // how hard the ripple normals bite
     oceanMat.userData.sh=sh;
-    sh.vertexShader='uniform float uTime;\nvarying float vFoam;\n'+sh.vertexShader
+    sh.vertexShader='uniform float uTime;\nvarying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\n'+sh.vertexShader
       .replace('#include <begin_vertex>',
 `#include <begin_vertex>
 {
   vec3 wp = (modelMatrix * vec4(transformed,1.0)).xyz;
-  float w1 = sin(dot(wp.xz, vec2(0.16,0.11)) + uTime*1.15);
-  float w2 = sin(dot(wp.xz, vec2(-0.07,0.19)) + uTime*0.8);
-  float w3 = sin(dot(wp.xz, vec2(0.045,-0.06)) + uTime*0.5);
-  transformed.y += w1*0.14 + w2*0.10 + w3*0.16;
-  transformed.x += cos(dot(wp.xz, vec2(0.16,0.11)) + uTime*1.15)*0.08;
+  // ── the swell, and — the part that was missing — its ANALYTIC SLOPE ──
+  // We were displacing vertices but never touching the normals, so the whole sea
+  // shaded like a flat sheet of plastic. Differentiate the wave sum and the swell
+  // finally catches the light.
+  float f1 = dot(wp.xz, vec2(0.16,0.11))  + uTime*1.15;
+  float f2 = dot(wp.xz, vec2(-0.07,0.19)) + uTime*0.80;
+  float f3 = dot(wp.xz, vec2(0.045,-0.06))+ uTime*0.50;
+  float dy = sin(f1)*0.14 + sin(f2)*0.10 + sin(f3)*0.16;
+  transformed.y += dy;
+  transformed.x += cos(f1)*0.08;
+  float dYdx =  0.160*cos(f1)*0.14 + (-0.070)*cos(f2)*0.10 +  0.045*cos(f3)*0.16;
+  float dYdz =  0.110*cos(f1)*0.14 +   0.190*cos(f2)*0.10 + (-0.060)*cos(f3)*0.16;
   // 🌊 SHORE BREAKERS · analytic coast distance drives real surf on the east beach
   float ang = atan(wp.z, wp.x);
   float coastR = 156.0 + sin(ang*3.0+1.2)*16.0 + sin(ang*7.0+0.5)*7.0; // = isleR(ang)
   float u = length(wp.xz) - coastR;               // signed distance offshore
-  // east-arc mask (the surf side), feathered
   float side = smoothstep(1.3, 0.55, abs(mod(ang+3.14159, 6.28318)-3.14159));
   if(u > -2.0 && u < 30.0 && side > 0.01){
     float shoal = smoothstep(30.0, 2.0, u);       // waves grow as water shallows
     float k = mix(0.28, 0.62, shoal);             // wavelength shortens near shore
-    float crest = sin(u*k + uTime*2.1);           // crests march INTO the beach
+    float crest  = sin(u*k + uTime*2.1);          // crests march INTO the beach
     float crest2 = sin(u*k*1.7 + uTime*2.9 + 1.7)*0.5;
     float amp = shoal * 0.55 * side;
     float wave = (crest + crest2) * amp;
-    transformed.y += max(wave, wave*0.25);        // peaked crests, shallow troughs — breaker shape
+    transformed.y += max(wave, wave*0.25);        // peaked crests, shallow troughs
+    dy += wave;
+    // the breaker's own slope, chained through du/dxz — so the surf shades too
+    float dWdu = amp * (k*cos(u*k + uTime*2.1) + 0.85*k*1.7*cos(u*k*1.7 + uTime*2.9 + 1.7));
+    vec2 dudxz = normalize(wp.xz + vec2(1e-4));
+    dYdx += dWdu * dudxz.x;
+    dYdz += dWdu * dudxz.y;
     vFoam = side * shoal * smoothstep(0.15, 0.95, crest) * smoothstep(14.0, 3.0, u);
   } else { vFoam = 0.0; }
+  vWaveN   = normalize(vec3(-dYdx, 1.0, -dYdz));
+  vWaveH   = dy;
+  vWorldPos = (modelMatrix * vec4(transformed,1.0)).xyz;
 }`);
-    sh.fragmentShader='varying float vFoam;\n'+sh.fragmentShader
+    sh.fragmentShader=
+      'uniform float uTime;\nuniform sampler2D uRipple;\nuniform float uChop;\n'+
+      'varying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvec3 gWorldN;\n'+
+      sh.fragmentShader
+      .replace('#include <normal_fragment_begin>',
+`#include <normal_fragment_begin>
+{
+  // ── SURFACE TEXTURE · three scrolling octaves of the tiling ripple map ──
+  // This is the whole trick: the mesh is only 22m per quad, but the *normal* can
+  // carry centimetre detail for free. Ripples, chop and glitter, no extra vertices.
+  vec2 wxz = vWorldPos.xz;
+  vec3 r1 = texture2D(uRipple, wxz*0.030 + vec2( 0.011, 0.006)*uTime).rgb*2.0-1.0;
+  vec3 r2 = texture2D(uRipple, wxz*0.088 + vec2(-0.016, 0.010)*uTime).rgb*2.0-1.0;
+  vec3 r3 = texture2D(uRipple, wxz*0.245 + vec2( 0.024,-0.019)*uTime).rgb*2.0-1.0;
+  vec3 rn = r1*0.55 + r2*0.30 + r3*0.19;
+  gWorldN = normalize(vWaveN + vec3(rn.r, 0.0, rn.b) * uChop);
+  normal  = normalize(mat3(viewMatrix) * gWorldN);   // three lights in VIEW space
+}`)
       .replace('#include <output_fragment>',
 `{
-  float fres = pow(1.0 - abs(dot(normalize(vViewPosition), vec3(0.0,0.0,1.0))), 3.0);
-  outgoingLight += vec3(0.55,0.75,0.85) * fres * 0.35;   // horizon sheen
-  outgoingLight = mix(outgoingLight, vec3(0.97,0.99,1.0), clamp(vFoam,0.0,0.85)); // 🌊 breaking foam
+  vec3 V = normalize(cameraPosition - vWorldPos);
+  // ── Fresnel horizon sheen, now off the REAL normal ──
+  float fres = pow(1.0 - clamp(dot(gWorldN, V), 0.0, 1.0), 4.0);
+  outgoingLight += vec3(0.55,0.75,0.85) * fres * 0.40;
+  // ── glitter: a tight sun lobe off the perturbed normal = a million moving specks ──
+  vec3 L = normalize(vec3(60.0,90.0,40.0));      // = sunDir
+  vec3 Hv = normalize(L + V);
+  float glint = pow(max(dot(gWorldN, Hv), 0.0), 96.0);
+  outgoingLight += vec3(1.0,0.97,0.90) * glint * 0.75;
+  // ── WHITECAPS: streaks stretched ALONG the wind, gated by the crests ──
+  vec2 wd = normalize(vec2(0.85,0.35));
+  vec2 sp = vec2(dot(vWorldPos.xz,wd)*0.045, dot(vWorldPos.xz,vec2(-wd.y,wd.x))*0.20);
+  float streak = abs(texture2D(uRipple, sp + vec2(0.030,0.012)*uTime).r - 0.5)*2.0;
+  float cell   = abs(texture2D(uRipple, vWorldPos.xz*0.19 + vec2(-0.02,0.03)*uTime).b - 0.5)*2.0;
+  float crest  = smoothstep(0.14, 0.40, vWaveH);
+  float caps   = crest * smoothstep(0.34,0.80,streak) * smoothstep(0.18,0.62,cell);
+  outgoingLight = mix(outgoingLight, vec3(0.93,0.96,0.99), clamp(caps,0.0,0.55));
+  // ── the shore breakers still get the last word ──
+  outgoingLight = mix(outgoingLight, vec3(0.97,0.99,1.0), clamp(vFoam,0.0,0.85));
 }
 #include <output_fragment>`);
   };
@@ -445,7 +536,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-39'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-40'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
