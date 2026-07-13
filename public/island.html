@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-48</div>
+<div class="hud" id="tag">ISL-49</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -347,6 +347,46 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
   scene.add(isle);
 }
 
+/* ============================================================
+   🌊 THE SWELL — ONE model, shared by the GPU and the CPU.
+   The shader draws the water; JS has to put Kai ON it. If these two ever
+   disagree by even a little, she surfs through the waves instead of over
+   them. So the wave sum lives HERE, once, and the GLSL below is a literal
+   transcription. Change one, change both — there's a parity test in the log.
+   Deep-water swell: phase speed c = sqrt(g/k), so long waves genuinely
+   outrun short ones. Amplitude ramps with distance offshore:
+     flat at the beach  ->  3.8m amplitude = 7.6m crest-to-trough = 25 FEET.
+   ============================================================ */
+const SWELL=[            // amplitude share, wavelength (m), direction
+  {A:0.50, L:140, dx: 0.86, dz: 0.51},
+  {A:0.28, L: 95, dx: 0.50, dz:-0.87},
+  {A:0.14, L: 60, dx:-0.30, dz: 0.95},
+  {A:0.08, L: 52, dx: 0.70, dz: 0.71},  // ⚠️ not shorter: 12m quads alias below ~48m
+];
+const SWELL_RAMP=360;    // metres offshore to reach full height
+const SWELL_MAX=3.70;    // + the 0.12 base = 3.82m amplitude = 25ft peak-to-trough
+function swellAmp(x,z){
+  const r=Math.hypot(x,z);
+  const coastR=isleR(Math.atan2(z,x));
+  const off=Math.min(1,Math.max(0,(r-coastR)/SWELL_RAMP));
+  return 0.12+off*off*SWELL_MAX;
+}
+// height + slope of the open sea at (x,z), time t. Mirrors the vertex shader exactly.
+function oceanAt(x,z,t){
+  const amp=swellAmp(x,z);
+  let y=0,sx=0,sz=0;
+  for(const w of SWELL){
+    const k=6.28318/w.L, c=Math.sqrt(9.81/k);
+    const ph=k*(w.dx*x+w.dz*z)-c*t;
+    const a=amp*w.A;
+    y+=a*Math.sin(ph);
+    sx+=a*k*w.dx*Math.cos(ph);
+    sz+=a*k*w.dz*Math.cos(ph);
+  }
+  return {y,sx,sz,amp};
+}
+const oceanY=(x,z,t)=>0.42+oceanAt(x,z,t).y;   // 0.42 = the ocean mesh's own height
+
 /* ---------- the sea: depth-gradient, gentle swell, shore foam ---------- */
 /* 🌊 A TILING RIPPLE NORMAL MAP, baked once in a canvas.
    The reference ocean shader gets its texture from ~20 simplex-noise calls per
@@ -390,8 +430,11 @@ function rippleNormalTex(size){
 }
 let ocean,oceanPos,oceanPhase;
 {
-  const RIPPLE=rippleNormalTex(256);
-  const g=new THREE.PlaneGeometry(2400,2400,110,110);
+  const RIPPLE=rippleNormalTex(512);   // 🔍 finer surface detail — you're right on it when surfing
+  // 110 segments = 22m per quad — you cannot draw a 25ft wave on that.
+  // 200 gives 12m/quad: ~8-12 quads per swell. The normals are analytic, so the
+  // SHADING stays smooth even where the silhouette is faceted.
+  const g=new THREE.PlaneGeometry(2400,2400,200,200);
   g.rotateX(-Math.PI/2);
   oceanPos=g.attributes.position;
   oceanPhase=new Float32Array(oceanPos.count);
@@ -413,23 +456,40 @@ let ocean,oceanPos,oceanPhase;
     sh.uniforms.uRipple={value:RIPPLE};
     sh.uniforms.uChop={value:0.42};   // how hard the ripple normals bite
     oceanMat.userData.sh=sh;
-    sh.vertexShader='uniform float uTime;\nvarying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\n'+sh.vertexShader
+    sh.vertexShader='uniform float uTime;\nvarying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvarying float vAmp;\n'+sh.vertexShader
       .replace('#include <begin_vertex>',
 `#include <begin_vertex>
 {
   vec3 wp = (modelMatrix * vec4(transformed,1.0)).xyz;
-  // ── the swell, and — the part that was missing — its ANALYTIC SLOPE ──
-  // We were displacing vertices but never touching the normals, so the whole sea
-  // shaded like a flat sheet of plastic. Differentiate the wave sum and the swell
-  // finally catches the light.
-  float f1 = dot(wp.xz, vec2(0.16,0.11))  + uTime*1.15;
-  float f2 = dot(wp.xz, vec2(-0.07,0.19)) + uTime*0.80;
-  float f3 = dot(wp.xz, vec2(0.045,-0.06))+ uTime*0.50;
-  float dy = sin(f1)*0.14 + sin(f2)*0.10 + sin(f3)*0.16;
+  /* ── THE SWELL. Literal transcription of SWELL[] / oceanAt() in JS.
+     Deep-water phase speed c = sqrt(g/k): long swells outrun short chop.
+     Amplitude ramps from flat at the beach to 3.82m (25ft crest-to-trough)
+     360m offshore. The analytic slope goes out as the normal, so the whole
+     sea actually catches the light instead of shading like plastic. */
+  float angA   = atan(wp.z, wp.x);
+  float coastA = 156.0 + sin(angA*3.0+1.2)*16.0 + sin(angA*7.0+0.5)*7.0; // = isleR()
+  float off    = clamp((length(wp.xz) - coastA)/360.0, 0.0, 1.0);
+  float amp    = 0.12 + off*off*3.70;
+  float dy=0.0, dYdx=0.0, dYdz=0.0;
+  vec2  hz=vec2(0.0);
+  vec4 SW[4];
+  SW[0]=vec4(0.50,140.0, 0.86, 0.51);
+  SW[1]=vec4(0.28, 95.0, 0.50,-0.87);
+  SW[2]=vec4(0.14, 60.0,-0.30, 0.95);
+  SW[3]=vec4(0.08, 52.0, 0.70, 0.71);   // ⚠️ keep >= 48m: below that, 12m quads alias
+  for(int i=0;i<4;i++){
+    float k  = 6.28318/SW[i].y;
+    float cS = sqrt(9.81/k);
+    float ph = k*(SW[i].z*wp.x + SW[i].w*wp.z) - cS*uTime;
+    float a  = amp*SW[i].x;
+    dy   += a*sin(ph);
+    dYdx += a*k*SW[i].z*cos(ph);
+    dYdz += a*k*SW[i].w*cos(ph);
+    hz   += vec2(SW[i].z,SW[i].w)*a*0.30*cos(ph);   // Gerstner pinch — sharper crests
+  }
   transformed.y += dy;
-  transformed.x += cos(f1)*0.08;
-  float dYdx =  0.160*cos(f1)*0.14 + (-0.070)*cos(f2)*0.10 +  0.045*cos(f3)*0.16;
-  float dYdz =  0.110*cos(f1)*0.14 +   0.190*cos(f2)*0.10 + (-0.060)*cos(f3)*0.16;
+  transformed.x += hz.x;
+  transformed.z += hz.y;
   // 🌊 SHORE BREAKERS · analytic coast distance drives real surf on the east beach
   float ang = atan(wp.z, wp.x);
   float coastR = 156.0 + sin(ang*3.0+1.2)*16.0 + sin(ang*7.0+0.5)*7.0; // = isleR(ang)
@@ -453,11 +513,12 @@ let ocean,oceanPos,oceanPhase;
   } else { vFoam = 0.0; }
   vWaveN   = normalize(vec3(-dYdx, 1.0, -dYdz));
   vWaveH   = dy;
+  vAmp     = amp;
   vWorldPos = (modelMatrix * vec4(transformed,1.0)).xyz;
 }`);
     sh.fragmentShader=
       'uniform float uTime;\nuniform sampler2D uRipple;\nuniform float uChop;\n'+
-      'varying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvec3 gWorldN;\n'+
+      'varying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvarying float vAmp;\nvec3 gWorldN;\n'+
       sh.fragmentShader
       .replace('#include <normal_fragment_begin>',
 `#include <normal_fragment_begin>
@@ -489,7 +550,8 @@ let ocean,oceanPos,oceanPhase;
   vec2 sp = vec2(dot(vWorldPos.xz,wd)*0.045, dot(vWorldPos.xz,vec2(-wd.y,wd.x))*0.20);
   float streak = abs(texture2D(uRipple, sp + vec2(0.030,0.012)*uTime).r - 0.5)*2.0;
   float cell   = abs(texture2D(uRipple, vWorldPos.xz*0.19 + vec2(-0.02,0.03)*uTime).b - 0.5)*2.0;
-  float crest  = smoothstep(0.14, 0.40, vWaveH);
+  float crest  = smoothstep(0.30, 0.80, vWaveH/max(0.30,vAmp)); // relative to the LOCAL swell,
+                                                                // or the deep sea turns solid white
   float caps   = crest * smoothstep(0.34,0.80,streak) * smoothstep(0.18,0.62,cell);
   outgoingLight = mix(outgoingLight, vec3(0.93,0.96,0.99), clamp(caps,0.0,0.55));
   // ── the shore breakers still get the last word ──
@@ -550,7 +612,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-48'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-49'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -3008,10 +3070,10 @@ function tickRaid(dt){
       RAID.ship.position.x+=dx/d*5.5*dt;
       RAID.ship.position.z+=dz/d*5.5*dt;
       RAID.ship.rotation.y=Math.atan2(dx,dz);
-      RAID.ship.position.y=0.42+Math.sin(performance.now()/700)*0.12;
+      RAID.ship.position.y=oceanY(RAID.ship.position.x,RAID.ship.position.z,performance.now()/1000)+0.1;
     }else raidLand();
   }else if(RAID.state==='ashore'){
-    RAID.ship&&(RAID.ship.position.y=0.42+Math.sin(performance.now()/700)*0.12);
+    RAID.ship&&(RAID.ship.position.y=oceanY(RAID.ship.position.x,RAID.ship.position.z,performance.now()/1000)+0.1);
     if(skels.length===0){
       RAID.state='departing';
       toast('🏴‍☠️ Raid defeated! The ship retreats…');
@@ -3167,13 +3229,16 @@ addEventListener('keyup',e=>{if(e.key==='f'||e.key==='F'||e.key==='Enter')throwB
    Wall-clock seeded: every player sees the exact same apparition.
    ============================================================ */
 function mulberry32(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-const TITAN={cycleMs:20*60*1000,lastCycle:-1,group:null,phaseT:0,meteors:[],rings:[],warned:false,armT:0};
+/* was a 20-min cycle => she existed 6% of the time. Nobody ever saw her. */
+const TITAN={cycleMs:6*60*1000,lastCycle:-1,group:null,phaseT:0,meteors:[],rings:[],warned:false,armT:0};
 function lavaTex(){
   const cv=document.createElement('canvas');cv.width=128;cv.height=256;
   const g=cv.getContext('2d');
-  g.fillStyle='#1d1512';g.fillRect(0,0,128,256);
-  g.strokeStyle='#ff5a1a';g.lineWidth=3;g.shadowColor='#ff7a2a';g.shadowBlur=6;
-  for(let i=0;i<14;i++){ // glowing magma cracks
+  // she read as a black silhouette: base #1d1512 x a dark brown colour = ~0.04 albedo.
+  // She's a LAVA titan. Give her hot basalt and bright magma.
+  g.fillStyle='#3a2a24';g.fillRect(0,0,128,256);
+  g.strokeStyle='#ffb02a';g.lineWidth=4;g.shadowColor='#ff7a2a';g.shadowBlur=10;
+  for(let i=0;i<24;i++){ // glowing magma cracks
     g.beginPath();
     let x=Math.random()*128,y=Math.random()*256;
     g.moveTo(x,y);
@@ -3189,7 +3254,8 @@ function buildTitan(){
   // ⚠️ fog:false on EVERY part of her. She stands 780u out, where FogExp2 would
   // paint her 89% sky-blue and she vanishes into the haze (only her toes stayed
   // visible, against the darker ocean). She is a landmark — the haze doesn't get her.
-  const rockM=new THREE.MeshLambertMaterial({map:lt,color:lin(0x5a4438),emissive:lin(0x481700),emissiveMap:lt,fog:false});
+  const rockM=new THREE.MeshLambertMaterial({map:lt,color:lin(0xb09484),emissive:lin(0xff6a22),
+    emissiveMap:lt,emissiveIntensity:1.5,fog:false}); // the cracks GLOW; she is not a hole in the sky
   const seg=(w,h,d)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),rockM);
   // legs
   const legL=seg(26,120,30);legL.position.set(-18,60,0);g.add(legL);
@@ -3211,7 +3277,8 @@ function buildTitan(){
     eye.position.set(ex,240,15);g.add(eye);
   }
   const hair=seg(36,44,10);hair.position.set(0,232,-16);
-  hair.material=new THREE.MeshLambertMaterial({map:lt,color:lin(0x7a2408),emissive:lin(0x8a2600),emissiveMap:lt,fog:false});
+  hair.material=new THREE.MeshLambertMaterial({map:lt,color:lin(0xd8501a),emissive:lin(0xff4a10),
+    emissiveMap:lt,emissiveIntensity:1.7,fog:false}); // molten hair
   g.add(hair);
   // her own glow lights the smoke around her
   const glow=new THREE.PointLight(0xff6a22,1.2,600);glow.position.y=200;g.add(glow);
@@ -3282,7 +3349,7 @@ function tickTitan(dt){
   const now=Date.now();
   const cycle=Math.floor(now/TITAN.cycleMs);
   const tIn=(now%TITAN.cycleMs)/1000; // seconds into this cycle
-  const VISIT=75; // she's visible for 75 seconds each cycle
+  const VISIT=105; // 105s of every 6min = 29% uptime. She's an EVENT, not a rumour.
   if(tIn<VISIT){
     if(TITAN.lastCycle!==cycle){ // she rises
       TITAN.lastCycle=cycle;
@@ -3356,6 +3423,7 @@ function tickTitan(dt){
    GAME STATE + MAIN LOOP
    ============================================================ */
 const P={x:-84,z:74,vy:0,air:0,yaw:0};   // spawn on the cove shelf by the dock — clear of the court
+let surfPitch=0,surfRoll=0;              // she leans into the face of the wave
 let started=false,last=performance.now();
 
 let lobby=false;
@@ -3386,7 +3454,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-48 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-49 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
@@ -3427,7 +3495,7 @@ function frame(){
     const nz=P.z+Math.cos(P.yaw)*surfSpeed*dt;
     const gh=groundAt(nx,nz);
     if(gh>0.12&&Math.abs(gh-groundAt(P.x,P.z))<1.4){P.x=nx;P.z=nz;window.surfing=false}
-    else if(canSurf&&gh<=0.12&&Math.hypot(nx,nz)<560){P.x=nx;P.z=nz;window.surfing=true} // out on the water
+    else if(canSurf&&gh<=0.12&&Math.hypot(nx,nz)<750){P.x=nx;P.z=nz;window.surfing=true} // 🌊 out to the BIG water
     else{ // slide along
       const gx=groundAt(nx,P.z),gz=groundAt(P.x,nz);
       if(gx>0.12&&Math.abs(gx-groundAt(P.x,P.z))<1.4)P.x=nx;
@@ -3452,7 +3520,14 @@ function frame(){
   // apply to player object
   let py=g0+P.air;
   if(window.surfing){
-    py=0.55+Math.sin(t*2.2)*0.1+P.air; // riding the swell
+    // 🌊 ON the wave, not through it — same model the shader draws with.
+    const W=oceanAt(P.x,P.z,t);
+    py=0.42+W.y+0.13+P.air;
+    // lean into the face: slope along her travel = pitch, slope across it = roll
+    const fx=Math.sin(P.yaw), fz=Math.cos(P.yaw);
+    const tPitch=-(W.sx*fx+W.sz*fz), tRoll=-(W.sx*fz-W.sz*fx);
+    surfPitch+=(tPitch-surfPitch)*Math.min(1,dt*6);
+    surfRoll +=(tRoll -surfRoll )*Math.min(1,dt*6);
     // the board slides under her feet
     const bg=player.userData.board;
     if(bg&&bg.parent!==player){
@@ -3461,7 +3536,10 @@ function frame(){
       bg.position.set(0,0.06,0);bg.rotation.set(0,0,0);
       bg.scale.setScalar(1.35);
     }
-    if(bg){bg.rotation.z=Math.sin(t*2.6)*0.08;bg.rotation.x=mag>0.05?-0.1:0.02}
+    if(bg){
+      bg.rotation.z=surfRoll*0.9+Math.sin(t*2.6)*0.05;
+      bg.rotation.x=surfPitch*0.9+(mag>0.05?-0.08:0.02);
+    }
     // 🌊 spray off the tail when she's moving
     if(mag>0.2&&Math.random()<dt*14){
       fxImpact(P.x-Math.sin(P.yaw)*0.9,0.5,P.z-Math.cos(P.yaw)*0.9,0xeafcff);
@@ -3476,6 +3554,14 @@ function frame(){
   if(onSlide)py=RIDE.y;   // hero AND camera boom ride the flume
   player.position.set(P.x,py,P.z);
   player.rotation.y+=(((P.yaw-player.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*10);
+  if(window.surfing){                    // she banks with the swell
+    player.rotation.x=surfPitch*0.5;
+    player.rotation.z=surfRoll*0.5;
+  }else if(player.rotation.x||player.rotation.z){
+    player.rotation.x*=0.85;player.rotation.z*=0.85;
+    if(Math.abs(player.rotation.x)<0.001)player.rotation.x=0;
+    if(Math.abs(player.rotation.z)<0.001)player.rotation.z=0;
+  }
   // animation state
   const now2=performance.now();
   const emoting=now2<emoteUntil&&mag<0.05&&P.air<=0.05;
@@ -3531,6 +3617,7 @@ function frame(){
     let cx=P.x+dirX*smBoom, cz=P.z+dirZ*smBoom;
     let cy=py+1.7+(ch-1.7)*(smBoom/camDist);
     cy=Math.max(cy,groundAt(cx,cz)+1.5);
+    if(window.surfing)cy=Math.max(cy,oceanY(cx,cz,t)+1.4); // 🌊 the boom rides over the swell
     cam.position.lerp(new THREE.Vector3(cx,cy,cz),Math.min(1,dt*6.5));
     if(shakeT>0){ // 🌋 impact tremor
       shakeT-=dt;
