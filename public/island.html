@@ -49,7 +49,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-28</div>
+<div class="hud" id="tag">ISL-29</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -339,7 +339,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-28'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-29'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -410,6 +410,7 @@ const ROSTER={
   shadow:{file:'kk_hood.glb',name:'Shadow Fox',emoji:'🥷',h:1.8,costume:'cape'},
   wizard:{file:'kk_mage.glb',name:'Wizard Wren',emoji:'🧙',h:1.85},
   surfer:{file:'kk_rogue.glb',name:'Kai the Surfer',emoji:'🏄‍♀️',h:1.78,costume:'surf',surf:true,reach:3.2},
+  maui:{file:'kk_barb.glb',name:'Maui',emoji:'🌊',h:1.98,costume:'surf2',surf:true,reach:3.4},
 };
 let heroKey=localStorage.getItem('isl_hero');
 if(!ROSTER[heroKey])heroKey='captain';
@@ -446,22 +447,30 @@ function addCostume(root,kind){
     cape.position.set(0,-0.28,-0.16);
     chest.add(cape);
   }
-  if(kind==='surf'&&chest){
-    // 🏄‍♀️ the board: teal deck, coral stripe, little fin
+  if((kind==='surf'||kind==='surf2')&&chest){
+    // 🏄 two boards, two riders: Kai = teal/coral · Maui = koa wood/sunset
     const cv=document.createElement('canvas');cv.width=64;cv.height=128;
     const g=cv.getContext('2d');
-    g.fillStyle='#2bd9c8';g.fillRect(0,0,64,128);
-    g.fillStyle='#ff6f61';g.fillRect(26,0,12,128);
-    g.fillStyle='#fff6e8';g.beginPath();g.arc(32,20,9,0,7);g.fill();
+    if(kind==='surf'){
+      g.fillStyle='#2bd9c8';g.fillRect(0,0,64,128);
+      g.fillStyle='#ff6f61';g.fillRect(26,0,12,128);
+      g.fillStyle='#fff6e8';g.beginPath();g.arc(32,20,9,0,7);g.fill();
+    }else{
+      g.fillStyle='#8a5a2e';g.fillRect(0,0,64,128);          // koa wood
+      g.fillStyle='#5f3a1a';for(let i=0;i<128;i+=18)g.fillRect(0,i,64,3); // grain
+      g.fillStyle='#ffb02a';g.fillRect(20,0,8,128);           // sunset stripes
+      g.fillStyle='#e8483f';g.fillRect(34,0,8,128);
+    }
     const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
     const board=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),
       new THREE.MeshLambertMaterial({map:t}));
     board.scale.set(0.26,0.05,0.82); // a proper longboard silhouette
     const fin=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.16,5),
-      new THREE.MeshLambertMaterial({color:lin(0xff6f61)}));
+      new THREE.MeshLambertMaterial({color:lin(kind==='surf'?0xff6f61:0xffb02a)}));
     fin.position.set(0,-0.08,-0.62);fin.rotation.x=0.4;
     const bg=new THREE.Group();bg.add(board);bg.add(fin);
-    bg.position.set(0,-0.1,-0.24);        // slung across her back
+    if(kind==='surf2')bg.scale.setScalar(1.22); // Maui rides BIG
+    bg.position.set(0,-0.1,-0.24);        // slung across the back
     bg.rotation.set(0.12,0,1.05);
     chest.add(bg);
     root.userData.board=bg;
