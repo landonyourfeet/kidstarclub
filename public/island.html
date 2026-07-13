@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-47</div>
+<div class="hud" id="tag">ISL-48</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -161,7 +161,16 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
 const scene=new THREE.Scene();
 scene.fog=new THREE.FogExp2(lin(0xaad6f2),0.0019); // tropical haze (key-art softness)
-const cam=new THREE.PerspectiveCamera(50,1,0.1,1600);
+/* 🕳️ far=1600 CUT A HOLE IN THE SKY. The dome is a sphere of radius 1200 centred
+   on the island, so from out at sea the dome BEHIND the island sits at
+   (your distance + 1200). Surf past 400m and that exceeds the far plane — the sky
+   gets clipped away and you stare through the gap at the clear colour: pure black.
+   The dome is only 24x20 segments, so the clipped region has straight polygon edges:
+   a black triangle, with its bottom clipped flat by the island. That was the "blob".
+   Kai can surf to 560, and the ocean's far corners reach 2257 — so far must clear both.
+   near also raised 0.1 -> 0.25: a 0.1/2800 range wrecks depth precision (the boom
+   never gets closer than 3.4 anyway). */
+const cam=new THREE.PerspectiveCamera(50,1,0.25,2800);
 
 function resize(){
   const w=innerWidth,h=innerHeight;
@@ -541,7 +550,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-47'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-48'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -3377,7 +3386,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-47 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-48 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
@@ -3554,6 +3563,8 @@ function frame(){
   tickRemotes(dt);
   tickCritters(dt);
   tickSkels(dt);
+  tickRaid(dt);   // ⛵ …which had NEVER been called. The ship spawned on the horizon
+                  //    and sat there for eternity, and no raid ever landed. Not once.
   tickBursts(dt);
   tickFx(dt);
   tickBall(dt);
