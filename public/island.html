@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-60</div>
+<div class="hud" id="tag">ISL-61</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -233,8 +233,8 @@ scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
     scene.add(sp);
     return sp;
   };
-  mkGlow(420,'rgba(255,244,200,0.9)','rgba(255,214,140,0)',0.85); // outer glow
-  mkGlow(120,'rgba(255,255,240,1)','rgba(255,240,190,0)',1);      // the sun itself
+  const glow1=mkGlow(420,'rgba(255,244,200,0.9)','rgba(255,214,140,0)',0.85); // outer glow
+  const glow2=mkGlow(120,'rgba(255,255,240,1)','rgba(255,240,190,0)',1);      // the sun itself
   sun.position.copy(sunDir).multiplyScalar(160);
   // stylised cloud strips (flattened white blobs, slow drift)
   window.CLOUDS=[];
@@ -255,11 +255,22 @@ scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
      forever after. Done at THIS point in the file on purpose — the island, the ocean
      and every prop are created below, so the cube contains ONLY sky. Move this line
      down and you'll bake the island into the sea's reflection. */
-  const envRT=new THREE.WebGLCubeRenderTarget(256,{format:THREE.RGBAFormat,
+  const envRT=new THREE.WebGLCubeRenderTarget(512,{format:THREE.RGBAFormat,
     generateMipmaps:true,minFilter:THREE.LinearMipmapLinearFilter});
   const envCam=new THREE.CubeCamera(1,2400,envRT);
   envCam.position.set(0,25,0);
+  /* 🫧 THE TAN BLOBS ON THE WATER.
+     The bake was catching the SUN-GLOW SPRITES — a 420-unit radial gradient running
+     rgba(255,244,200) -> rgba(255,214,140). That is, literally, a tan blob. The sea
+     mirrored it, and at 256px the cube turned it (and the 16 cloud meshes) into
+     blocky beige patches sliding over the swell.
+     Bake the SKY GRADIENT ONLY. The water's sun highlight doesn't come from the cube
+     anyway — it comes from the analytic triple-lobe specular in the fragment shader,
+     which is sharp, correct, and moves with the waves. */
+  const hideFromSky=[glow1,glow2,...CLOUDS];
+  hideFromSky.forEach(o=>o.visible=false);
   envCam.update(renderer,scene);
+  hideFromSky.forEach(o=>o.visible=true);
   window.SKY_ENV=envRT.texture;
 }
 
@@ -859,7 +870,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-60'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-61'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -930,6 +941,8 @@ const ROSTER={
   pixie:{file:'kk_rogue.glb',name:'Pixie',emoji:'🦋',h:1.56,costume:'pixie',reach:2.6},
   kit:{file:'kk_knight.glb',name:'Kit Nine',emoji:'🐱',h:1.74,costume:'kit',reach:3.0},
   princess:{file:'kk_mage.glb',name:'Princess Luna',emoji:'👸',h:1.85,costume:'tiara'},
+  zoey:{file:'kk_rogue.glb',name:'Zoey Hoops',emoji:'🏀',h:1.84,costume:'baller_g',reach:3.1},
+  jax:{file:'kk_knight.glb',name:'Jax Slam',emoji:'🏀',h:2.00,costume:'baller_b',reach:3.2},
   surfer:{file:'kk_rogue.glb',name:'Kai the Surfer',emoji:'🏄‍♀️',h:1.72,costume:'surf',surf:true,reach:3.2},
   // the rest of the crew
   captain:{file:'kk_knight.glb',name:'Captain Star',emoji:'🦸',h:1.9,costume:'super'},
@@ -1160,6 +1173,43 @@ function inkMat(rx,ry){
     side:THREE.DoubleSide,depthWrite:false});
 }
 
+/* 🏀 THE BALLERS · Zoey and Jax. Jersey, headband, wristbands, high-tops. */
+function jerseyNum(chest,bg,fg,num){
+  const cv=document.createElement('canvas');cv.width=cv.height=80;
+  const g=cv.getContext('2d');
+  g.fillStyle=bg;g.fillRect(0,0,80,80);
+  g.strokeStyle=fg;g.lineWidth=5;g.strokeRect(4,4,72,72);
+  g.fillStyle=fg;g.font='900 52px system-ui';g.textAlign='center';
+  g.fillText(num,40,58);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.40,0.40),
+    new THREE.MeshLambertMaterial({map:t}));
+  pl.position.set(0,0.03,TORSO.front+0.03);   // ON her chest, not in it
+  chest.add(pl);
+}
+function sculptBaller(root,girl){
+  hideParts(root,GEAR);
+  const jersey = girl?0xff2ec4:0xffb02a;
+  const skin   = girl?0xf2bd93:0xa9764e;
+  paintPart(root,'Body',jersey);
+  paintPart(root,'ArmLeft',skin); paintPart(root,'ArmRight',skin);
+  paintPart(root,'LegLeft',0xf5f7fb); paintPart(root,'LegRight',0xf5f7fb);  // white high-tops
+  const head=bone(root,'head'), chest=bone(root,'chest');
+  if(head){
+    const g=new THREE.Group(), m=hairMat(girl?0x3a2418:0x1c1512);
+    hairCap(g,m);
+    if(girl)ponytail(g,m,0xffe14d); else longHair(g,m);
+    const band=new THREE.Mesh(new THREE.TorusGeometry(SKULL.r*0.95,0.08,8,24),
+      hairMat(girl?0x45d8ff:0xe8483f));                     // 🏀 the headband
+    band.rotation.x=Math.PI/2; band.position.y=SKULL.cy+0.34; g.add(band);
+    head.add(g);
+  }
+  if(chest)jerseyNum(chest, girl?'#ff2ec4':'#ffb02a', '#ffffff', girl?'7':'3');
+  const wm=new THREE.MeshLambertMaterial({color:lin(0xffffff),skinning:true});
+  inkBand(root,'lowerarm.l','wrist.l',0.88,0.14,0.11,wm);    // wristbands
+  inkBand(root,'lowerarm.r','wrist.r',0.88,0.14,0.11,wm);
+}
+
 /* ⭐ NOVA STAR · the leader. Magenta suit, cyan cape, mask, blonde ponytail. */
 function sculptNova(root){
   hideParts(root,GEAR);
@@ -1340,6 +1390,8 @@ function sculptMaui(root){
   }
 }
 function addCostume(root,kind){
+  if(kind==='baller_g')return sculptBaller(root,true);
+  if(kind==='baller_b')return sculptBaller(root,false);
   if(kind==='nova')  return sculptNova(root);
   if(kind==='aurora')return sculptAurora(root);
   if(kind==='pixie') return sculptPixie(root);
@@ -4159,7 +4211,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-60 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-61 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
