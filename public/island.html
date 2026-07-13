@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-42</div>
+<div class="hud" id="tag">ISL-44</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -119,9 +119,11 @@
 <div id="joy"><i></i></div>
 <button id="emote" style="position:fixed;right:26px;bottom:calc(124px + var(--ksnav));z-index:11;width:56px;height:56px;border-radius:50%;border:2px solid #fff;background:rgba(157,92,255,.85);font-size:24px">🎉</button>
 <button id="atk" style="position:fixed;right:108px;bottom:calc(44px + var(--ksnav));z-index:11;width:74px;height:74px;border-radius:50%;border:3px solid #fff;background:rgba(232,72,63,.9);font-size:32px">⚔️</button>
+<div id="pwrcue" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(134px + var(--ksnav));z-index:12;color:#0b3d1f;background:#4ade80;padding:4px 14px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.08em;box-shadow:0 0 20px rgba(74,222,128,.9);pointer-events:none">🟢 SWISH — LET GO!</div>
 <div id="pwrwrap" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + var(--ksnav));z-index:11;width:220px;height:16px;border-radius:999px;background:rgba(6,20,40,.7);border:2px solid rgba(255,255,255,.5)">
-  <div id="pwr" style="height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#facc15,#fb923c,#ef4444);box-shadow:0 0 12px rgba(250,204,21,.8)"></div>
-  <div id="pwrmark" style="display:none;position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;border-radius:3px;background:rgba(255,255,255,.85)"></div>
+  <div id="pwrzone" style="display:none;position:absolute;top:0;bottom:0;background:rgba(74,222,128,.42);border-left:2px solid rgba(74,222,128,.9);border-right:2px solid rgba(74,222,128,.9)"></div>
+  <div id="pwr" style="height:100%;width:0%;background:linear-gradient(90deg,#2bd9ff,#8a5cff,#ff2ec4);box-shadow:0 0 12px rgba(138,92,255,.7);position:relative"></div>
+  <div id="pwrmark" style="display:none;position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff"></div>
 </div>
 <div class="hud" id="hpwrap" style="left:14px;top:158px;width:150px;height:16px;border-radius:999px;background:rgba(6,20,40,.65);border:2px solid rgba(255,255,255,.5);overflow:hidden">
   <div id="hpbar" style="height:100%;width:100%;background:linear-gradient(90deg,#4ade80,#a3e635);border-radius:999px;transition:width .18s"></div>
@@ -536,7 +538,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-42'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-44'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -2397,6 +2399,40 @@ function shotSpeed(d,h,rimY){
   if(den<=0.05)return null;
   return {v:Math.sqrt(GRAV*d*d/den), th};
 }
+/* 🟢 THE GREEN WINDOW · the exact band of power that actually drops it in.
+   Not a guess and not a fixed ±3% — it's SOLVED. The hole gives you
+   RIM_IN - BR = 0.107m of centre play, so we find the two release speeds
+   whose trajectories cross the rim plane exactly 0.107m short and 0.107m long,
+   and light the bar green between them. Release anywhere in there and it goes.
+   The band is naturally WIDE for a layup and razor-thin from downtown — which
+   is exactly right, and it teaches the shot without ever faking the physics. */
+/* 🎯 …and here's the honest bit. The TRUE make-window above is 0.5%-1.9% of the
+   power bar. At a 1.5s charge that's a 15-90ms release window — from downtown it's
+   nine milliseconds. No eight-year-old can hit that, and a green light you can't
+   hit is just taunting her.
+   So GREEN IS A TIMING WINDOW, and hitting it is a PROMISE: release inside the band
+   and we snap the release speed to the exact swish speed (±0.3% of human wobble).
+   The band narrows with distance, so a layup is generous and a full-court heave is
+   a knife-edge — the skill is real, the physics underneath is untouched, and a miss
+   outside the band still clangs off real iron. */
+const shotBand=d=>Math.max(0.022,Math.min(0.055,0.055-d*0.0012));
+function makeWindow(d,h,rimY){
+  const sol=shotSpeed(d,h,rimY);
+  if(!sol)return null;
+  const ca=Math.cos(sol.th), sa=Math.sin(sol.th), dh=rimY-h;
+  const cross=v=>{                       // where it crosses the rim plane, falling
+    const vy=v*sa, disc=vy*vy-2*GRAV*dh;
+    if(disc<0)return -1;                 // never even gets up to the rim
+    return v*ca*((vy+Math.sqrt(disc))/GRAV);
+  };
+  const tol=RIM_IN-BR;                   // 0.107m — the ball has to FIT
+  const solve=target=>{                  // cross() climbs monotonically with v, so bisect
+    let lo=1,hi=45;
+    for(let i=0;i<44;i++){const m=(lo+hi)/2; if(cross(m)<target)lo=m; else hi=m}
+    return (lo+hi)/2;
+  };
+  return {v:sol.v, lo:solve(d-tol), hi:solve(d+tol)};
+}
 // which basket are you actually shooting at?
 function aimRim(){
   if(!RIMS.length)return null;
@@ -2508,6 +2544,18 @@ function postEvent(kind,pts,x,z){
   fetch('/api/island/event',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({kind,pts,x,z})}).catch(()=>{});
 }
+/* one plan, used by BOTH the green bar and the release — so what she SEES is
+   exactly what she GETS. If these ever disagree, the bar is lying. */
+function shotPlan(R){
+  if(!R)return null;
+  const d=Math.max(0.5,Math.hypot(R.x-P.x,R.z-P.z)-RELEASE_FWD); // from the RELEASE point
+  const w=makeWindow(d,groundAt(P.x,P.z)+RELEASE_H,R.y);         // R.y = the rim's WORLD height
+  if(!w)return null;
+  w.d=d;
+  w.cMid=(w.v-SHOT_V0)/SHOT_VR;
+  w.band=shotBand(d);
+  return w;
+}
 let charging=false,chargeT=0;
 function startCharge(){
   if(BALL.mode!=='carried'||charging)return;
@@ -2530,7 +2578,16 @@ function shotPlan(wobble){
     const d=Math.max(0.5,Math.hypot(R.x-P.x,R.z-P.z)-RELEASE_FWD);
     th=shotAngle(d,R.y-(groundAt(P.x,P.z)+RELEASE_H)); // she puts the right arc on it
   }
-  const speed=SHOT_V0+chargeT*SHOT_VR;
+  let speed=SHOT_V0+chargeT*SHOT_VR;
+  const plan=shotPlan(R);
+  if(plan&&plan.cMid>=0&&plan.cMid<=1&&Math.abs(chargeT-plan.cMid)<=plan.band){
+    // 🟢 she hit the green — it goes in. The human wobble has to SHRINK with range:
+    // range error ≈ 2·d/v·dv, and the hole is only 0.107m wide, so a flat ±0.3%
+    // throws a 27m heave 15cm off — wider than the rim. Scale it, or the promise breaks.
+    const jit=Math.min(0.004, 0.05/(2*plan.d));
+    speed=plan.v*(1+(Math.random()*2-1)*jit);
+    BALL.timed=true;
+  }else BALL.timed=false;
   const ca=Math.cos(th), sa=Math.sin(th);
   return {yaw,
     x:P.x+Math.sin(yaw)*RELEASE_FWD, y:groundAt(P.x,P.z)+RELEASE_H, z:P.z+Math.cos(yaw)*RELEASE_FWD,
@@ -2540,6 +2597,9 @@ function throwBall(){
   if(!charging||BALL.mode!=='carried')return;
   charging=false;
   document.getElementById('pwrwrap').style.display='none';
+  document.getElementById('pwrcue').style.display='none';
+  BALL.hotTick=false;
+  if(ball)ball.material.emissive.setHex(0x000000);
   const s=shotPlan(true);
   P.yaw=s.yaw;                            // she turns and faces the shot
   BALL.mode='flying';BALL.scored=false;BALL.rattled=false;BALL.glass=false;BALL.grounded=false;
@@ -2614,26 +2674,42 @@ function tickBall(dt){
       groundAt(P.x,P.z)+1.15,
       P.z+Math.cos(P.yaw+0.5)*0.45);
     if(charging){
-      chargeT=Math.min(1,chargeT+dt/1.3);
-      document.getElementById('pwr').style.width=(chargeT*100)+'%';
-      // 🎯 the SWEET SPOT: exactly the power that drops it in from where you stand.
-      // The physics is honest, so we show kids the answer and let them hit it.
-      const R=aimRim();
+      chargeT=Math.min(1,chargeT+dt/1.5);
+      const bar=document.getElementById('pwr');
+      bar.style.width=(chargeT*100)+'%';
       const mk=document.getElementById('pwrmark');
-      if(R){
-        const d=Math.max(0.5,Math.hypot(R.x-P.x,R.z-P.z)-RELEASE_FWD); // from the RELEASE point
-        const sol=shotSpeed(d,groundAt(P.x,P.z)+RELEASE_H,R.y);        // R.y = the rim's WORLD height
-        if(sol){
-          const need=(sol.v-SHOT_V0)/SHOT_VR;
-          if(need>=0&&need<=1){
-            mk.style.display='block';
-            mk.style.left=(need*100)+'%';
-            const hot=Math.abs(chargeT-need)<0.035;
-            mk.style.background=hot?'#4ade80':'rgba(255,255,255,.85)';
-            mk.style.boxShadow=hot?'0 0 14px #4ade80':'0 0 8px rgba(255,255,255,.7)';
-          }else mk.style.display='none';
-        }else mk.style.display='none';
-      }else mk.style.display='none';
+      const zone=document.getElementById('pwrzone');
+      const wrap=document.getElementById('pwrwrap');
+      const cue=document.getElementById('pwrcue');
+      const R=aimRim();
+      let hot=false, w=shotPlan(R);
+      if(w&&w.cMid>=0&&w.cMid<=1){
+        const l=Math.max(0,w.cMid-w.band), r2=Math.min(1,w.cMid+w.band);
+        zone.style.display='block';
+        zone.style.left=(l*100)+'%';
+        zone.style.width=((r2-l)*100)+'%';
+        mk.style.display='block';
+        mk.style.left=(w.cMid*100)+'%';
+        hot=chargeT>=l&&chargeT<=r2;
+      }else{ zone.style.display='none'; mk.style.display='none'; }
+      // 🟢 GREEN = LET GO. It means one thing and one thing only.
+      if(hot){
+        bar.style.background='linear-gradient(90deg,#16a34a,#4ade80,#bbf7d0)';
+        bar.style.boxShadow='0 0 20px #4ade80';
+        wrap.style.borderColor='#4ade80';
+        wrap.style.boxShadow='0 0 22px rgba(74,222,128,.75)';
+        cue.style.display='block';
+        if(ball)ball.material.emissive.setHex(0x1f7a3a);   // the ball lights up in her hands
+        if(!BALL.hotTick){BALL.hotTick=true;ping()}        // …and it TICKS the moment you enter
+      }else{
+        bar.style.background='linear-gradient(90deg,#2bd9ff,#8a5cff,#ff2ec4)';
+        bar.style.boxShadow='0 0 12px rgba(138,92,255,.7)';
+        wrap.style.borderColor='rgba(255,255,255,.5)';
+        wrap.style.boxShadow='none';
+        cue.style.display='none';
+        if(ball)ball.material.emissive.setHex(0x000000);
+        BALL.hotTick=false;
+      }
     }
   }else{ // 🏀 flying — SUBSTEPPED, or a 0.24m ball at 18 m/s tunnels straight through
     const N=Math.max(1,Math.min(16,Math.ceil(dt/0.004)));
