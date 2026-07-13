@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-64</div>
+<div class="hud" id="tag">ISL-66</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -893,7 +893,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-64'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-66'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -2803,7 +2803,7 @@ addEventListener('keyup',e=>{
   keys[normKey(e.key)]=false});
 let camYaw=2.6,camPitch=0.32,camDist=9.5,dragId=null,lx=0,ly=0;
 let slopeTilt=0,lookReleasedAt=0;
-let smBoom=9.5,smLead=0,followRamp=0;
+let smBoom=9.5,smLead=0,followRamp=0,smZoom=1,smDrop=0;
 const lookTarget=new THREE.Vector3(0,2,20);
 let pinchId2=null,pinchD0=0,pinchDist0=0;
 addEventListener('wheel',e=>{camDist=Math.max(5.5,Math.min(16,camDist+e.deltaY*0.01))},{passive:true});
@@ -2820,7 +2820,7 @@ canvas.addEventListener('pointerdown',e=>{
 addEventListener('pointermove',e=>{
   if(e.pointerId===dragId){
     camYaw-=(e.clientX-lx)*0.0052;
-    camPitch=Math.max(0.06,Math.min(1.1,camPitch+(e.clientY-ly)*0.0038));
+    camPitch=Math.max(-0.85,Math.min(1.1,camPitch+(e.clientY-ly)*0.0038)); // 🔭 negative = look UP at the sky
     lx=e.clientX;ly=e.clientY;
   }
   if(e.pointerId===pinchId2&&dragId!==null){
@@ -4234,7 +4234,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-64 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-66 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
@@ -4443,23 +4443,49 @@ function frame(){
   }
   // camera: Starville boom — orbit-follow, occlusion pull-in sampled along the boom, zoomable
   {
-    const pEff=Math.max(0.05,Math.min(1.15,camPitch+slopeTilt));
-    const ch=3.0+pEff*5.2;
+    const surfing=window.surfing;
+    /* 🎥 THE SURF CAM.
+       The old rule was cy = max(cy, oceanY(BEHIND HER) + 1.4). But on a 145m roller the
+       water BEHIND her is a WALL — sometimes a hundred metres higher than she is. So the
+       camera got heaved up over it and you ended up looking at the top of her head from
+       orbit while the drop you were about to take was off-screen entirely.
+       Three rules instead:
+         1. ZOOM OUT with speed — at 88 m/s you need the whole face in frame.
+         2. If the wave behind would swallow the shot, pull the boom IN. Never lift the
+            camera over it. And hard-CEILING how far above her it can ever get.
+         3. Aim at the WATER AHEAD of her, not at her back — so at the peak you're looking
+            down the drop, and climbing a face you're looking up it. You always see where
+            you're going. */
+    const zoom = surfing ? 1.55+Math.min(1.35,surfV/34) : 1;   // up to ~2.9x back
+    smZoom += (zoom-smZoom)*Math.min(1,dt*2.0);
+    const camD = camDist*smZoom;
+    /* 🔭 pEff can now go NEGATIVE — drag down past level and you tip the camera up into
+       the sky. Two things make that actually work:
+         · the boom must not SINK as hard as it RISES (a camera at ankle height just
+           eats sand), so the negative side uses a gentler height curve;
+         · and looking up is really about the LOOK TARGET, not the camera. Lifting the
+           target above her head is what pitches the view skyward — see skyLift below. */
+    const pEff=Math.max(-0.85,Math.min(1.15,camPitch+slopeTilt+(surfing?0.14:0)));
+    const ch=3.0+(pEff>=0 ? pEff*5.2 : pEff*2.4);
+    const skyLift=Math.max(0,-pEff);   // 0 = level · 0.85 = straight up at the clouds
     const dirX=-Math.sin(camYaw)*Math.cos(pEff), dirZ=-Math.cos(camYaw)*Math.cos(pEff);
-    let boom=camDist;
+    let boom=camD;
     const eyeY=py+1.7;
     for(let tt=0.25;tt<=1.001;tt+=0.15){ // sample the sightline: hills never eat the view
-      const sx=P.x+dirX*camDist*tt, sz=P.z+dirZ*camDist*tt;
+      const sx=P.x+dirX*camD*tt, sz=P.z+dirZ*camD*tt;
       const sy=eyeY+(ch-1.7)*tt;
-      const g=groundAt(sx,sz);
-      if(g+0.9>sy){boom=Math.min(boom,camDist*tt-0.6);}
+      if(groundAt(sx,sz)+0.9>sy){boom=Math.min(boom,camD*tt-0.6);}
+      if(surfing&&oceanY(sx,sz,t)+1.6>sy){boom=Math.min(boom,camD*tt-0.6);} // 🌊 the wave behind → pull IN
     }
     boom=Math.max(3.4,boom);
     smBoom+=(boom-smBoom)*Math.min(1,dt*(boom<smBoom?11:2.6)); // in fast (no clipping) · out slow (no lurch)
     let cx=P.x+dirX*smBoom, cz=P.z+dirZ*smBoom;
-    let cy=py+1.7+(ch-1.7)*(smBoom/camDist);
+    let cy=py+1.7+(ch-1.7)*(smBoom/camD);
     cy=Math.max(cy,groundAt(cx,cz)+1.5);
-    if(window.surfing)cy=Math.max(cy,oceanY(cx,cz,t)+1.4); // 🌊 the boom rides over the swell
+    if(surfing){
+      cy=Math.max(cy,oceanY(cx,cz,t)+1.6);            // don't get dunked…
+      cy=Math.min(cy, py+2.2+smBoom*0.55);            // …but NEVER climb above her. This is the fix.
+    }
     cam.position.lerp(new THREE.Vector3(cx,cy,cz),Math.min(1,dt*6.5));
     if(shakeT>0){ // 🌋 impact tremor
       shakeT-=dt;
@@ -4468,12 +4494,22 @@ function frame(){
       cam.position.y+=(Math.random()-0.5)*sh*0.6;
       cam.position.z+=(Math.random()-0.5)*sh;
     }
-    smLead+=((mag>0.05?1.8:0)-smLead)*Math.min(1,dt*3.5);
-    lookTarget.lerp(new THREE.Vector3(
-      P.x+Math.sin(P.yaw)*smLead,
-      py+1.7+slopeTilt*3,
-      P.z+Math.cos(P.yaw)*smLead),Math.min(1,dt*9));
+    // 👀 look where she's GOING. While surfing that means aiming at the water ahead —
+    //    at the peak you're staring down the drop; climbing, you're looking up the face.
+    const wantLead = surfing ? 8+surfV*0.34 : (mag>0.05?1.8:0);
+    smLead+=(wantLead-smLead)*Math.min(1,dt*3.5);
+    const lx=P.x+Math.sin(P.yaw)*smLead, lz=P.z+Math.cos(P.yaw)*smLead;
+    const wantY = (surfing ? oceanY(lx,lz,t)+2.2 : py+1.7+slopeTilt*3)
+                + skyLift*smBoom*2.1;   // 🔭 …and THIS is what tips the view up to the sky
+    smDrop+=(wantY-smDrop)*Math.min(1,dt*(surfing?4.5:9));
+    lookTarget.lerp(new THREE.Vector3(lx,smDrop,lz),Math.min(1,dt*9));
     cam.lookAt(lookTarget);
+    // 🏎️ and a little FOV stretch, because 88 m/s should FEEL like 88 m/s
+    const wantFov = 50 + (surfing?Math.min(15,surfV*0.30):0);
+    if(Math.abs(cam.fov-wantFov)>0.05){
+      cam.fov+=(wantFov-cam.fov)*Math.min(1,dt*2.5);
+      cam.updateProjectionMatrix();
+    }
   }
 
   // world life
