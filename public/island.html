@@ -6,6 +6,9 @@
 <link rel="icon" href="/favicon.png" sizes="32x32" type="image/png">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
 <meta name="theme-color" content="#0a1a2f">
 <title>STARVILLE ISLAND</title>
 <style>
@@ -36,13 +39,22 @@
   #ksbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:space-around;align-items:center;
     padding:6px 6px calc(8px + env(safe-area-inset-bottom));
     background:rgba(13,2,16,.96);border-top:3px solid #ff2ec4}
-  #ksbar button{background:none;border:none;color:#fff;font-size:9px;font-weight:800;letter-spacing:.1em;
-    text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 10px;
-    opacity:.82;cursor:pointer;position:relative;transition:transform .12s cubic-bezier(.34,1.8,.64,1)}
-  #ksbar button span{font-size:20px;line-height:1}
-  #ksbar button:active{transform:scale(.84) rotate(-4deg)}
-  #ksbar button.star{width:58px;height:58px;border-radius:50%;background:#ff2ec4;border:3px solid #fff;
-    margin-top:-22px;font-size:26px;opacity:1;box-shadow:0 4px 0 rgba(13,2,16,.6);justify-content:center;padding:0}
+  #ksbar button{background:none;border:none;color:#fff;font-family:'Anton',sans-serif;
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 8px;
+    opacity:.75;cursor:pointer;position:relative;transition:transform .12s cubic-bezier(.34,1.8,.64,1)}
+  #ksbar button .ni{width:30px;height:30px;display:block}
+  #ksbar button .ni svg{width:100%;height:100%;display:block}
+  #ksbar button:active{transform:scale(.82) rotate(-4deg)}
+  #ksbar button.on{opacity:1;color:#45d8ff}
+  #ksbar button.on .ni{animation:icobounce .5s cubic-bezier(.34,2.2,.64,1)}
+  @keyframes icobounce{0%{transform:scale(.6) rotate(-12deg)}60%{transform:scale(1.25) rotate(6deg)}100%{transform:scale(1) rotate(0)}}
+  #ksbar button.plus{width:62px;height:62px;border-radius:50%;background:#ff2ec4;border:3px solid #fff;
+    opacity:1;box-shadow:0 4px 0 rgba(13,2,16,.6);margin-top:-24px;padding:7px;justify-content:center;
+    animation:plusfloat 2.6s ease-in-out infinite}
+  #ksbar button.plus svg{width:100%;height:100%;display:block}
+  #ksbar button.plus:active{transform:translateY(3px) scale(.9) rotate(10deg);box-shadow:0 1px 0 rgba(13,2,16,.6);animation:none}
+  @keyframes plusfloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-4px) rotate(-5deg)}}
   #chatDot{display:none;position:absolute;top:-1px;right:6px;width:11px;height:11px;border-radius:50%;
     background:#45d8ff;border:2px solid #0d0210;animation:dotpulse 1.1s ease-in-out infinite}
   #chatDot.on{display:block}
@@ -82,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-32</div>
+<div class="hud" id="tag">ISL-40</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -98,17 +110,18 @@
   </div>
 </div>
 <nav id="ksbar">
-  <button onclick="location.assign('/#feed')"><span>⭐</span>Stage</button>
-  <button onclick="location.assign('/#arcade')"><span>🎮</span>Arcade</button>
-  <button class="star" onclick="location.assign('/')">✴️</button>
-  <button id="ksChat"><span>💬</span>Chat<i id="chatDot"></i></button>
-  <button onclick="location.assign('/#me')"><span>🌟</span>My Star</button>
+  <button onclick="location.assign('/#feed')"><span class="ni" data-ic="stage"></span>Stage</button>
+  <button onclick="location.assign('/#arcade')" class="on"><span class="ni" data-ic="game"></span>Arcade</button>
+  <button class="plus" onclick="location.assign('/')"><span data-ic="plus"></span></button>
+  <button id="ksChat"><span class="ni" data-ic="chat"></span>Chat<i id="chatDot"></i></button>
+  <button onclick="location.assign('/#me')"><span class="ni" data-ic="star"></span>My Star</button>
 </nav>
 <div id="joy"><i></i></div>
 <button id="emote" style="position:fixed;right:26px;bottom:calc(124px + var(--ksnav));z-index:11;width:56px;height:56px;border-radius:50%;border:2px solid #fff;background:rgba(157,92,255,.85);font-size:24px">🎉</button>
 <button id="atk" style="position:fixed;right:108px;bottom:calc(44px + var(--ksnav));z-index:11;width:74px;height:74px;border-radius:50%;border:3px solid #fff;background:rgba(232,72,63,.9);font-size:32px">⚔️</button>
-<div id="pwrwrap" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + var(--ksnav));z-index:11;width:220px;height:16px;border-radius:999px;background:rgba(6,20,40,.7);border:2px solid rgba(255,255,255,.5);overflow:hidden">
+<div id="pwrwrap" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + var(--ksnav));z-index:11;width:220px;height:16px;border-radius:999px;background:rgba(6,20,40,.7);border:2px solid rgba(255,255,255,.5)">
   <div id="pwr" style="height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#facc15,#fb923c,#ef4444);box-shadow:0 0 12px rgba(250,204,21,.8)"></div>
+  <div id="pwrmark" style="display:none;position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;border-radius:3px;background:rgba(255,255,255,.85)"></div>
 </div>
 <div class="hud" id="hpwrap" style="left:14px;top:158px;width:150px;height:16px;border-radius:999px;background:rgba(6,20,40,.65);border:2px solid rgba(255,255,255,.5);overflow:hidden">
   <div id="hpbar" style="height:100%;width:100%;background:linear-gradient(90deg,#4ade80,#a3e635);border-radius:999px;transition:width .18s"></div>
@@ -321,8 +334,49 @@ const inOcean=(x,z)=>groundAt(x,z)<0.12;
 }
 
 /* ---------- the sea: depth-gradient, gentle swell, shore foam ---------- */
+/* 🌊 A TILING RIPPLE NORMAL MAP, baked once in a canvas.
+   The reference ocean shader gets its texture from ~20 simplex-noise calls per
+   pixel. That is a beautiful desktop demo and it would melt a kid's tablet.
+   Same idea, ~1/20th the cost: bake the noise ONCE into a seamless normal map,
+   then scroll three octaves of it in the fragment shader. Integer frequencies
+   keep it perfectly tileable, so it never seams. */
+function rippleNormalTex(size){
+  size=size||256;
+  let seed=1337>>>0;
+  const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+  const W=[];
+  for(let i=0;i<10;i++)W.push({
+    fx:1+Math.floor(rnd()*7), fz:1+Math.floor(rnd()*7),
+    ph:rnd()*6.2832, a:1/(1+i*0.62)
+  });
+  const H=new Float32Array(size*size);
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const u=x/size*6.2832, v=y/size*6.2832;
+    let h=0;
+    for(const w of W)h+=Math.sin(w.fx*u+w.fz*v+w.ph)*w.a;
+    H[y*size+x]=h;
+  }
+  const cv=document.createElement('canvas');cv.width=cv.height=size;
+  const g=cv.getContext('2d'), img=g.createImageData(size,size);
+  const S=1.9;
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const l=H[y*size+((x-1+size)%size)], r=H[y*size+((x+1)%size)];
+    const d=H[((y-1+size)%size)*size+x], u2=H[((y+1)%size)*size+x];
+    let nx=(l-r)*S, nz=(d-u2)*S;
+    const len=Math.hypot(nx,1,nz), i4=(y*size+x)*4;
+    img.data[i4]  =(nx/len*0.5+0.5)*255;   // R = x slope
+    img.data[i4+1]=(1 /len*0.5+0.5)*255;   // G = up
+    img.data[i4+2]=(nz/len*0.5+0.5)*255;   // B = z slope
+    img.data[i4+3]=255;
+  }
+  g.putImageData(img,0,0);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;   // ⚠️ LINEAR encoding — a normal map is data, not colour
+  return t;
+}
 let ocean,oceanPos,oceanPhase;
 {
+  const RIPPLE=rippleNormalTex(256);
   const g=new THREE.PlaneGeometry(2400,2400,110,110);
   g.rotateX(-Math.PI/2);
   oceanPos=g.attributes.position;
@@ -340,42 +394,92 @@ let ocean,oceanPos,oceanPhase;
   g.setAttribute('color',new THREE.BufferAttribute(cols,3));
   const oceanMat=new THREE.MeshPhongMaterial({color:0xffffff,vertexColors:true,
     shininess:220,specular:lin(0xdff2ff),transparent:true,opacity:.92});
-  oceanMat.onBeforeCompile=(sh)=>{ // 🌊 stylized Gerstner waves + Fresnel rim — the free 'Water Pro' look
+  oceanMat.onBeforeCompile=(sh)=>{ // 🌊 swell + REAL surface texture + Fresnel + whitecaps
     sh.uniforms.uTime={value:0};
+    sh.uniforms.uRipple={value:RIPPLE};
+    sh.uniforms.uChop={value:0.42};   // how hard the ripple normals bite
     oceanMat.userData.sh=sh;
-    sh.vertexShader='uniform float uTime;\nvarying float vFoam;\n'+sh.vertexShader
+    sh.vertexShader='uniform float uTime;\nvarying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\n'+sh.vertexShader
       .replace('#include <begin_vertex>',
 `#include <begin_vertex>
 {
   vec3 wp = (modelMatrix * vec4(transformed,1.0)).xyz;
-  float w1 = sin(dot(wp.xz, vec2(0.16,0.11)) + uTime*1.15);
-  float w2 = sin(dot(wp.xz, vec2(-0.07,0.19)) + uTime*0.8);
-  float w3 = sin(dot(wp.xz, vec2(0.045,-0.06)) + uTime*0.5);
-  transformed.y += w1*0.14 + w2*0.10 + w3*0.16;
-  transformed.x += cos(dot(wp.xz, vec2(0.16,0.11)) + uTime*1.15)*0.08;
+  // ── the swell, and — the part that was missing — its ANALYTIC SLOPE ──
+  // We were displacing vertices but never touching the normals, so the whole sea
+  // shaded like a flat sheet of plastic. Differentiate the wave sum and the swell
+  // finally catches the light.
+  float f1 = dot(wp.xz, vec2(0.16,0.11))  + uTime*1.15;
+  float f2 = dot(wp.xz, vec2(-0.07,0.19)) + uTime*0.80;
+  float f3 = dot(wp.xz, vec2(0.045,-0.06))+ uTime*0.50;
+  float dy = sin(f1)*0.14 + sin(f2)*0.10 + sin(f3)*0.16;
+  transformed.y += dy;
+  transformed.x += cos(f1)*0.08;
+  float dYdx =  0.160*cos(f1)*0.14 + (-0.070)*cos(f2)*0.10 +  0.045*cos(f3)*0.16;
+  float dYdz =  0.110*cos(f1)*0.14 +   0.190*cos(f2)*0.10 + (-0.060)*cos(f3)*0.16;
   // 🌊 SHORE BREAKERS · analytic coast distance drives real surf on the east beach
   float ang = atan(wp.z, wp.x);
   float coastR = 156.0 + sin(ang*3.0+1.2)*16.0 + sin(ang*7.0+0.5)*7.0; // = isleR(ang)
   float u = length(wp.xz) - coastR;               // signed distance offshore
-  // east-arc mask (the surf side), feathered
   float side = smoothstep(1.3, 0.55, abs(mod(ang+3.14159, 6.28318)-3.14159));
   if(u > -2.0 && u < 30.0 && side > 0.01){
     float shoal = smoothstep(30.0, 2.0, u);       // waves grow as water shallows
     float k = mix(0.28, 0.62, shoal);             // wavelength shortens near shore
-    float crest = sin(u*k + uTime*2.1);           // crests march INTO the beach
+    float crest  = sin(u*k + uTime*2.1);          // crests march INTO the beach
     float crest2 = sin(u*k*1.7 + uTime*2.9 + 1.7)*0.5;
     float amp = shoal * 0.55 * side;
     float wave = (crest + crest2) * amp;
-    transformed.y += max(wave, wave*0.25);        // peaked crests, shallow troughs — breaker shape
+    transformed.y += max(wave, wave*0.25);        // peaked crests, shallow troughs
+    dy += wave;
+    // the breaker's own slope, chained through du/dxz — so the surf shades too
+    float dWdu = amp * (k*cos(u*k + uTime*2.1) + 0.85*k*1.7*cos(u*k*1.7 + uTime*2.9 + 1.7));
+    vec2 dudxz = normalize(wp.xz + vec2(1e-4));
+    dYdx += dWdu * dudxz.x;
+    dYdz += dWdu * dudxz.y;
     vFoam = side * shoal * smoothstep(0.15, 0.95, crest) * smoothstep(14.0, 3.0, u);
   } else { vFoam = 0.0; }
+  vWaveN   = normalize(vec3(-dYdx, 1.0, -dYdz));
+  vWaveH   = dy;
+  vWorldPos = (modelMatrix * vec4(transformed,1.0)).xyz;
 }`);
-    sh.fragmentShader='varying float vFoam;\n'+sh.fragmentShader
+    sh.fragmentShader=
+      'uniform float uTime;\nuniform sampler2D uRipple;\nuniform float uChop;\n'+
+      'varying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvec3 gWorldN;\n'+
+      sh.fragmentShader
+      .replace('#include <normal_fragment_begin>',
+`#include <normal_fragment_begin>
+{
+  // ── SURFACE TEXTURE · three scrolling octaves of the tiling ripple map ──
+  // This is the whole trick: the mesh is only 22m per quad, but the *normal* can
+  // carry centimetre detail for free. Ripples, chop and glitter, no extra vertices.
+  vec2 wxz = vWorldPos.xz;
+  vec3 r1 = texture2D(uRipple, wxz*0.030 + vec2( 0.011, 0.006)*uTime).rgb*2.0-1.0;
+  vec3 r2 = texture2D(uRipple, wxz*0.088 + vec2(-0.016, 0.010)*uTime).rgb*2.0-1.0;
+  vec3 r3 = texture2D(uRipple, wxz*0.245 + vec2( 0.024,-0.019)*uTime).rgb*2.0-1.0;
+  vec3 rn = r1*0.55 + r2*0.30 + r3*0.19;
+  gWorldN = normalize(vWaveN + vec3(rn.r, 0.0, rn.b) * uChop);
+  normal  = normalize(mat3(viewMatrix) * gWorldN);   // three lights in VIEW space
+}`)
       .replace('#include <output_fragment>',
 `{
-  float fres = pow(1.0 - abs(dot(normalize(vViewPosition), vec3(0.0,0.0,1.0))), 3.0);
-  outgoingLight += vec3(0.55,0.75,0.85) * fres * 0.35;   // horizon sheen
-  outgoingLight = mix(outgoingLight, vec3(0.97,0.99,1.0), clamp(vFoam,0.0,0.85)); // 🌊 breaking foam
+  vec3 V = normalize(cameraPosition - vWorldPos);
+  // ── Fresnel horizon sheen, now off the REAL normal ──
+  float fres = pow(1.0 - clamp(dot(gWorldN, V), 0.0, 1.0), 4.0);
+  outgoingLight += vec3(0.55,0.75,0.85) * fres * 0.40;
+  // ── glitter: a tight sun lobe off the perturbed normal = a million moving specks ──
+  vec3 L = normalize(vec3(60.0,90.0,40.0));      // = sunDir
+  vec3 Hv = normalize(L + V);
+  float glint = pow(max(dot(gWorldN, Hv), 0.0), 96.0);
+  outgoingLight += vec3(1.0,0.97,0.90) * glint * 0.75;
+  // ── WHITECAPS: streaks stretched ALONG the wind, gated by the crests ──
+  vec2 wd = normalize(vec2(0.85,0.35));
+  vec2 sp = vec2(dot(vWorldPos.xz,wd)*0.045, dot(vWorldPos.xz,vec2(-wd.y,wd.x))*0.20);
+  float streak = abs(texture2D(uRipple, sp + vec2(0.030,0.012)*uTime).r - 0.5)*2.0;
+  float cell   = abs(texture2D(uRipple, vWorldPos.xz*0.19 + vec2(-0.02,0.03)*uTime).b - 0.5)*2.0;
+  float crest  = smoothstep(0.14, 0.40, vWaveH);
+  float caps   = crest * smoothstep(0.34,0.80,streak) * smoothstep(0.18,0.62,cell);
+  outgoingLight = mix(outgoingLight, vec3(0.93,0.96,0.99), clamp(caps,0.0,0.55));
+  // ── the shore breakers still get the last word ──
+  outgoingLight = mix(outgoingLight, vec3(0.97,0.99,1.0), clamp(vFoam,0.0,0.85));
 }
 #include <output_fragment>`);
   };
@@ -432,7 +536,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-32'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-40'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -1025,6 +1129,8 @@ function buildWorld(){
   makeWhaleBones(52,128,-0.6);
   raidStart(); // ⛵ the first raid ship appears on the horizon
   makeHoop();makeCourt();makeBall(); // 🏀 Elikai's full court on the west beach
+  buildSlide();                      // 🌊 the volcano waterslide
+  makeAim();                         // 🎯 the aim guide
   // 🦌 the islanders: deer family + a stag + a flamingo by the water
   addCritter('deer',36,52,1.5);
   addCritter('deer',44,60,1.4);
@@ -1200,7 +1306,13 @@ async function presenceTick(){
         },5000);
       }
     }
-    for(const h of r.hits||[])playerHurt(h.dmg||1,h.from); // ⚔️ incoming battle damage
+    { // ⚔️ incoming battle damage — every swing counts, exactly once
+      const hits=r.hits||[];
+      if(hits.length){
+        const total=hits.reduce((a,h)=>a+(h.dmg||1),0);
+        playerHurt(total,hits[hits.length-1].from,true); // force: the i-frame must not eat the batch
+      }
+    }
     for(const ev of r.events||[]){ // 🎆 shared spectacle
       if(ev.id>evAfter)evAfter=ev.id;
       if(ev.from===myName)continue; // already celebrated locally
@@ -1312,6 +1424,33 @@ async function chatPoll(){
   }catch(e){}
 }
 setInterval(chatPoll,3500);
+/* ---- ⚡ the club's own sticker icon set (identical to index.html) ---- */
+const ICONS={
+  stage:`<svg viewBox="0 0 48 48"><g transform="rotate(-4 24 24)">
+    <path d="M8 40h32v-6H8z" fill="#45d8ff" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M24 6l4.7 9.4 10.3 1.5-7.5 7.3 1.8 10.3L24 29.6l-9.3 4.9 1.8-10.3-7.5-7.3 10.3-1.5z"
+      fill="#fff" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/></g></svg>`,
+  chat:`<svg viewBox="0 0 48 48"><g transform="rotate(3 24 24)">
+    <path d="M8 10h32a4 4 0 014 4v16a4 4 0 01-4 4H24l-9 8v-8H8a4 4 0 01-4-4V14a4 4 0 014-4z"
+      fill="#fff" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M27 14l-8 11h5l-3 9 9-12h-5l4-8z" fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/></g></svg>`,
+  star:`<svg viewBox="0 0 48 48"><g transform="rotate(-3 24 24)">
+    <path d="M26 8l4.7 9.4 10.3 1.5-7.5 7.3 1.8 10.3L26 31.6l-9.3 4.9 1.8-10.3-7.5-7.3 10.3-1.5z"
+      fill="#45d8ff" opacity=".9" transform="translate(-3,2)"/>
+    <path d="M24 6l4.7 9.4 10.3 1.5-7.5 7.3 1.8 10.3L24 29.6l-9.3 4.9 1.8-10.3-7.5-7.3 10.3-1.5z"
+      fill="#ffe14d" stroke="#0d0210" stroke-width="4" stroke-linejoin="round"/></g></svg>`,
+  plus:`<svg viewBox="0 0 48 48">
+    <path d="M24 3l5 8 9-3-1 10 10 3-8 6 5 9-10-1-3 10-7-8-8 7-2-10-10 1 6-9-8-6 10-3-2-10 9 4z"
+      fill="#ffe14d" stroke="#0d0210" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M24 15v18M15 24h18" stroke="#0d0210" stroke-width="6" stroke-linecap="round"/></svg>`,
+  game:`<svg viewBox="0 0 48 48"><g transform="rotate(-3 24 24)">
+    <rect x="6" y="14" width="36" height="22" rx="11" fill="#fff" stroke="#0d0210" stroke-width="4"/>
+    <path d="M14 22v8M10 26h8" stroke="#0d0210" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="32" cy="23" r="3" fill="#ff2ec4" stroke="#0d0210" stroke-width="2"/>
+    <circle cx="38" cy="28" r="3" fill="#45d8ff" stroke="#0d0210" stroke-width="2"/></g></svg>`
+};
+document.querySelectorAll('#ksbar [data-ic]').forEach(el=>{el.innerHTML=ICONS[el.dataset.ic]||''});
+
 /* 💬 the scrollback list — the club chat, live, without leaving the island */
 let chatOpen=false;
 const chatEsc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1674,22 +1813,34 @@ function makeHoopAt(lz,flip){
   gg.strokeStyle='#e8483f';gg.lineWidth=6;gg.strokeRect(48,36,48,40); // the shooter's square
   gg.strokeStyle='#c9d2df';gg.lineWidth=5;gg.strokeRect(3,3,138,90);
   const bbT=new THREE.CanvasTexture(cv);bbT.encoding=THREE.sRGBEncoding;
-  const board=new THREE.Mesh(new THREE.BoxGeometry(1.83,1.07,0.07),
+  // regulation board: 1.83 x 1.07, bottom edge 2.90 (so it sits 0.15 above the rim),
+  // face exactly 0.375m behind the rim centre
+  const board=new THREE.Mesh(new THREE.BoxGeometry(BB_W*2,BB_H*2,BB_T*2),
     new THREE.MeshLambertMaterial({map:bbT}));
-  board.position.set(0,3.5,-0.505);g.add(board);                   // rim is 0.375m off the face
-  // the rim — dead centre of the group
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(0.4572,0.035,8,22),
+  board.position.set(0, 2.90+BB_H, -(0.375+BB_T)); // bottom edge 2.90 · face 0.375 behind the rim
+  g.add(board);
+  // the rim — 18" INSIDE diameter, dead centre of the group
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(RIM_IN+RIM_T,RIM_T,8,26),
     new THREE.MeshLambertMaterial({color:lin(0xff7a1a),emissive:lin(0x5f2400)}));
   rim.rotation.x=Math.PI/2;rim.position.set(0,3.05,0);g.add(rim);
-  const net=new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.26,0.52,10,3,true),
+  const net=new THREE.Mesh(new THREE.CylinderGeometry(RIM_IN,RIM_IN*0.62,0.45,12,3,true),
     new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.72}));
-  net.position.set(0,2.79,0);g.add(net);
+  net.position.set(0,3.05-0.225,0);g.add(net);
   g.traverse(m=>{if(m.isMesh)m.castShadow=true});
   const w=c2w(0,lz);
   g.position.set(w.x,COURT.y,w.z);
   g.rotation.y=COURT.ry+(flip?Math.PI:0);
   scene.add(g);
-  RIMS.push({x:w.x,y:COURT.y+3.05,z:w.z});
+  g.updateMatrixWorld(true);
+  const q=new THREE.Quaternion();g.getWorldQuaternion(q);
+  const bc=board.position.clone().applyMatrix4(g.matrixWorld);   // backboard centre, world
+  RIMS.push({
+    x:w.x, y:COURT.y+3.05, z:w.z,                                // rim centre
+    bc, n:new THREE.Vector3(0,0,1).applyQuaternion(q),           // board normal (faces the court)
+    u:new THREE.Vector3(1,0,0).applyQuaternion(q),               // board right
+    v:new THREE.Vector3(0,1,0).applyQuaternion(q),               // board up
+    hu:BB_W, hv:BB_H, ht:BB_T
+  });
 }
 function makeHoop(){
   makeHoopAt(-(COURT.L/2-1.575),false); // north basket
@@ -1769,8 +1920,338 @@ function makeCourt(){
   HOOP.courtC={x:COURT.cx,z:COURT.cz};
   window.__courtY=COURT.y;window.__courtReady=true;
 }
+
+/* ============================================================
+   🌊 THE VOLCANO WATERSLIDE
+   Climb the crater · drop in · 125m of chute · and get FIRED
+   199m across the island. (Tuned in a headless sim against the
+   real curve + real physics: 4.1s ride, exit 26 m/s at 21°,
+   5.3s of airtime, 44m apex, lands on the far beach.)
+   ============================================================ */
+const RIDE={on:false,u:0,spd:0,y:0,curve:null,len:1,water:null,start:null};
+const FLY={on:false,vx:0,vy:0,vz:0,x0:0,z0:0};
+const SL={tower:4,a0:1.15,turns:0.72,r0:6,rg:34,rp:1.9,yEnd:5.5,yp:0.85,
+          aim:0.7,kick:2.3,gA:34,drag:0.10,boost:1.55,pop:11,g:10.5};
+
+function slidePath(){
+  const pts=[],N=28;
+  const yTop=groundAt(VOLC.x,VOLC.z)+SL.tower;
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    const a=SL.a0+t*SL.turns*Math.PI*2;
+    const r=SL.r0+Math.pow(t,SL.rp)*SL.rg;      // hugs the cone, then swings wide
+    const x=VOLC.x+Math.cos(a)*r, z=VOLC.z+Math.sin(a)*r;
+    let y=yTop-(yTop-SL.yEnd)*Math.pow(t,SL.yp); // the plunge
+    y=Math.max(y,groundAt(x,z)+1.6);             // never sinks into the mountain
+    pts.push(new THREE.Vector3(x,y,z));
+  }
+  // the run-out, straightened across the map, with a kicker that lifts the nose
+  const end=pts[pts.length-1],prev=pts[pts.length-2];
+  const dir=new THREE.Vector3().subVectors(end,prev).setY(0).normalize();
+  const aim=new THREE.Vector3(0,0,70).sub(new THREE.Vector3(end.x,0,end.z)).setY(0).normalize();
+  dir.lerp(aim,SL.aim).normalize();
+  for(let i=1;i<=5;i++){
+    const d=i*6, x=end.x+dir.x*d, z=end.z+dir.z*d;
+    const kick=i>=3?(i-2)*SL.kick:0;
+    pts.push(new THREE.Vector3(x,Math.max(groundAt(x,z)+1.6,end.y-0.8)+kick,z));
+  }
+  return new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.35);
+}
+/* the flume: an OPEN U-channel. The curve is the FLOOR, and the cross-section
+   is swept with a frame built from world-up (not Frenet) so the U always opens
+   skyward instead of barrel-rolling through the corners. */
+function flumeGeo(curve,segs,r,span,mat){
+  const pos=[],uv=[],idx=[],RS=12;
+  const up=new THREE.Vector3(0,1,0),T=new THREE.Vector3(),R=new THREE.Vector3(),U=new THREE.Vector3();
+  for(let i=0;i<=segs;i++){
+    const t=i/segs, P0=curve.getPointAt(t);
+    T.copy(curve.getTangentAt(t)).normalize();
+    R.crossVectors(T,up);
+    if(R.lengthSq()<1e-5)R.set(1,0,0);
+    R.normalize();
+    U.crossVectors(R,T).normalize();
+    for(let j=0;j<=RS;j++){
+      const a=-span/2+(j/RS)*span, c=Math.cos(a), sn=Math.sin(a);
+      pos.push(P0.x+R.x*sn*r+U.x*r*(1-c),
+               P0.y+R.y*sn*r+U.y*r*(1-c),
+               P0.z+R.z*sn*r+U.z*r*(1-c));
+      uv.push(j/RS, t*14);
+    }
+  }
+  for(let i=0;i<segs;i++)for(let j=0;j<RS;j++){
+    const a=i*(RS+1)+j,b=a+RS+1;
+    idx.push(a,b,a+1, b,b+1,a+1);
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx);g.computeVertexNormals();
+  return new THREE.Mesh(g,mat);
+}
+function buildSlide(){
+  const curve=slidePath();
+  RIDE.curve=curve;RIDE.len=curve.getLength();RIDE.start=curve.getPointAt(0);
+  // candy-striped chute — KidStarClub magenta & cyan
+  const cv=document.createElement('canvas');cv.width=64;cv.height=64;
+  const g=cv.getContext('2d');
+  g.fillStyle='#ff2ec4';g.fillRect(0,0,64,64);
+  g.fillStyle='#45d8ff';g.fillRect(0,0,64,32);
+  g.fillStyle='rgba(255,255,255,.85)';g.fillRect(0,28,64,7);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(1,1);
+  const chute=flumeGeo(curve,180,2.3,Math.PI*1.12,
+    new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide}));
+  chute.receiveShadow=true;chute.castShadow=true;
+  scene.add(chute);
+  // the water, rushing down it
+  const wv=document.createElement('canvas');wv.width=32;wv.height=64;
+  const wg=wv.getContext('2d');
+  wg.fillStyle='#39c7ef';wg.fillRect(0,0,32,64);
+  wg.fillStyle='rgba(255,255,255,.75)';
+  for(let i=0;i<7;i++)wg.fillRect(Math.random()*26,i*9,6,3);
+  const wt=new THREE.CanvasTexture(wv);wt.encoding=THREE.sRGBEncoding;
+  wt.wrapS=wt.wrapT=THREE.RepeatWrapping;wt.repeat.set(1,10);
+  const water=flumeGeo(curve,180,2.05,Math.PI*0.72,
+    new THREE.MeshLambertMaterial({map:wt,transparent:true,opacity:0.8,
+      side:THREE.DoubleSide,emissive:lin(0x0a4a66)}));
+  water.position.y=0.12;
+  scene.add(water);RIDE.water=water;
+  // stilts down to the mountain
+  const legM=new THREE.MeshLambertMaterial({color:lin(0xdfe8f2)});
+  for(let i=2;i<=44;i++){
+    const u=i/46, P0=curve.getPointAt(u), gh=groundAt(P0.x,P0.z);
+    const h=P0.y-gh;
+    if(h<1.2)continue;
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.3,h,7),legM);
+    leg.position.set(P0.x,gh+h/2,P0.z);leg.castShadow=true;scene.add(leg);
+  }
+  // 🗼 the tower: the chute's mouth sits ~6.6m above the crater rim, so give it
+  // something to stand on — a deck, a fat pillar and a wrap-around stair
+  const s0=curve.getPointAt(0), s1=curve.getPointAt(0.02);
+  const gs=groundAt(s0.x,s0.z);
+  const deckM=new THREE.MeshLambertMaterial({color:lin(0xfff3d6)});
+  const deck=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,0.5,16),deckM);
+  deck.position.set(s0.x,s0.y-0.55,s0.z);deck.castShadow=deck.receiveShadow=true;scene.add(deck);
+  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(1.5,2.1,Math.max(1,s0.y-gs),12),
+    new THREE.MeshLambertMaterial({color:lin(0xdfe8f2)}));
+  pillar.position.set(s0.x,gs+(s0.y-gs)/2,s0.z);pillar.castShadow=true;scene.add(pillar);
+  const stepM=new THREE.MeshLambertMaterial({color:lin(0x45d8ff)});
+  const nStep=Math.max(4,Math.round((s0.y-gs)/0.62));
+  for(let i=0;i<nStep;i++){
+    const a=i*0.55, rr=3.4;
+    const st=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.24,1.2),stepM);
+    st.position.set(s0.x+Math.cos(a)*rr, gs+0.35+i*((s0.y-gs-0.6)/nStep), s0.z+Math.sin(a)*rr);
+    st.rotation.y=-a;st.castShadow=true;scene.add(st);
+  }
+  // 🚪 DROP IN — the arch, so nobody can miss it
+  const arch=new THREE.Group();
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(3.1,0.32,8,22),
+    new THREE.MeshLambertMaterial({color:lin(0xff2ec4),emissive:lin(0x6b0050)}));
+  arch.add(ring);
+  const glow=new THREE.Mesh(new THREE.TorusGeometry(3.1,0.62,8,22),
+    new THREE.MeshBasicMaterial({color:0x45d8ff,transparent:true,opacity:0.3,depthWrite:false}));
+  arch.add(glow);
+  arch.position.set(s0.x,s0.y+1.6,s0.z);
+  arch.lookAt(s1.x,s1.y+1.6,s1.z);
+  scene.add(arch);
+  RIDE.arch=arch;
+}
+
+function tickRide(dt){
+  if(RIDE.water)RIDE.water.material.map.offset.y-=dt*1.9; // the water always runs
+  if(RIDE.arch)RIDE.arch.children[1].scale.setScalar(1+Math.sin(performance.now()/380)*0.06);
+  if(!RIDE.curve)return;
+
+  if(FLY.on){ // 🚀 the cannonball arc — steerable, so you can aim for the sea
+    const ax=(keys.d?1:0)-(keys.a?1:0)+jx, az=(keys.s?1:0)-(keys.w?1:0)+jy;
+    if(Math.hypot(ax,az)>0.06){
+      const a=Math.atan2(ax,az)+camYaw+Math.PI;
+      FLY.vx+=Math.sin(a)*8*dt;FLY.vz+=Math.cos(a)*8*dt;
+    }
+    FLY.vy-=SL.g*dt;
+    P.x+=FLY.vx*dt;P.z+=FLY.vz*dt;RIDE.y+=FLY.vy*dt;
+    P.yaw=Math.atan2(FLY.vx,FLY.vz);
+    if(Math.random()<dt*16)fxImpact(P.x,RIDE.y-0.4,P.z,0xbfefff);
+    const gh=groundAt(P.x,P.z);
+    if((RIDE.y<=gh+0.1&&FLY.vy<0)||Math.hypot(P.x,P.z)>700)slideLand(gh);
+    return;
+  }
+  if(!RIDE.on){ // ready to drop in?
+    if(!started||performance.now()<downUntil)return;
+    const s0=RIDE.start;
+    if(Math.hypot(P.x-s0.x,P.z-s0.z)<3.8&&groundAt(P.x,P.z)>16){
+      RIDE.on=true;RIDE.u=0;RIDE.spd=8;RIDE.y=s0.y+0.45;
+      P.x=s0.x;P.z=s0.z;P.air=0;P.vy=0;
+      window.surfing=false;
+      toast('🌊 DROP IN!!! hold on…');sfxZap();
+    }
+    return;
+  }
+  // 🌊 riding the chute
+  const tan=RIDE.curve.getTangentAt(Math.min(0.999,RIDE.u));
+  RIDE.spd+=(-tan.y)*SL.gA*dt;      // gravity down the flume
+  RIDE.spd*=(1-SL.drag*dt);
+  RIDE.spd=Math.max(6,Math.min(52,RIDE.spd));
+  RIDE.u+=RIDE.spd*dt/RIDE.len;
+  if(RIDE.u>=1){ // 🚀 LAUNCH
+    const e=RIDE.curve.getPointAt(0.999), t2=RIDE.curve.getTangentAt(0.999);
+    RIDE.on=false;FLY.on=true;
+    FLY.vx=t2.x*RIDE.spd*SL.boost;
+    FLY.vz=t2.z*RIDE.spd*SL.boost;
+    FLY.vy=Math.max(10,t2.y*RIDE.spd*SL.boost+SL.pop);
+    FLY.x0=e.x;FLY.z0=e.z;
+    P.x=e.x;P.z=e.z;RIDE.y=e.y+0.6;
+    shakeT=0.35;toast('🚀 LAUNCH!!!');sfxFanfare();
+    return;
+  }
+  const pt=RIDE.curve.getPointAt(RIDE.u);
+  P.x=pt.x;P.z=pt.z;RIDE.y=pt.y+0.45;
+  P.yaw=Math.atan2(tan.x,tan.z);
+  if(Math.random()<dt*30)fxImpact(pt.x,pt.y+0.4,pt.z,0xbfefff);
+}
+function slideLand(gh){
+  FLY.on=false;
+  const d=Math.hypot(P.x-FLY.x0,P.z-FLY.z0);
+  const pts=Math.max(2,Math.min(30,Math.round(d/9)));
+  starCount+=pts;
+  document.getElementById('stars').textContent='💎 '+starCount;
+  const wet=gh<0.12;
+  starBurst(P.x,Math.max(gh,0.5)+1.2,P.z,10);
+  fxImpact(P.x,Math.max(gh,0.4)+0.5,P.z,wet?0xbfefff:0xffe14d);
+  sfxFanfare();shakeT=0.4;
+  toast((wet?'🌊 CANNONBALL SPLASH! ':'🚀 STUCK THE LANDING! ')+Math.round(d)+'m · +'+pts+' 💎');
+  if(wet&&!(ROSTER[heroKey]&&ROSTER[heroKey].surf)){
+    P.x=-84;P.z=74;toast('🏖️ washed up on the cove'); // no board, no swimming
+  }
+  RIDE.y=groundAt(P.x,P.z);
+  P.vy=0;P.air=0;
+}
+
+/* ============================================================
+   🏀 REAL BASKETBALL PHYSICS
+   Every number below is the actual spec, not a guess:
+     ball  Ø 0.244 m  (r 0.122)      · rim  Ø 0.457 m INSIDE (r 0.2286), 18mm steel
+     board 1.83 x 1.07, face 0.375 m behind the rim, bottom edge 2.90 m
+     rim height 3.05 m               · g = 9.81 m/s²
+   Restitution measured off real surfaces:
+     hardwood 0.82 (NBA drop test: 1.83m -> ~1.32m) · backboard 0.60 · rim 0.45
+   The rim is a TORUS collider, so a ball only falls through if it genuinely
+   fits the hole (0.2286 - 0.122 = 0.107 m of centre play). Clip the ring and
+   it clanks — and it can still rattle in, exactly like the real thing.
+   ============================================================ */
+const BR=0.122;                       // ball radius
+const RIM_IN=0.2286, RIM_T=0.018;     // rim inside radius + tube
+const BB_W=0.915, BB_H=0.535, BB_T=0.025; // backboard half-extents
+const GRAV=9.81;
+const E_RIM=0.45, E_BOARD=0.60, E_WOOD=0.82, E_DIRT=0.52;
+const MU_RIM=0.42, MU_BOARD=0.14;
+const SHOT_V0=5.0, SHOT_VR=13.2;      // release speed = 5.0 -> 18.2 m/s across the power bar
+const RELEASE_H=1.95;                 // hands above the floor
+
+const RELEASE_FWD=0.34;   // the ball leaves her hands this far ahead of her feet
+/* 🏹 THE ARC.
+   θ = 45° + ½·atan(Δh/d) is the classic minimum-SPEED angle to a raised target…
+   but minimum-speed trajectories *graze*: from 3m that arc apexes barely 15cm over
+   the rim, comes in flat and clips the front iron every time. Real shooters put more
+   arc on it, so we add ~8° — the ball drops IN instead of landing ON.
+   Two more things that MUST be right, or you miss by more than the 0.107m of centre
+   play the hole actually gives you:
+     · rimY is the rim's WORLD height (COURT.y + 3.05 ≈ 5.12) — never the bare 3.05
+     · d is measured from the RELEASE POINT, not from her feet (0.34m closer) */
+function shotAngle(d,dh){
+  return Math.min(1.24, Math.PI/4 + 0.5*Math.atan2(dh,Math.max(0.4,d)) + 0.14);
+}
+function shotSpeed(d,h,rimY){
+  const dh=rimY-h;
+  const th=shotAngle(d,dh);
+  const c=Math.cos(th), t=Math.tan(th);
+  const den=2*c*c*(d*t-dh);
+  if(den<=0.05)return null;
+  return {v:Math.sqrt(GRAV*d*d/den), th};
+}
+// which basket are you actually shooting at?
+function aimRim(){
+  if(!RIMS.length)return null;
+  const fx=Math.sin(camYaw),fz=Math.cos(camYaw);   // 🎯 the camera is the crosshair
+  let best=null,bs=-1e9;
+  for(const R of RIMS){
+    const dx=R.x-P.x,dz=R.z-P.z,d=Math.hypot(dx,dz)||0.001;
+    const dot=(dx*fx+dz*fz)/d;
+    const sc=dot*3-d*0.02;
+    if(sc>bs){bs=sc;best=R}
+  }
+  return best;
+}
+let lastClank=0;
+function clank(){const n=performance.now();if(n-lastClank>70){lastClank=n;sfxHit()}}
+
+// 🛞 sphere vs the rim TORUS — the nearest point on the ring, then reflect
+function hitRim(R){
+  const dx=BALL.x-R.x, dz=BALL.z-R.z;
+  const len=Math.hypot(dx,dz);
+  const ring=RIM_IN+RIM_T;
+  const nx=len<1e-5?1:dx/len, nz=len<1e-5?0:dz/len;
+  const px=R.x+nx*ring, py=R.y, pz=R.z+nz*ring;   // closest point ON the steel
+  let ax=BALL.x-px, ay=BALL.y-py, az=BALL.z-pz;
+  const d=Math.hypot(ax,ay,az), rad=RIM_T+BR;
+  if(d>=rad||d<1e-6)return false;
+  const inv=1/d; ax*=inv; ay*=inv; az*=inv;
+  BALL.x=px+ax*rad; BALL.y=py+ay*rad; BALL.z=pz+az*rad;  // depenetrate
+  const vn=BALL.vx*ax+BALL.vy*ay+BALL.vz*az;
+  if(vn<0){
+    BALL.vx-=(1+E_RIM)*vn*ax; BALL.vy-=(1+E_RIM)*vn*ay; BALL.vz-=(1+E_RIM)*vn*az;
+    const v2=BALL.vx*ax+BALL.vy*ay+BALL.vz*az;             // tangential drag: a rim KILLS sideways
+    const tx=BALL.vx-v2*ax, ty=BALL.vy-v2*ay, tz=BALL.vz-v2*az;
+    BALL.vx=v2*ax+tx*(1-MU_RIM); BALL.vy=v2*ay+ty*(1-MU_RIM); BALL.vz=v2*az+tz*(1-MU_RIM);
+    clank();
+  }
+  return true;
+}
+// 🪧 sphere vs the oriented backboard rectangle
+function hitBoard(R){
+  const rx=BALL.x-R.bc.x, ry=BALL.y-R.bc.y, rz=BALL.z-R.bc.z;
+  const dn=rx*R.n.x+ry*R.n.y+rz*R.n.z;
+  const half=R.ht+BR;
+  if(Math.abs(dn)>=half)return false;
+  const du=rx*R.u.x+ry*R.u.y+rz*R.u.z;
+  const dv=rx*R.v.x+ry*R.v.y+rz*R.v.z;
+  if(Math.abs(du)>R.hu||Math.abs(dv)>R.hv)return false;    // off the glass = a miss, not a bank
+  const sg=dn>=0?1:-1;
+  const nx=R.n.x*sg, ny=R.n.y*sg, nz=R.n.z*sg;
+  BALL.x=R.bc.x+nx*half+R.u.x*du+R.v.x*dv;
+  BALL.y=R.bc.y+ny*half+R.u.y*du+R.v.y*dv;
+  BALL.z=R.bc.z+nz*half+R.u.z*du+R.v.z*dv;
+  const vn=BALL.vx*nx+BALL.vy*ny+BALL.vz*nz;
+  if(vn<0){
+    BALL.vx-=(1+E_BOARD)*vn*nx; BALL.vy-=(1+E_BOARD)*vn*ny; BALL.vz-=(1+E_BOARD)*vn*nz;
+    const v2=BALL.vx*nx+BALL.vy*ny+BALL.vz*nz;
+    const tx=BALL.vx-v2*nx, ty=BALL.vy-v2*ny, tz=BALL.vz-v2*nz;
+    BALL.vx=v2*nx+tx*(1-MU_BOARD); BALL.vy=v2*ny+ty*(1-MU_BOARD); BALL.vz=v2*nz+tz*(1-MU_BOARD);
+    clank();
+  }
+  return true;
+}
+function swish(R){
+  const sd=Math.hypot((BALL.fromX||0)-R.x,(BALL.fromZ||0)-R.z);
+  let pts=2,label='🏀 Layup! +2 💎';
+  if(sd>=25){pts=50;label='🌋 FULL-COURT MIRACLE!! +50 💎'}
+  else if(sd>=12.75){pts=20;label='🚀 DOWNTOWN!! +20 💎'}
+  else if(sd>=7.24){pts=10;label='🎯 THREE-POINTER! +10 💎'}
+  else if(sd>=4.6){pts=5;label='🏀 Free-throw range! +5 💎'}
+  if(BALL.glass)label='🪧 OFF THE GLASS! '+label;
+  else if(BALL.rattled)label='😮‍💨 RATTLED IN! '+label;
+  starCount+=pts;
+  document.getElementById('stars').textContent='💎 '+starCount;
+  toast(label);
+  celebrate(myName||'You',pts,R.x,R.z);
+  postEvent('swish',pts,R.x,R.z);
+  BALL.scored=true;
+  BALL.vx*=0.25;BALL.vz*=0.25;BALL.vy*=0.55; // the net grabs it
+}
+
 let ball=null;
-const BALL={mode:'ground',x:COURT.cx,z:COURT.cz,y:0,vx:0,vy:0,vz:0,rest:0,prevY:0};
+const BALL={mode:'ground',x:COURT.cx,z:COURT.cz,y:0,vx:0,vy:0,vz:0,rest:0,prevY:0,
+            scored:false,rattled:false,glass:false,fromX:0,fromZ:0};
 function makeBall(){
   const cv=document.createElement('canvas');cv.width=128;cv.height=64;
   const g=cv.getContext('2d');
@@ -1781,17 +2262,18 @@ function makeBall(){
   g.beginPath();g.arc(-6,32,44,0,7);g.stroke();
   g.beginPath();g.arc(134,32,44,0,7);g.stroke();
   const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
-  ball=new THREE.Mesh(new THREE.SphereGeometry(0.34,14,12),
+  ball=new THREE.Mesh(new THREE.SphereGeometry(BR,16,12),
     new THREE.MeshLambertMaterial({map:t}));
   ball.castShadow=true;
-  BALL.y=groundAt(BALL.x,BALL.z)+0.34;
+  BALL.y=groundAt(BALL.x,BALL.z)+BR;
   scene.add(ball);
 }
 function ballRespawn(){
   BALL.mode='ground';BALL.scored=false;BALL.rest=0;
   const c=HOOP.courtC||{x:-68,z:100};
-  BALL.x=c.x;BALL.z=c.z;BALL.y=groundAt(c.x,c.z)+0.34;
+  BALL.x=c.x;BALL.z=c.z;BALL.y=groundAt(c.x,c.z)+BR;
   BALL.vx=BALL.vy=BALL.vz=0;
+  BALL.rattled=false;BALL.glass=false;
 }
 let evAfter=0;
 function postEvent(kind,pts,x,z){
@@ -1804,18 +2286,85 @@ function startCharge(){
   charging=true;chargeT=0;
   document.getElementById('pwrwrap').style.display='block';
 }
+/* 🎯 THE ONE SHOT SOLVER — throwBall AND the dotted trajectory both call this, so
+   what you see is exactly what leaves her hands. Line comes from the CAMERA:
+   drag to look = drag to aim. AIM assist still snaps the line if you're pointed at
+   the basket (plus a human wobble at release so it's never robotic) — POWER is
+   entirely yours, and the honest physics still judges it. */
+function shotPlan(wobble){
+  let yaw=aimYaw();                       // 🎯 you shoot where you LOOK
+  let th=52*Math.PI/180;
+  const R=aimRim();
+  if(R){
+    const bearing=Math.atan2(R.x-P.x,R.z-P.z);
+    const diff=((bearing-yaw+Math.PI*3)%(Math.PI*2))-Math.PI;
+    if(Math.abs(diff)<0.35)yaw=bearing+(wobble?(Math.random()-0.5)*0.012:0);
+    const d=Math.max(0.5,Math.hypot(R.x-P.x,R.z-P.z)-RELEASE_FWD);
+    th=shotAngle(d,R.y-(groundAt(P.x,P.z)+RELEASE_H)); // she puts the right arc on it
+  }
+  const speed=SHOT_V0+chargeT*SHOT_VR;
+  const ca=Math.cos(th), sa=Math.sin(th);
+  return {yaw,
+    x:P.x+Math.sin(yaw)*RELEASE_FWD, y:groundAt(P.x,P.z)+RELEASE_H, z:P.z+Math.cos(yaw)*RELEASE_FWD,
+    vx:Math.sin(yaw)*speed*ca, vy:speed*sa, vz:Math.cos(yaw)*speed*ca};
+}
 function throwBall(){
   if(!charging||BALL.mode!=='carried')return;
   charging=false;
-  BALL.fromX=P.x;BALL.fromZ=P.z;
   document.getElementById('pwrwrap').style.display='none';
-  const power=8+chargeT*22; // full charge ≈ 100 feet of flight
-  BALL.mode='flying';
-  BALL.x=P.x+Math.sin(P.yaw)*0.8;BALL.z=P.z+Math.cos(P.yaw)*0.8;
-  BALL.y=groundAt(P.x,P.z)+1.6;
-  BALL.vx=Math.sin(P.yaw)*power;BALL.vz=Math.cos(P.yaw)*power;
-  BALL.vy=6+chargeT*8;
+  const s=shotPlan(true);
+  P.yaw=s.yaw;                            // she turns and faces the shot
+  BALL.mode='flying';BALL.scored=false;BALL.rattled=false;BALL.glass=false;BALL.grounded=false;
+  BALL.fromX=P.x;BALL.fromZ=P.z;
+  BALL.x=s.x;BALL.y=s.y;BALL.z=s.z;
+  BALL.vx=s.vx;BALL.vy=s.vy;BALL.vz=s.vz;
   playAnim('Attack',0.07);sfxSwing();
+  aimHide();
+}
+
+/* ============================================================
+   🎯 AIMING · the camera IS the crosshair
+   Drag (mouse) or swipe (touch) turns camYaw — and camYaw is what
+   every swing, throw and blast now fires along. While the ball is in
+   her hands, the real arc is drawn: same solver, same GRAV, no drag.
+   ============================================================ */
+const aimYaw=()=>camYaw;
+let aimDots=null,aimRing=null;
+function makeAim(){
+  aimDots=[];
+  const dm=new THREE.MeshBasicMaterial({color:0xffe14d,transparent:true,opacity:0.9,depthWrite:false});
+  for(let i=0;i<11;i++){
+    const d=new THREE.Mesh(new THREE.SphereGeometry(0.075,7,6),dm);
+    d.visible=false;d.renderOrder=3;scene.add(d);aimDots.push(d);
+  }
+  aimRing=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.085,7,20),
+    new THREE.MeshBasicMaterial({color:0x2bd9ff,transparent:true,opacity:0.92,depthWrite:false}));
+  aimRing.rotation.x=-Math.PI/2;aimRing.visible=false;aimRing.renderOrder=3;scene.add(aimRing);
+}
+function aimHide(){
+  if(aimRing)aimRing.visible=false;
+  if(aimDots)for(const d of aimDots)d.visible=false;
+}
+function aimUpdate(){
+  if(!aimRing)return;
+  if(!ball||BALL.mode!=='carried'||RIDE.on||FLY.on||performance.now()<downUntil){aimHide();return}
+  const s=shotPlan(false);                 // no wobble — this is the honest line
+  let {x,y,z,vx,vy,vz}=s;
+  const h=1/120, path=[];                  // same integrator tickBall flies, same GRAV, no drag
+  for(let i=0;i<900;i++){
+    vy-=GRAV*h;x+=vx*h;y+=vy*h;z+=vz*h;
+    if(i%4===0)path.push([x,y,z]);
+    if(y<=groundAt(x,z)+0.12&&vy<0)break;
+  }
+  for(let i=0;i<aimDots.length;i++){
+    const pt=path[Math.floor((i+1)/(aimDots.length+1)*path.length)];
+    if(pt){aimDots[i].position.set(pt[0],pt[1],pt[2]);aimDots[i].visible=true}
+    else aimDots[i].visible=false;
+  }
+  const e=path[path.length-1]||[x,y,z];
+  aimRing.position.set(e[0],groundAt(e[0],e[2])+0.09,e[2]);
+  aimRing.scale.setScalar(charging?1.15+Math.sin(performance.now()/90)*0.1:1);
+  aimRing.visible=true;
 }
 function tickBall(dt){
   if(!ball)return;
@@ -1833,66 +2382,91 @@ function tickBall(dt){
     }
   }else if(BALL.mode==='carried'){
     ball.position.set(
-      P.x+Math.sin(P.yaw+0.5)*0.55,
-      groundAt(P.x,P.z)+1.05,
-      P.z+Math.cos(P.yaw+0.5)*0.55);
+      P.x+Math.sin(P.yaw+0.5)*0.45,
+      groundAt(P.x,P.z)+1.15,
+      P.z+Math.cos(P.yaw+0.5)*0.45);
     if(charging){
       chargeT=Math.min(1,chargeT+dt/1.3);
       document.getElementById('pwr').style.width=(chargeT*100)+'%';
+      // 🎯 the SWEET SPOT: exactly the power that drops it in from where you stand.
+      // The physics is honest, so we show kids the answer and let them hit it.
+      const R=aimRim();
+      const mk=document.getElementById('pwrmark');
+      if(R){
+        const d=Math.max(0.5,Math.hypot(R.x-P.x,R.z-P.z)-RELEASE_FWD); // from the RELEASE point
+        const sol=shotSpeed(d,groundAt(P.x,P.z)+RELEASE_H,R.y);        // R.y = the rim's WORLD height
+        if(sol){
+          const need=(sol.v-SHOT_V0)/SHOT_VR;
+          if(need>=0&&need<=1){
+            mk.style.display='block';
+            mk.style.left=(need*100)+'%';
+            const hot=Math.abs(chargeT-need)<0.035;
+            mk.style.background=hot?'#4ade80':'rgba(255,255,255,.85)';
+            mk.style.boxShadow=hot?'0 0 14px #4ade80':'0 0 8px rgba(255,255,255,.7)';
+          }else mk.style.display='none';
+        }else mk.style.display='none';
+      }else mk.style.display='none';
     }
-  }else{ // flying
-    BALL.prevY=BALL.y;
-    BALL.vy-=13.5*dt;
-    BALL.x+=BALL.vx*dt;BALL.y+=BALL.vy*dt;BALL.z+=BALL.vz*dt;
-    ball.rotation.x+=dt*9;
-    // 🎯 the swish check: falling through EITHER rim
-    if(!BALL.scored&&BALL.vy<0){
+  }else{ // 🏀 flying — SUBSTEPPED, or a 0.24m ball at 18 m/s tunnels straight through
+    const N=Math.max(1,Math.min(16,Math.ceil(dt/0.004)));
+    const h=dt/N;
+    for(let i=0;i<N;i++){
+      BALL.prevY=BALL.y;
+      BALL.vy-=GRAV*h;
+      BALL.x+=BALL.vx*h; BALL.y+=BALL.vy*h; BALL.z+=BALL.vz*h;
       for(const R of RIMS){
-        if(BALL.prevY<=R.y||BALL.y>R.y)continue;
-        if(Math.hypot(BALL.x-R.x,BALL.z-R.z)>=0.44)continue;
-        // 🎯 points by where you shot from — the court lines tell the story
-        const sd=Math.hypot((BALL.fromX||0)-R.x,(BALL.fromZ||0)-R.z);
-        let pts=2,label='🏀 Layup! +2 💎';
-        if(sd>=25){pts=50;label='🌋 FULL-COURT MIRACLE!! +50 💎'}
-        else if(sd>=12.75){pts=20;label='🚀 DOWNTOWN!! +20 💎'}
-        else if(sd>=7.24){pts=10;label='🎯 THREE-POINTER! +10 💎'}
-        else if(sd>=4.6){pts=5;label='🏀 Free-throw range! +5 💎'}
-        starCount+=pts;
-        document.getElementById('stars').textContent='💎 '+starCount;
-        toast(label);
-        celebrate(myName||'You',pts,R.x,R.z); // 🎆 the big one
-        postEvent('swish',pts,R.x,R.z);       // …and everyone sees it
-        BALL.scored=true;
-        BALL.vx*=0.15;BALL.vz*=0.15; // drops through the net
+        // 🪧 glass first — a bank shot hits the board, THEN drops to the rim
+        if(hitBoard(R)){BALL.glass=true}
+        if(hitRim(R)){if(!BALL.scored)BALL.rattled=true}
+        // 🎯 through the hoop: crossed the rim plane going down, inside the ring.
+        // The torus collider guarantees it physically fit — rattle-ins count, just like real ball.
+        if(!BALL.scored&&BALL.vy<0&&BALL.prevY>R.y&&BALL.y<=R.y&&
+           Math.hypot(BALL.x-R.x,BALL.z-R.z)<RIM_IN)swish(R);
+      }
+      const g0b=groundAt(BALL.x,BALL.z);
+      if(BALL.y<g0b+BR){
+        if(!BALL.grounded){
+          BALL.grounded=true;
+          if(!BALL.scored&&!onCourt(BALL.x,BALL.z)){ // 💣 out of bounds = GRENADE
+            ballExplode(BALL.x,BALL.z,true);
+            ballRespawn();
+            return;
+          }
+        }
+        BALL.y=g0b+BR;
+        const e=onCourt(BALL.x,BALL.z)?E_WOOD:E_DIRT; // hardwood bounces true, sand doesn't
+        if(Math.abs(BALL.vy)>0.55){
+          BALL.vy=-BALL.vy*e; BALL.vx*=0.90; BALL.vz*=0.90; clank();
+        }else{
+          BALL.vy=0; BALL.vx*=0.93; BALL.vz*=0.93;
+          if(Math.hypot(BALL.vx,BALL.vz)<0.35){
+            BALL.mode='ground';BALL.rest=performance.now();BALL.scored=false;
+            BALL.rattled=false;BALL.glass=false;
+          }
+        }
+      }
+      if(BALL.y<0.25&&groundAt(BALL.x,BALL.z)<0.12){ // into the sea
+        const c2=HOOP.courtC||{x:COURT.cx,z:COURT.cz};
+        BALL.mode='ground';BALL.scored=false;
+        BALL.x=c2.x;BALL.z=c2.z;BALL.y=groundAt(c2.x,c2.z)+BR;
+        BALL.vx=BALL.vy=BALL.vz=0;
+        toast('🌊 Splash! Ball back at the court');
         break;
       }
     }
-    const g0b=groundAt(BALL.x,BALL.z);
-    if(BALL.y<g0b+0.34){ // touched down
-      if(!BALL.scored&&!onCourt(BALL.x,BALL.z)){ // 💣 out of bounds = GRENADE
-        ballExplode(BALL.x,BALL.z,true);
-        ballRespawn();
-        return;
-      }
-      BALL.y=g0b+0.34;
-      if(Math.abs(BALL.vy)>1.6){BALL.vy*=-0.52;BALL.vx*=0.8;BALL.vz*=0.8;sfxHit()}
-      else{BALL.vy=0;BALL.vx*=0.9;BALL.vz*=0.9;
-        if(Math.hypot(BALL.vx,BALL.vz)<0.4){
-          BALL.mode='ground';BALL.rest=performance.now();BALL.scored=false;
-        }
-      }
-    }
-    if(BALL.y<0.2&&groundAt(BALL.x,BALL.z)<0.12){ // splashed into the sea — back to the court
-      const c2=HOOP.courtC||{x:-68,z:100};
-      BALL.mode='ground';BALL.scored=false;BALL.x=c2.x;BALL.z=c2.z;BALL.y=groundAt(c2.x,c2.z)+0.34;
-      toast('🌊 Splash! Ball back at the court');
+    // 🌀 backspin: spin about the axis square to travel, like a real jumper
+    const sp=Math.hypot(BALL.vx,BALL.vz);
+    if(sp>0.05){
+      BALL.spinAx=BALL.spinAx||new THREE.Vector3();
+      BALL.spinAx.set(-BALL.vz,0,BALL.vx).normalize();
+      ball.rotateOnWorldAxis(BALL.spinAx,-(sp/BR)*dt*0.22);
     }
     ball.position.set(BALL.x,BALL.y,BALL.z);
   }
   // lost far from court while resting → wander home
   if(BALL.mode==='ground'&&BALL.rest&&performance.now()-BALL.rest>20000){
     const c=HOOP.courtC||{x:-68,z:100};
-    BALL.x=c.x;BALL.z=c.z;BALL.y=groundAt(c.x,c.z)+0.34;BALL.rest=0;
+    BALL.x=c.x;BALL.z=c.z;BALL.y=groundAt(c.x,c.z)+BR;BALL.rest=0;
   }
 }
 
@@ -2164,8 +2738,9 @@ function tickSkels(dt){
     sk.mixer.update(dt);
   }
 }
-function playerHurt(dmg=1,from=null){
-  if(performance.now()<hurtUntil||performance.now()<downUntil)return;
+function playerHurt(dmg=1,from=null,force=false){
+  if(performance.now()<downUntil)return;                 // down is down
+  if(!force&&performance.now()<hurtUntil)return;          // i-frame — but only for LOCAL sources
   hp=Math.max(0,hp-dmg);heartsUI();hurtUntil=performance.now()+700;
   playAnim('Hit',0.08);sfxHit();
   if(from)toast('⚔️ '+from+' got you!');
@@ -2177,7 +2752,7 @@ function playerHurt(dmg=1,from=null){
     document.getElementById('stars').textContent='💎 0';
     playAnim('Down',0.1);
     setTimeout(()=>{
-      P.x=-84;P.z=74;hp=HP_MAX;heartsUI();playAnim('Idle',0.1);
+      P.x=-84;P.z=74;hp=HP_MAX;RIDE.on=false;FLY.on=false;heartsUI();playAnim('Idle',0.1);
     },2500);
   }
 }
@@ -2204,6 +2779,8 @@ function doAttack(){
   const now=performance.now();
   if(now<attackUntil||now<downUntil)return;
   attackUntil=now+700;
+  const ay=aimYaw();   // 🎯 you swing where you LOOK
+  P.yaw=ay;
   playAnim('Attack',0.07);
   sfxSwing();fxSlash();
   { // 🏄‍♀️ Kai swings the board itself — it twirls off her back
@@ -2211,7 +2788,7 @@ function doAttack(){
     if(bg){bg.userData.spin=0.7}
   }
   setTimeout(()=>{ // the swing lands mid-animation
-    const fwx=Math.sin(P.yaw),fwz=Math.cos(P.yaw);
+    const fwx=Math.sin(ay),fwz=Math.cos(ay);
     // 🥊 PvP: friends in the arc take battle damage (relayed via the club server)
     const reach=(ROSTER[heroKey]&&ROSTER[heroKey].reach)||2.8;
     for(const [nm,rm] of remotes){
@@ -2465,9 +3042,13 @@ function loop(){
     return;
   }
 
+  tickRide(dt);                      // 🌊 the waterslide owns the hero while she's on it
+  const onSlide=RIDE.on||FLY.on;
+
   // input vector (keys or joystick), camera-relative
   let ix=(keys.d?1:0)-(keys.a?1:0)+jx;
   let iz=(keys.s?1:0)-(keys.w?1:0)+jy;
+  if(onSlide){ix=0;iz=0}             // the chute steers, not the joystick
   const mag=Math.min(1,Math.hypot(ix,iz));
   if(mag>0.05){
     const a=Math.atan2(ix,iz);
@@ -2487,13 +3068,20 @@ function loop(){
     }
     if(window.surfing&&groundAt(P.x,P.z)>0.2)window.surfing=false;
   }
+  // 🎯 look = aim: dragging on the spot turns her, and a charged shot always faces
+  // the camera — so what you're aiming at is what you can see
+  if(!onSlide&&(charging||(mag<=0.05&&dragId!==null)))P.yaw=camYaw;
+
   // jump + gravity
   const g0=groundAt(P.x,P.z);
-  if((keys[' ']||wantJump)&&P.air<=0.01){P.vy=8.4}
-  wantJump=false;
-  P.vy-=22*dt;
-  P.air=Math.max(0,P.air+P.vy*dt);
-  if(P.air<=0){P.air=0;if(P.vy<0)P.vy=0}
+  if(onSlide){wantJump=false;P.vy=0;P.air=0}
+  else{
+    if((keys[' ']||wantJump)&&P.air<=0.01){P.vy=8.4}
+    wantJump=false;
+    P.vy-=22*dt;
+    P.air=Math.max(0,P.air+P.vy*dt);
+    if(P.air<=0){P.air=0;if(P.vy<0)P.vy=0}
+  }
   // apply to player object
   let py=g0+P.air;
   if(window.surfing){
@@ -2515,13 +3103,16 @@ function loop(){
     player.remove(bg);h.parent.add(bg);
     bg.position.copy(h.pos);bg.rotation.copy(h.rot);bg.scale.setScalar(1);
   }
+  if(onSlide)py=RIDE.y;   // hero AND camera boom ride the flume
   player.position.set(P.x,py,P.z);
   player.rotation.y+=(((P.yaw-player.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*10);
   // animation state
   const now2=performance.now();
   const emoting=now2<emoteUntil&&mag<0.05&&P.air<=0.05;
   const fighting=now2<attackUntil||now2<hurtUntil||now2<downUntil;
-  if(!fighting){
+  if(onSlide){
+    playAnim(RIDE.on?(actions['Sit_Floor_Idle']?'Sit_Floor_Idle':'Idle'):'Jump',0.12);
+  }else if(!fighting){
     if(window.surfing)playAnim(actions['Jump_Idle']?'Jump_Idle':'Idle',0.15); // the surf crouch
     else if(P.air>0.05)playAnim('Jump',0.08);
     else if(mag>0.85)playAnim('Run');
@@ -2606,6 +3197,7 @@ function loop(){
   tickBursts(dt);
   tickFx(dt);
   tickBall(dt);
+  aimUpdate();   // 🎯 live trajectory while the ball's in her hands
   tickConfetti(dt);
   tickTitan(dt);
   { // board twirl during her swing
