@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+x<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-51</div>
+<div class="hud" id="tag">ISL-52</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -392,7 +392,7 @@ const SWELL=[            // amplitude share, wavelength (m), direction
    a 12-14s period; slowed to 0.65 it lands at 18-22s, which is exactly what big-wave
    surf actually does. And the film trick: we judge scale from the ratio of speed to
    size, so SLOWING water is what makes it read BIG. */
-const SEA_TIME=0.65;
+const SEA_TIME=0.28;
 const GERST=1.6;
 const SWELL_RAMP=360;    // metres offshore to reach full height
 const SWELL_MAX=3.70;    // + the 0.12 base = 3.82m amplitude = 25ft peak-to-trough
@@ -433,6 +433,59 @@ function oceanSurface(x,z,t){
   return oceanAt(sx,sz,t);
 }
 const oceanY=(x,z,t)=>0.42+oceanSurface(x,z,t).y;   // 0.42 = the ocean mesh's own height
+
+/* ============================================================
+   🏄 THE SURF BREAK — a real one, solved analytically.
+   The physics that makes this possible: **wave PERIOD is conserved** as a wave
+   shoals. So a crest's arrival time at the shoreline is constant along it, and
+   the whole break can be written as a function of (position, time) with no state.
+     depth        h(u)   = u * slope                     (u = metres offshore)
+     celerity     c      = sqrt(g*h)                     (shallow water — it SLOWS)
+     travel time  Phi(u) = 2*sqrt(u/(g*slope))           (integral of du/c)
+     arrival      A      = t + Phi(u)                    (CONSTANT along a crest)
+     shoaling     H      ∝ h^(-1/4)                      (Green's law — it STACKS UP)
+     breaking     H > 0.78 * h                           (McCowan 1894 breaker index)
+   Shoaling also SKEWS it: the crest sharpens and rises, the trough widens and
+   flattens, and then the crest spills down the face as a bore that runs to shore.
+   Sets: the wave height is modulated by an envelope on the ARRIVAL time, so a
+   group of big ones lands every 30 seconds and travels in together.
+   ============================================================ */
+const BEACH_SLOPE=0.045, SURF_T=10.0, SET_PERIOD=30.0, SURF_H0=3.20, GAMMA=0.78;
+const SET_PHASE=-1.0472;   // ⚠️ locks the set envelope onto a CREST. Without it the set
+                        //    peaks in the trough BETWEEN waves and nothing happens.
+const SWELL_DIR=[0.94,0.34];
+function shoreWave(x,z,t){
+  const r=Math.hypot(x,z)||1e-3;
+  const u=r-isleR(Math.atan2(z,x));            // metres offshore; <0 = up the beach
+  if(u<-8||u>230)return {y:0,foam:0,brk:0};
+  const uu=Math.max(0.6,u);
+  const h=Math.max(0.35,uu*BEACH_SLOPE);
+  const A=t+2*Math.sqrt(uu/(9.81*BEACH_SLOPE));           // arrival time at the shoreline
+  const setE=0.5+0.5*Math.sin(6.28318*A/SET_PERIOD+SET_PHASE);   // 🌊 THE SET — phase-locked to a crest
+  const H0=SURF_H0*(0.12+0.88*setE);
+  const Hs=H0*Math.pow(3/h,0.25);                          // shoaled height (Green)
+  const Hb=GAMMA*h;                                        // the breaking limit
+  const H=Math.min(Hs,Hb);
+  const sk=Math.min(1,Hs/Hb);                              // 0 = sine, 1 = about to throw
+  const brk=Math.max(0,Math.min(1,(Hs/Hb-0.92)/0.30));     // 0 -> 1 through the break
+  // only the shore that FACES the swell gets surf
+  const face=Math.max(0,Math.min(1,(0.18-((x/r)*SWELL_DIR[0]+(z/r)*SWELL_DIR[1]))/0.75));
+  const s01=0.5+0.5*Math.sin(6.28318*A/SURF_T);
+  const prof=Math.pow(s01,1+5*sk);                         // sharp crest, flat trough
+  const swash=Math.max(0,Math.min(1,(u+5)/13));            // dies at the waterline
+  const y=H*(prof-0.30)*face*swash*(1-0.30*brk);
+  const foam=face*Math.min(1,brk*(0.55+0.9*Math.pow(s01,3))+Math.max(0,1-uu/16)*0.85);
+  return {y,foam,brk};
+}
+/* the slope comes from CENTRAL DIFFERENCES — and the shader does the identical thing
+   with the identical epsilon, so the water Kai stands on is the water you see. */
+const SH_EPS=1.5;
+function shoreAt(x,z,t){
+  const c=shoreWave(x,z,t);
+  const gx=(shoreWave(x+SH_EPS,z,t).y-c.y)/SH_EPS;
+  const gz=(shoreWave(x,z+SH_EPS,t).y-c.y)/SH_EPS;
+  return {y:c.y,foam:c.foam,brk:c.brk,sx:gx,sz:gz};
+}
 
 /* ---------- the sea: depth-gradient, gentle swell, shore foam ---------- */
 /* 🌊 A TILING RIPPLE NORMAL MAP, baked once in a canvas.
@@ -504,7 +557,34 @@ let ocean,oceanPos,oceanPhase;
     sh.uniforms.uChop={value:0.42};   // how hard the ripple normals bite
     sh.uniforms.uEnv={value:window.SKY_ENV};   // 🪞 the sky, baked once
     oceanMat.userData.sh=sh;
-    sh.vertexShader='uniform float uTime;\nvarying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvarying float vAmp;\n'+sh.vertexShader
+    sh.vertexShader=
+      'uniform float uTime;\nvarying float vFoam;\nvarying vec3 vWaveN;\nvarying vec3 vWorldPos;\nvarying float vWaveH;\nvarying float vAmp;\n'+
+`// 🏄 THE SURF BREAK — identical to shoreWave() in JS. Change one, change both.
+float shoreWaveG(vec2 p, float t, out float foam){
+  float r = max(1e-3, length(p));
+  float ang = atan(p.y, p.x);
+  float coastR = 156.0 + sin(ang*3.0+1.2)*16.0 + sin(ang*7.0+0.5)*7.0;
+  float u = r - coastR;
+  foam = 0.0;
+  if(u < -8.0 || u > 230.0) return 0.0;
+  float uu = max(0.6, u);
+  float h  = max(0.35, uu*0.045);
+  float A  = t + 2.0*sqrt(uu/(9.81*0.045));            // arrival time — const along a crest
+  float setE = 0.5+0.5*sin(6.28318*A/30.0 + -1.0472);   // 🌊 THE SET — phase-locked to a crest
+  float H0 = 3.20*(0.12+0.88*setE);
+  float Hs = H0*pow(3.0/h, 0.25);                               // Green's law: it stacks up
+  float Hb = 0.78*h;                                        // McCowan: it breaks here
+  float H  = min(Hs, Hb);
+  float sk = min(1.0, Hs/Hb);
+  float brk= clamp((Hs/Hb - 0.92)/0.30, 0.0, 1.0);
+  float face = clamp((0.18 - dot(p/r, vec2(0.94, 0.34)))/0.75, 0.0, 1.0);
+  float s01 = 0.5+0.5*sin(6.28318*A/10.0);
+  float prof = pow(s01, 1.0+5.0*sk);                            // sharp crest, flat trough
+  float swash = clamp((u+5.0)/13.0, 0.0, 1.0);
+  foam = face*min(1.0, brk*(0.55+0.9*pow(s01,3.0)) + max(0.0, 1.0-uu/16.0)*0.85);
+  return H*(prof-0.30)*face*swash*(1.0-0.30*brk);
+}
+`+sh.vertexShader
       .replace('#include <begin_vertex>',
 `#include <begin_vertex>
 {
@@ -530,7 +610,7 @@ let ocean,oceanPos,oceanPhase;
   SW[6]=vec4(0.05,68.0,-0.42,-0.91);
   SW[7]=vec4(0.04,57.0,0.71,0.70);
   SW[8]=vec4(0.04,49.0,-0.86,0.51);
-  float tS = uTime*0.65;   // SEA_TIME — the sea, slowed. Big water reads big BECAUSE it's slow.
+  float tS = uTime*0.28;   // SEA_TIME — the sea, slowed. Big water reads big BECAUSE it's slow.
   for(int i=0;i<9;i++){
     float k  = 6.28318/SW[i].y;
     float cS = sqrt(9.81/k);
@@ -546,27 +626,18 @@ let ocean,oceanPos,oceanPhase;
   transformed.y += dy;
   transformed.x += hz.x;
   transformed.z += hz.y;
-  // 🌊 SHORE BREAKERS · analytic coast distance drives real surf on the east beach
-  float ang = atan(wp.z, wp.x);
-  float coastR = 156.0 + sin(ang*3.0+1.2)*16.0 + sin(ang*7.0+0.5)*7.0; // = isleR(ang)
-  float u = length(wp.xz) - coastR;               // signed distance offshore
-  float side = smoothstep(1.3, 0.55, abs(mod(ang+3.14159, 6.28318)-3.14159));
-  if(u > -2.0 && u < 30.0 && side > 0.01){
-    float shoal = smoothstep(30.0, 2.0, u);       // waves grow as water shallows
-    float k = mix(0.28, 0.62, shoal);             // wavelength shortens near shore
-    float crest  = sin(u*k + uTime*2.1);          // crests march INTO the beach
-    float crest2 = sin(u*k*1.7 + uTime*2.9 + 1.7)*0.5;
-    float amp = shoal * 0.55 * side;
-    float wave = (crest + crest2) * amp;
-    transformed.y += max(wave, wave*0.25);        // peaked crests, shallow troughs
-    dy += wave;
-    // the breaker's own slope, chained through du/dxz — so the surf shades too
-    float dWdu = amp * (k*cos(u*k + uTime*2.1) + 0.85*k*1.7*cos(u*k*1.7 + uTime*2.9 + 1.7));
-    vec2 dudxz = normalize(wp.xz + vec2(1e-4));
-    dYdx += dWdu * dudxz.x;
-    dYdz += dWdu * dudxz.y;
-    vFoam = side * shoal * smoothstep(0.15, 0.95, crest) * smoothstep(14.0, 3.0, u);
-  } else { vFoam = 0.0; }
+  /* 🏄 THE SURF BREAK. The slope comes from CENTRAL DIFFERENCES with the SAME
+     epsilon JS uses — so the wave Kai stands on is the wave you see. */
+  float fm;
+  float sh0 = shoreWaveG(wp.xz, uTime, fm);
+  float shx = shoreWaveG(wp.xz + vec2(1.5, 0.0), uTime, fm);
+  float shz = shoreWaveG(wp.xz + vec2(0.0, 1.5), uTime, fm);
+  shoreWaveG(wp.xz, uTime, fm);          // recover the foam at the real point
+  transformed.y += sh0;
+  dy   += sh0;
+  dYdx += (shx - sh0)/1.5;
+  dYdz += (shz - sh0)/1.5;
+  vFoam = fm;
   vWaveN   = normalize(vec3(-dYdx, 1.0, -dYdz));
   vWaveH   = dy;
   vAmp     = amp;
@@ -681,7 +752,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-51'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-52'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -3523,7 +3594,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-51 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-52 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
@@ -3591,7 +3662,17 @@ function frame(){
   if(window.surfing){
     // 🌊 ON the wave, not through it — same model the shader draws with.
     const W=oceanSurface(P.x,P.z,t);   // inverted Gerstner — the crest that's actually under her
-    py=0.42+W.y+0.13+P.air;
+    const S=shoreAt(P.x,P.z,t);        // …plus the shore break she's actually in
+    py=0.42+W.y+S.y+0.13+P.air;
+    // 🏄 CAUGHT IT. A breaking wave doesn't just lift you — it CARRIES you.
+    if(S.brk>0.04){
+      const rr=Math.hypot(P.x,P.z)||1;
+      const push=S.brk*11*dt;
+      P.x-=(P.x/rr)*push; P.z-=(P.z/rr)*push;   // shoved toward the beach
+      if(S.brk>0.45&&!window.__wasSurfing){window.__wasSurfing=true;toast('🏄 YOU CAUGHT THE WAVE!!')}
+      if(Math.random()<dt*22)fxImpact(P.x+(Math.random()-0.5)*2.4,py+0.3,P.z+(Math.random()-0.5)*2.4,0xffffff);
+    }else if(S.brk<0.02)window.__wasSurfing=false;
+    W.sx+=S.sx; W.sz+=S.sz;            // she leans on the FACE of the breaker
     // lean into the face: slope along her travel = pitch, slope across it = roll
     const fx=Math.sin(P.yaw), fz=Math.cos(P.yaw);
     const tPitch=-(W.sx*fx+W.sz*fz), tRoll=-(W.sx*fz-W.sz*fx);
