@@ -1,4 +1,4 @@
-x<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -94,7 +94,7 @@ x<!DOCTYPE html>
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-52</div>
+<div class="hud" id="tag">ISL-53</div>
 <div id="crash" style="display:none;position:fixed;left:8px;right:8px;top:8px;z-index:99;background:rgba(120,10,20,.94);
   color:#fff;border:2px solid #ff5a6a;border-radius:12px;padding:8px 12px;font-size:12px;line-height:1.35;
   font-family:ui-monospace,monospace;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer"></div>
@@ -111,6 +111,16 @@ x<!DOCTYPE html>
     <input id="chatin" maxlength="200" placeholder="Say something to the club…" style="flex:1;border:none;border-radius:10px;padding:10px;font-size:14px;background:rgba(255,255,255,.94)">
     <button id="chatsend" style="border:none;border-radius:10px;padding:0 16px;font-weight:800;background:#ff2ec4;color:#fff;font-size:14px">Send</button>
   </div>
+</div>
+<div id="shop" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + var(--ksnav));z-index:16;
+  width:min(92vw,340px);background:rgba(13,2,16,.95);border:3px solid #ffe14d;border-radius:18px;padding:12px;
+  box-shadow:0 -10px 40px rgba(0,0,0,.6);max-height:52vh;overflow-y:auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <b style="color:#ffe14d;font-size:15px">🐾 PET HUT</b>
+    <span id="shopcoins" style="color:#6fe0ff;font-weight:800">💎 0</span>
+  </div>
+  <div style="color:rgba(255,255,255,.6);font-size:11px;margin-bottom:6px">tap a pet to adopt it — you get to NAME it 💕</div>
+  <div id="shoplist"></div>
 </div>
 <nav id="ksbar">
   <button onclick="location.assign('/#feed')"><span class="ni" data-ic="stage"></span>Stage</button>
@@ -207,7 +217,7 @@ scene.add(sun,hemi,new THREE.AmbientLight(0xffffff,0.05));
     new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,fog:false}));
   scene.add(dome);
   // ☀️ the sun: bright core + soft golden glow, placed where the light comes from
-  const sunDir=new THREE.Vector3(60,90,40).normalize();
+  const sunDir=new THREE.Vector3(22,130,26).normalize(); // ☀️ HIGH in the sky. Always noon, always summer.
   const mkGlow=(size,inner,outer,op)=>{
     const c2=document.createElement('canvas');c2.width=128;c2.height=128;
     const gg=c2.getContext('2d');
@@ -664,7 +674,7 @@ float shoreWaveG(vec2 p, float t, out float foam){
       .replace('#include <output_fragment>',
 `{
   vec3 V = normalize(cameraPosition - vWorldPos);
-  vec3 L = normalize(vec3(60.0,90.0,40.0));      // = sunDir
+  vec3 L = normalize(vec3(22.0,130.0,26.0));    // = sunDir, high overhead
   // ── Fresnel (Schlick), off the REAL normal ──
   float NdotV = max(dot(gWorldN, V), 0.001);
   float fres  = 0.02 + 0.98*pow(1.0 - NdotV, 5.0);
@@ -752,7 +762,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-52'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-53'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -762,6 +772,7 @@ const FILES={
   kkKnight:'kk_knight.glb',kkBarb:'kk_barb.glb',kkMage:'kk_mage.glb',kkRogue:'kk_rogue.glb',kkHood:'kk_hood.glb',
   shiba:'animals_pack_ShibaInu.glb',
   deer:'Deer.glb',stag:'Stag.glb',flamingo:'hero_flamingo.glb',
+  bee:'hero_bee.glb',frog:'hero_frog.glb',panda:'hero_redpanda.glb',
 }
 const assets={};
 function loadAll(onProgress){
@@ -1493,7 +1504,11 @@ function tickCritters(dt){
   for(const cr of critters){
     const dx=cr.tx-cr.root.position.x,dz=cr.tz-cr.root.position.z;
     const dist=Math.hypot(dx,dz);
-    if(cr.isBuddy){ // the shiba shadows the player
+    if(cr.isPet){ // 🐾 your pets follow you in a happy little line
+      const back=2.4+cr.petIdx*1.7;
+      cr.tx=P.x-Math.sin(P.yaw)*back+Math.cos(P.yaw)*((cr.petIdx%2)?1.1:-1.1);
+      cr.tz=P.z-Math.cos(P.yaw)*back-Math.sin(P.yaw)*((cr.petIdx%2)?1.1:-1.1);
+    }else if(cr.isBuddy){ // the shiba shadows the player
       const bd=Math.hypot(P.x-cr.root.position.x,P.z-cr.root.position.z);
       if(bd>3.4){cr.tx=P.x+Math.sin(P.yaw+2.4)*1.6;cr.tz=P.z+Math.cos(P.yaw+2.4)*1.6}
     }else if(dist<0.5){
@@ -1507,12 +1522,12 @@ function tickCritters(dt){
       }
     }
     if(dist>0.5){
-      const sp=(cr.isBuddy&&dist>6?7.5:2.6)*dt;
+      const sp=((cr.isBuddy||cr.isPet)&&dist>5?7.8:2.6)*dt;
       const ny=Math.atan2(dx,dz);
       cr.root.rotation.y+=(((ny-cr.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*8);
       cr.root.position.x+=Math.sin(ny)*Math.min(sp,dist);
       cr.root.position.z+=Math.cos(ny)*Math.min(sp,dist);
-      critAnim(cr,cr.isBuddy&&dist>6?'Run':'Walk');
+      critAnim(cr,(cr.isBuddy||cr.isPet)&&dist>5?'Run':'Walk');
     }else critAnim(cr,'Idle');
     cr.root.position.y=groundAt(cr.root.position.x,cr.root.position.z);
     cr.mixer.update(dt);
@@ -1586,6 +1601,302 @@ function buildWorld(){
   // 🐕 your Shiba comes along
   buddy=addCritter('shiba',P.x+2,P.z+2,0.85);
   if(buddy)buddy.isBuddy=true;
+  // 🐾 🚶 🐦 🍎 🐶  the island comes alive
+  makeShop();
+  makeDogPark();
+  restorePets();                                   // the pets you already bought are still yours
+  makeBirds(28);                                   // 🐦 flocks all day long
+  for(let i=0;i<16;i++){                           // 🚶 the islanders
+    const a=Math.random()*6.28, r=18+Math.random()*70;
+    const x=IC.x+Math.cos(a)*r, z=IC.z+Math.sin(a)*r;
+    if(groundAt(x,z)<1.0||Math.hypot(x-VOLC.x,z-VOLC.z)<44){i--;continue}
+    makeFolk(i,x,z);
+  }
+  for(let i=0;i<6;i++){                            // 🐶 …and some of them hang out at the dog park
+    const a=Math.random()*6.28, r=Math.random()*(PARK.r-5);
+    makeFolk(20+i,PARK.x+Math.cos(a)*r,PARK.z+Math.sin(a)*r);
+  }
+  for(let i=0;i<14;i++){const sp=starSpot();makeFood(sp.x,sp.z)}  // 🍎 food to find
+  shopRefresh();
+}
+
+/* ============================================================
+   🚶 THE ISLANDERS · boys and girls who actually live here
+   ============================================================ */
+const FOLK_NAMES=['Ellie','Milo','Nina','Theo','Ruby','Ben','Zara','Kai','Iris','Sam',
+                  'Luna','Finn','Poppy','Max','Ivy','Leo','Rosie','Jude','Mabel','Otis'];
+const folks=[];
+function makeFolk(i,x,z){
+  const girl=i%2===0;
+  const file=girl?(i%4?'kk_rogue.glb':'kk_mage.glb'):(i%4?'kk_knight.glb':'kk_barb.glb');
+  const root=spawn(file,girl?1.68+((i*7)%5)*0.03:1.80+((i*5)%5)*0.03);
+  if(!root)return null;
+  // dress them — the same modular kit the heroes use
+  hideParts(root,GEAR);
+  const skin=[0xf2bd93,0xd9a274,0xa9764e,0xf7cdaa][i%4];
+  const top =[0xff2ec4,0x45d8ff,0xffe14d,0x5ef0c8,0x8a5cff,0xff6f61,0xffffff][i%7];
+  const leg =[0x2b3a56,0x4a3f6b,0x6b4b2a,0x1d2a33][i%4];
+  paintPart(root,'Body',top);
+  paintPart(root,'ArmLeft',skin); paintPart(root,'ArmRight',skin);
+  paintPart(root,'LegLeft',leg);  paintPart(root,'LegRight',leg);
+  const head=bone(root,'head');
+  if(head){
+    const hair=hairMat([0x3a2418,0xf0cf7c,0x1c1512,0xa9522b,0xff77dd,0xe8d9a8][i%6]);
+    const g=new THREE.Group();
+    hairCap(g,hair);
+    if(girl){ (i%3===0)?twinBuns(g,hair,0xffe14d) : (i%3===1)?ponytail(g,hair,0x45d8ff) : longHair(g,hair); }
+    head.add(g);
+  }
+  root.position.set(x,groundAt(x,z),z);
+  root.traverse(m=>{if(m.isMesh)m.castShadow=true});
+  const na=nativeActions(root.userData.inner,assets[file].animations);
+  const nm=FOLK_NAMES[i%FOLK_NAMES.length];
+  const tag=nameSprite(nm); tag.position.y=2.3; tag.scale.set(2.4,0.6,1);
+  root.add(tag);
+  scene.add(root);
+  const f={root,mixer:na.mixer,acts:na.acts,cur:null,tx:x,tz:z,wait:1+Math.random()*4,name:nm};
+  folks.push(f);
+  return f;
+}
+function folkAnim(f,n){
+  if(f.cur===n||!f.acts[n])return;
+  if(f.cur&&f.acts[f.cur])f.acts[f.cur].fadeOut(0.25);
+  f.acts[n].reset().fadeIn(0.25).play();f.cur=n;
+}
+function tickFolks(dt){
+  for(const f of folks){
+    const dx=f.tx-f.root.position.x, dz=f.tz-f.root.position.z;
+    const d=Math.hypot(dx,dz);
+    if(d<1.2){
+      f.wait-=dt;
+      folkAnim(f,'Idle');
+      if(f.wait<=0){ // pick somewhere new to go
+        for(let k=0;k<12;k++){
+          const a=Math.random()*6.28, r=6+Math.random()*22;
+          const nx=f.root.position.x+Math.cos(a)*r, nz=f.root.position.z+Math.sin(a)*r;
+          if(groundAt(nx,nz)>0.9&&Math.hypot(nx-VOLC.x,nz-VOLC.z)>42){f.tx=nx;f.tz=nz;break}
+        }
+        f.wait=2+Math.random()*6;
+      }
+    }else{
+      const ny=Math.atan2(dx,dz);
+      f.root.rotation.y+=(((ny-f.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*Math.min(1,dt*5);
+      const sp=Math.min(d,2.3*dt);
+      f.root.position.x+=Math.sin(ny)*sp;
+      f.root.position.z+=Math.cos(ny)*sp;
+      folkAnim(f,'Walk');
+    }
+    f.root.position.y=groundAt(f.root.position.x,f.root.position.z);
+    f.mixer.update(dt);
+  }
+}
+
+/* ============================================================
+   🐦 BIRDS · they wheel over the island all day long
+   ============================================================ */
+const birds=[];
+function makeBirds(n){
+  const bm=new THREE.MeshLambertMaterial({color:lin(0x2b3040),side:THREE.DoubleSide});
+  for(let i=0;i<n;i++){
+    const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.SphereGeometry(0.26,7,5),bm);
+    body.scale.set(0.7,0.7,2.0); g.add(body);
+    const wing=new THREE.PlaneGeometry(1.5,0.5);
+    const wl=new THREE.Mesh(wing,bm), wr=new THREE.Mesh(wing,bm);
+    wl.position.x=-0.78; wr.position.x=0.78;
+    wl.rotation.x=-Math.PI/2; wr.rotation.x=-Math.PI/2;
+    g.add(wl,wr);
+    g.userData={wl,wr,
+      cx:(Math.random()-0.5)*160, cz:(Math.random()-0.5)*160,
+      r:40+Math.random()*90, y:30+Math.random()*38,
+      a:Math.random()*6.28, sp:0.10+Math.random()*0.14,
+      flap:Math.random()*6.28};
+    scene.add(g); birds.push(g);
+  }
+}
+function tickBirds(dt,t){
+  for(const b of birds){
+    const u=b.userData;
+    u.a+=u.sp*dt;
+    const x=u.cx+Math.cos(u.a)*u.r, z=u.cz+Math.sin(u.a)*u.r;
+    b.position.set(x, u.y+Math.sin(t*0.6+u.flap)*2.2, z);
+    b.rotation.y=-u.a+Math.PI/2;
+    b.rotation.z=0.25;
+    const f=Math.sin(t*7+u.flap)*0.7;   // flap flap flap
+    u.wl.rotation.y= f; u.wr.rotation.y=-f;
+  }
+}
+
+/* ============================================================
+   🍎 FOOD · pick it up and eat it
+   ============================================================ */
+const foods=[];
+function makeFood(x,z){
+  const g=new THREE.Group();
+  const apple=new THREE.Mesh(new THREE.SphereGeometry(0.34,10,8),
+    new THREE.MeshLambertMaterial({color:lin(0xe8483f),emissive:lin(0x4a0d0a)}));
+  g.add(apple);
+  const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.14,6,5),
+    new THREE.MeshLambertMaterial({color:lin(0x3fa14b)}));
+  leaf.scale.set(1.6,0.4,0.8); leaf.position.set(0.14,0.3,0);
+  g.add(leaf);
+  g.position.set(x,groundAt(x,z)+0.7,z);
+  scene.add(g); foods.push(g);
+}
+function tickFood(dt,t){
+  for(let i=foods.length-1;i>=0;i--){
+    const f=foods[i];
+    f.rotation.y+=dt*1.4;
+    f.position.y=groundAt(f.position.x,f.position.z)+0.7+Math.sin(t*2+i)*0.09;
+    if(Math.hypot(P.x-f.position.x,P.z-f.position.z)<1.5){
+      scene.remove(f); foods.splice(i,1);
+      hp=Math.min(HP_MAX,hp+3); heartsUI();
+      toast('🍎 Yum! +3 health');
+      ping();
+      setTimeout(()=>{const sp=starSpot();makeFood(sp.x,sp.z)},9000); // another one grows
+    }
+  }
+}
+
+/* ============================================================
+   🐶 THE DOG PARK · a fenced green for pets and people
+   ============================================================ */
+const PARK={x:-46,z:36,r:22};
+function makeDogPark(){
+  const postM=new THREE.MeshLambertMaterial({color:lin(0xc98b4e)});
+  const railM=new THREE.MeshLambertMaterial({color:lin(0xe6c79a)});
+  const N=34;
+  for(let i=0;i<N;i++){
+    const a=i/N*6.28318;
+    if(a>2.5&&a<3.1)continue;              // 🚪 the gate
+    const x=PARK.x+Math.cos(a)*PARK.r, z=PARK.z+Math.sin(a)*PARK.r;
+    const gy=groundAt(x,z);
+    const post=new THREE.Mesh(new THREE.BoxGeometry(0.22,1.5,0.22),postM);
+    post.position.set(x,gy+0.75,z); post.castShadow=true; scene.add(post);
+    const a2=(i+1)/N*6.28318;
+    if(a2>2.5&&a2<3.1)continue;
+    const x2=PARK.x+Math.cos(a2)*PARK.r, z2=PARK.z+Math.sin(a2)*PARK.r;
+    for(const hgt of [0.55,1.05]){
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,Math.hypot(x2-x,z2-z)),railM);
+      rail.position.set((x+x2)/2,(gy+groundAt(x2,z2))/2+hgt,(z+z2)/2);
+      rail.rotation.y=Math.atan2(x2-x,z2-z);
+      scene.add(rail);
+    }
+  }
+  // benches
+  for(let i=0;i<4;i++){
+    const a=i*1.57+0.5;
+    const x=PARK.x+Math.cos(a)*(PARK.r-5), z=PARK.z+Math.sin(a)*(PARK.r-5);
+    const gy=groundAt(x,z);
+    const seat=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.16,0.8),postM);
+    seat.position.set(x,gy+0.55,z); seat.rotation.y=-a; seat.castShadow=true; scene.add(seat);
+    for(const sx of [-1,1]){
+      const leg=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.55,0.7),postM);
+      leg.position.set(x+Math.cos(-a)*sx*1.1, gy+0.28, z+Math.sin(-a)*sx*1.1);
+      scene.add(leg);
+    }
+  }
+  // the sign
+  const cv=document.createElement('canvas');cv.width=256;cv.height=80;
+  const c=cv.getContext('2d');
+  c.fillStyle='#45d8ff';c.fillRect(0,0,256,80);
+  c.fillStyle='#0d0210';c.font='900 34px system-ui';c.textAlign='center';
+  c.fillText('🐶 DOG PARK',128,52);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(5,1.6),
+    new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide}));
+  const gx=PARK.x+Math.cos(2.8)*PARK.r, gz=PARK.z+Math.sin(2.8)*PARK.r;
+  sign.position.set(gx,groundAt(gx,gz)+2.6,gz);
+  sign.rotation.y=-2.8+Math.PI/2;
+  scene.add(sign);
+}
+
+/* ============================================================
+   🐾 PETS · buy them with 💎, NAME them, and they follow you everywhere
+   ============================================================ */
+const SHOP={x:-92,z:52};
+const PETS={
+  shiba:{label:'Shiba Pup', emoji:'🐕', file:'shiba',    h:0.85, cost:5},
+  deer:{ label:'Deer',      emoji:'🦌', file:'deer',     h:1.35, cost:6},
+  frog:{ label:'Hopper',    emoji:'🐸', file:'frog',     h:0.95, cost:7},
+  bee:{  label:'Buzzy',     emoji:'🐝', file:'bee',      h:1.00, cost:8},
+  flamingo:{label:'Flamingo',emoji:'🦩',file:'flamingo', h:1.55, cost:8},
+  panda:{label:'Red Panda', emoji:'🐼', file:'panda',    h:1.05, cost:10},
+  stag:{ label:'Stag',      emoji:'🦌', file:'stag',     h:1.85, cost:10},
+};
+let myPets=[];
+try{myPets=JSON.parse(localStorage.getItem('isl_pets')||'[]')}catch(e){myPets=[]}
+const savePets=()=>{try{localStorage.setItem('isl_pets',JSON.stringify(myPets))}catch(e){}};
+
+function makeShop(){ // 🏠 the Pet Hut
+  const g=new THREE.Group();
+  const wood=new THREE.MeshLambertMaterial({color:lin(0xc98b4e)});
+  const roofM=new THREE.MeshLambertMaterial({color:lin(0xff2ec4)});
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(6,3.2,5),wood);
+  wall.position.y=1.6;g.add(wall);
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(5.4,2.4,4),roofM);
+  roof.position.y=4.4;roof.rotation.y=Math.PI/4;g.add(roof);
+  const door=new THREE.Mesh(new THREE.BoxGeometry(1.6,2.4,0.2),
+    new THREE.MeshLambertMaterial({color:lin(0x6b4b2a)}));
+  door.position.set(0,1.2,2.55);g.add(door);
+  // the sign
+  const cv=document.createElement('canvas');cv.width=256;cv.height=96;
+  const c=cv.getContext('2d');
+  c.fillStyle='#ffe14d';c.fillRect(0,0,256,96);
+  c.fillStyle='#0d0210';c.font='900 40px system-ui';c.textAlign='center';
+  c.fillText('🐾 PET HUT',128,58);
+  const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(4.2,1.6),
+    new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide}));
+  sign.position.set(0,3.5,2.65);g.add(sign);
+  g.traverse(m=>{if(m.isMesh)m.castShadow=m.receiveShadow=true});
+  g.position.set(SHOP.x,groundAt(SHOP.x,SHOP.z),SHOP.z);
+  g.rotation.y=0.4;
+  scene.add(g);
+}
+function adoptPet(kind){
+  const P0=PETS[kind];
+  if(!P0)return;
+  if(starCount<P0.cost){toast('💎 You need '+P0.cost+' diamonds for a '+P0.label+'!');return}
+  const nm=(prompt('🐾 What will you name your '+P0.label+'?','')||'').trim().slice(0,14)
+           || P0.label;
+  starCount-=P0.cost;
+  document.getElementById('stars').textContent='💎 '+starCount;
+  myPets.push({kind,name:nm});
+  savePets();
+  spawnPet(kind,nm,myPets.length-1);
+  toast('🐾 '+nm+' is yours! Follow me, '+nm+'!');
+  sfxFanfare();
+  shopRefresh();
+}
+function spawnPet(kind,nm,idx){
+  const P0=PETS[kind];if(!P0)return;
+  const cr=addCritter(P0.file, P.x-Math.sin(P.yaw)*(3+idx*1.6), P.z-Math.cos(P.yaw)*(3+idx*1.6), P0.h);
+  if(!cr)return;
+  cr.isPet=true; cr.petIdx=idx; cr.petName=nm;
+  const tag=nameSprite(P0.emoji+' '+nm);
+  tag.position.y=P0.h+0.75; tag.scale.set(2.6,0.65,1);
+  cr.root.add(tag);
+}
+function restorePets(){ myPets.forEach((pt,i)=>spawnPet(pt.kind,pt.name,i)); }
+function shopRefresh(){
+  const list=document.getElementById('shoplist');
+  if(!list)return;
+  list.innerHTML='';
+  for(const k in PETS){
+    const P0=PETS[k];
+    const owned=myPets.filter(p=>p.kind===k).length;
+    const can=starCount>=P0.cost;
+    const b=document.createElement('button');
+    b.style.cssText='display:flex;align-items:center;gap:8px;width:100%;margin:5px 0;padding:9px 12px;border-radius:12px;'
+      +'border:2px solid '+(can?'#4ade80':'rgba(255,255,255,.25)')+';background:'+(can?'rgba(74,222,128,.18)':'rgba(255,255,255,.06)')
+      +';color:#fff;font-weight:800;font-size:14px;cursor:'+(can?'pointer':'not-allowed')+';text-align:left';
+    b.innerHTML='<span style="font-size:22px">'+P0.emoji+'</span><span style="flex:1">'+P0.label
+      +(owned?' <span style="opacity:.6;font-size:11px">x'+owned+'</span>':'')+'</span><span>💎 '+P0.cost+'</span>';
+    b.onclick=()=>adoptPet(k);
+    list.appendChild(b);
+  }
+  document.getElementById('shopcoins').textContent='💎 '+starCount;
 }
 
 /* ============================================================
@@ -3594,7 +3905,7 @@ function crashReport(e){
   el.style.display='block';
   el.innerHTML='⚠️ <b>'+String(msg).replace(/[<>&]/g,'').slice(0,140)+'</b><br>'
     +'<span style="opacity:.75;font-size:10px">'+String(where).replace(/[<>&]/g,'').trim().slice(0,120)+'</span><br>'
-    +'<span style="opacity:.55;font-size:10px">ISL-52 · '+navigator.userAgent.slice(0,68)+'</span>';
+    +'<span style="opacity:.55;font-size:10px">ISL-53 · '+navigator.userAgent.slice(0,68)+'</span>';
   el.onclick=()=>{try{navigator.clipboard.writeText(msg+'\n'+where+'\n'+navigator.userAgent)}catch(_){}
     toast('📋 copied — send it to Cap');};
 }
@@ -3799,6 +4110,19 @@ function frame(){
   tickStars(dt,t);
   tickRemotes(dt);
   tickCritters(dt);
+  tickFolks(dt);
+  tickBirds(dt,t);
+  tickFood(dt,t);
+  { // 🐾 the Pet Hut opens when you walk up to it
+    const near=Math.hypot(P.x-SHOP.x,P.z-SHOP.z)<7.5;
+    const el=document.getElementById('shop');
+    if(near!==!!el.dataset.open){
+      el.dataset.open=near?'1':'';
+      el.style.display=near?'block':'none';
+      if(near)shopRefresh();
+    }
+    if(near)document.getElementById('shopcoins').textContent='💎 '+starCount;
+  }
   tickSkels(dt);
   tickRaid(dt);   // ⛵ …which had NEVER been called. The ship spawned on the horizon
                   //    and sat there for eternity, and no raid ever landed. Not once.
