@@ -94,7 +94,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-38</div>
+<div class="hud" id="tag">ISL-39</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -445,7 +445,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-38'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-39'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -1039,6 +1039,7 @@ function buildWorld(){
   raidStart(); // ⛵ the first raid ship appears on the horizon
   makeHoop();makeCourt();makeBall(); // 🏀 Elikai's full court on the west beach
   buildSlide();                      // 🌊 the volcano waterslide
+  makeAim();                         // 🎯 the aim guide
   // 🦌 the islanders: deer family + a stag + a flamingo by the water
   addCritter('deer',36,52,1.5);
   addCritter('deer',44,60,1.4);
@@ -2080,7 +2081,7 @@ function shotSpeed(d,h,rimY){
 // which basket are you actually shooting at?
 function aimRim(){
   if(!RIMS.length)return null;
-  const fx=Math.sin(P.yaw),fz=Math.cos(P.yaw);
+  const fx=Math.sin(camYaw),fz=Math.cos(camYaw);   // 🎯 the camera is the crosshair
   let best=null,bs=-1e9;
   for(const R of RIMS){
     const dx=R.x-P.x,dz=R.z-P.z,d=Math.hypot(dx,dz)||0.001;
@@ -2194,34 +2195,85 @@ function startCharge(){
   charging=true;chargeT=0;
   document.getElementById('pwrwrap').style.display='block';
 }
-function throwBall(){
-  if(!charging||BALL.mode!=='carried')return;
-  charging=false;
-  document.getElementById('pwrwrap').style.display='none';
-  // 🎯 AIM assist: if you're facing the basket, the LINE is given to you (plus a
-  // human wobble so it's never robotic). POWER is entirely yours — and the power
-  // is what the honest physics then judges. Miss it and you hit iron, for real.
-  let yaw=P.yaw;
-  const R=aimRim();
+/* 🎯 THE ONE SHOT SOLVER — throwBall AND the dotted trajectory both call this, so
+   what you see is exactly what leaves her hands. Line comes from the CAMERA:
+   drag to look = drag to aim. AIM assist still snaps the line if you're pointed at
+   the basket (plus a human wobble at release so it's never robotic) — POWER is
+   entirely yours, and the honest physics still judges it. */
+function shotPlan(wobble){
+  let yaw=aimYaw();                       // 🎯 you shoot where you LOOK
   let th=52*Math.PI/180;
+  const R=aimRim();
   if(R){
     const bearing=Math.atan2(R.x-P.x,R.z-P.z);
     const diff=((bearing-yaw+Math.PI*3)%(Math.PI*2))-Math.PI;
-    if(Math.abs(diff)<0.35)yaw=bearing+(Math.random()-0.5)*0.012;
+    if(Math.abs(diff)<0.35)yaw=bearing+(wobble?(Math.random()-0.5)*0.012:0);
     const d=Math.max(0.5,Math.hypot(R.x-P.x,R.z-P.z)-RELEASE_FWD);
     th=shotAngle(d,R.y-(groundAt(P.x,P.z)+RELEASE_H)); // she puts the right arc on it
   }
   const speed=SHOT_V0+chargeT*SHOT_VR;
   const ca=Math.cos(th), sa=Math.sin(th);
+  return {yaw,
+    x:P.x+Math.sin(yaw)*RELEASE_FWD, y:groundAt(P.x,P.z)+RELEASE_H, z:P.z+Math.cos(yaw)*RELEASE_FWD,
+    vx:Math.sin(yaw)*speed*ca, vy:speed*sa, vz:Math.cos(yaw)*speed*ca};
+}
+function throwBall(){
+  if(!charging||BALL.mode!=='carried')return;
+  charging=false;
+  document.getElementById('pwrwrap').style.display='none';
+  const s=shotPlan(true);
+  P.yaw=s.yaw;                            // she turns and faces the shot
   BALL.mode='flying';BALL.scored=false;BALL.rattled=false;BALL.glass=false;BALL.grounded=false;
   BALL.fromX=P.x;BALL.fromZ=P.z;
-  BALL.x=P.x+Math.sin(yaw)*RELEASE_FWD;
-  BALL.z=P.z+Math.cos(yaw)*RELEASE_FWD;
-  BALL.y=groundAt(P.x,P.z)+RELEASE_H;
-  BALL.vx=Math.sin(yaw)*speed*ca;
-  BALL.vz=Math.cos(yaw)*speed*ca;
-  BALL.vy=speed*sa;                       // a real 52° release arc
+  BALL.x=s.x;BALL.y=s.y;BALL.z=s.z;
+  BALL.vx=s.vx;BALL.vy=s.vy;BALL.vz=s.vz;
   playAnim('Attack',0.07);sfxSwing();
+  aimHide();
+}
+
+/* ============================================================
+   🎯 AIMING · the camera IS the crosshair
+   Drag (mouse) or swipe (touch) turns camYaw — and camYaw is what
+   every swing, throw and blast now fires along. While the ball is in
+   her hands, the real arc is drawn: same solver, same GRAV, no drag.
+   ============================================================ */
+const aimYaw=()=>camYaw;
+let aimDots=null,aimRing=null;
+function makeAim(){
+  aimDots=[];
+  const dm=new THREE.MeshBasicMaterial({color:0xffe14d,transparent:true,opacity:0.9,depthWrite:false});
+  for(let i=0;i<11;i++){
+    const d=new THREE.Mesh(new THREE.SphereGeometry(0.075,7,6),dm);
+    d.visible=false;d.renderOrder=3;scene.add(d);aimDots.push(d);
+  }
+  aimRing=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.085,7,20),
+    new THREE.MeshBasicMaterial({color:0x2bd9ff,transparent:true,opacity:0.92,depthWrite:false}));
+  aimRing.rotation.x=-Math.PI/2;aimRing.visible=false;aimRing.renderOrder=3;scene.add(aimRing);
+}
+function aimHide(){
+  if(aimRing)aimRing.visible=false;
+  if(aimDots)for(const d of aimDots)d.visible=false;
+}
+function aimUpdate(){
+  if(!aimRing)return;
+  if(!ball||BALL.mode!=='carried'||RIDE.on||FLY.on||performance.now()<downUntil){aimHide();return}
+  const s=shotPlan(false);                 // no wobble — this is the honest line
+  let {x,y,z,vx,vy,vz}=s;
+  const h=1/120, path=[];                  // same integrator tickBall flies, same GRAV, no drag
+  for(let i=0;i<900;i++){
+    vy-=GRAV*h;x+=vx*h;y+=vy*h;z+=vz*h;
+    if(i%4===0)path.push([x,y,z]);
+    if(y<=groundAt(x,z)+0.12&&vy<0)break;
+  }
+  for(let i=0;i<aimDots.length;i++){
+    const pt=path[Math.floor((i+1)/(aimDots.length+1)*path.length)];
+    if(pt){aimDots[i].position.set(pt[0],pt[1],pt[2]);aimDots[i].visible=true}
+    else aimDots[i].visible=false;
+  }
+  const e=path[path.length-1]||[x,y,z];
+  aimRing.position.set(e[0],groundAt(e[0],e[2])+0.09,e[2]);
+  aimRing.scale.setScalar(charging?1.15+Math.sin(performance.now()/90)*0.1:1);
+  aimRing.visible=true;
 }
 function tickBall(dt){
   if(!ball)return;
@@ -2636,6 +2688,8 @@ function doAttack(){
   const now=performance.now();
   if(now<attackUntil||now<downUntil)return;
   attackUntil=now+700;
+  const ay=aimYaw();   // 🎯 you swing where you LOOK
+  P.yaw=ay;
   playAnim('Attack',0.07);
   sfxSwing();fxSlash();
   { // 🏄‍♀️ Kai swings the board itself — it twirls off her back
@@ -2643,7 +2697,7 @@ function doAttack(){
     if(bg){bg.userData.spin=0.7}
   }
   setTimeout(()=>{ // the swing lands mid-animation
-    const fwx=Math.sin(P.yaw),fwz=Math.cos(P.yaw);
+    const fwx=Math.sin(ay),fwz=Math.cos(ay);
     // 🥊 PvP: friends in the arc take battle damage (relayed via the club server)
     const reach=(ROSTER[heroKey]&&ROSTER[heroKey].reach)||2.8;
     for(const [nm,rm] of remotes){
@@ -2923,6 +2977,10 @@ function loop(){
     }
     if(window.surfing&&groundAt(P.x,P.z)>0.2)window.surfing=false;
   }
+  // 🎯 look = aim: dragging on the spot turns her, and a charged shot always faces
+  // the camera — so what you're aiming at is what you can see
+  if(!onSlide&&(charging||(mag<=0.05&&dragId!==null)))P.yaw=camYaw;
+
   // jump + gravity
   const g0=groundAt(P.x,P.z);
   if(onSlide){wantJump=false;P.vy=0;P.air=0}
@@ -3048,6 +3106,7 @@ function loop(){
   tickBursts(dt);
   tickFx(dt);
   tickBall(dt);
+  aimUpdate();   // 🎯 live trajectory while the ball's in her hands
   tickConfetti(dt);
   tickTitan(dt);
   { // board twirl during her swing
