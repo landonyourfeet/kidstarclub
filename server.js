@@ -21,7 +21,13 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process
 pool.on('error', e => console.error('[pg-pool]', e?.message || e));
 
 app.use(express.json({ limit: '2mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    // 🍎 iOS Safari will happily hand a kid a week-old island.html out of its cache.
+    // The GLBs are cache-busted by ASSET_V; the HTML itself never was. Now it is.
+    if (/\.html$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  }
+}));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // ---------- Auth (signed cookie sessions, zero deps) ----------
