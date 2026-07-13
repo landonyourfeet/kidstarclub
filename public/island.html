@@ -49,7 +49,7 @@
   <button id="playBtn">▶ &nbsp;EXPLORE THE ISLAND</button>
 </div>
 <div class="hud" id="hint">collect 💎 & slay ☠️ raiders (+25) · first to 100 WINS · KO = lose everything</div>
-<div class="hud" id="tag">ISL-25</div>
+<div class="hud" id="tag">ISL-26</div>
 <button id="exitBtn" style="position:fixed;right:12px;top:12px;z-index:12;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:rgba(6,20,40,.7);color:#ffe14d;font-weight:800;font-size:13px;cursor:pointer">← Arcade</button>
 <div class="hud" id="stars" style="left:14px;top:12px;background:rgba(6,20,40,.65);color:#6fe0ff;padding:8px 16px;border-radius:999px;font-weight:800;font-size:16px">💎 0</div>
 <div class="hud" id="board" style="left:50%;transform:translateX(-50%);top:12px;background:rgba(6,20,40,.7);color:#fff;padding:7px 16px;border-radius:14px;font-size:12px;font-weight:700;min-width:150px;text-align:left;line-height:1.55"></div>
@@ -188,6 +188,7 @@ function groundAt(x,z){
       if(d>R-22)h*=Math.max(.06,(R-d)/22);                   // beach taper
     }
   }
+  if(window.__courtReady&&onCourt(x,z))return window.__courtY; // level hardwood (flag avoids TDZ on HOOP)
   const vd=Math.hypot(x-VOLC.x,z-VOLC.z);                    // the volcano
   if(vd<VOLC.R){
     const t=1-vd/VOLC.R;
@@ -321,7 +322,7 @@ let smoke=[],craterGlow;
 /* ============================================================
    ASSETS · the factory-wired Synty GLBs already on the server
    ============================================================ */
-const ASSET_V='ISL-25'; // bump with every asset change: guarantees fresh files
+const ASSET_V='ISL-26'; // bump with every asset change: guarantees fresh files
 const FILES={
   tree1:'CommonTree_1.glb',tree2:'CommonTree_3.glb',tree3:'CommonTree_5.glb',
   pine1:'PineTree_1.glb',pine2:'PineTree_3.glb',birch:'BirchTree_1.glb',willow:'Willow_1.glb',
@@ -1355,13 +1356,20 @@ function makeCourt(){
   const t=new THREE.CanvasTexture(cv);t.encoding=THREE.sRGBEncoding;
   const court=new THREE.Mesh(new THREE.PlaneGeometry(W,L),
     new THREE.MeshLambertMaterial({map:t,transparent:true,opacity:0.96}));
-  court.rotation.x=-Math.PI/2;
-  const back=new THREE.Vector3(Math.sin(HOOP.ry),0,Math.cos(HOOP.ry));
-  HOOP.courtC={x:HOOP.x+back.x*(L/2-1.575),z:HOOP.z+back.z*(L/2-1.575)};
-  court.position.set(HOOP.courtC.x,groundAt(HOOP.x,HOOP.z)+0.06,HOOP.courtC.z);
-  court.rotation.z=-HOOP.ry;
+  court.rotation.x=-Math.PI/2; // canvas-top (the rim end) now faces local -Z
+  // deterministic placement: a holder group carries ALL the rotation
+  const holder=new THREE.Group();
+  holder.rotation.y=HOOP.ry;
+  // hoop sits at the holder's local -Z end; court center is (L/2 - 1.575) toward local +Z from the hoop
+  const fwd=new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0),HOOP.ry);
+  HOOP.courtC={x:HOOP.x+fwd.x*(L/2-1.575),z:HOOP.z+fwd.z*(L/2-1.575)};
+  holder.position.set(HOOP.courtC.x,groundAt(HOOP.x,HOOP.z)+0.06,HOOP.courtC.z);
+  holder.add(court);
   court.receiveShadow=true;
-  scene.add(court);
+  scene.add(holder);
+  // flatten the court zone so lines never sink into terrain bumps
+  window.__courtY=groundAt(HOOP.x,HOOP.z);
+  window.__courtReady=true;
 }
 let ball=null;
 const BALL={mode:'ground',x:-68,z:100,y:0,vx:0,vy:0,vz:0,rest:0,prevY:0};
@@ -1381,11 +1389,12 @@ function makeBall(){
   BALL.y=groundAt(BALL.x,BALL.z)+0.34;
   scene.add(ball);
 }
-function onCourt(x,z){ // regulation court-local rectangle test
+function onCourt(x,z){ // regulation court-local rectangle test (Y-rotation inverse, matching the holder)
   if(!HOOP.courtC)return false;
-  const cx=x-HOOP.courtC.x, cz=z-HOOP.courtC.z;
-  const lx=cx*Math.cos(-HOOP.ry)-cz*Math.sin(-HOOP.ry);
-  const lz=cx*Math.sin(-HOOP.ry)+cz*Math.cos(-HOOP.ry);
+  const dx=x-HOOP.courtC.x, dz=z-HOOP.courtC.z;
+  const c=Math.cos(HOOP.ry), s2=Math.sin(HOOP.ry);
+  const lx=dx*c-dz*s2;   // inverse of rotation.y=ry applied to (x,z)
+  const lz=dx*s2+dz*c;
   return Math.abs(lx)<7.62&&Math.abs(lz)<14.35;
 }
 function ballRespawn(){
